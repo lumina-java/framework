@@ -42,4 +42,31 @@ impl UserController {
         let rendered = state.view.render("users/show.html", &context);
         Html(rendered)
     }
+
+    /// POST /api/users — Buat user baru dengan validasi
+    pub async fn store(
+        crate::core::validation::ValidatedJson(payload): crate::core::validation::ValidatedJson<CreateUserRequest>
+    ) -> axum::Json<serde_json::Value> {
+        // Jika sampai sini, data dipastikan valid
+        axum::Json(json!({
+            "status": "success",
+            "message": "User created successfully",
+            "data": payload
+        }))
+    }
+}
+
+use serde::Deserialize;
+use validator::Validate;
+
+#[derive(Debug, Deserialize, Validate, serde::Serialize)]
+pub struct CreateUserRequest {
+    #[validate(length(min = 3, message = "Nama minimal 3 karakter"))]
+    pub name: String,
+
+    #[validate(email(message = "Format email tidak valid"))]
+    pub email: String,
+
+    #[validate(length(min = 8, message = "Password minimal 8 karakter"))]
+    pub password: String,
 }

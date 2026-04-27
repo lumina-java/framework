@@ -13,11 +13,14 @@ use axum::{
 ///     .get("/users/:id", UserController::show)
 ///     .post("/users",    UserController::store)
 /// ```
-pub struct Router {
-    inner: AxumRouter,
+pub struct Router<S = ()> {
+    inner: AxumRouter<S>,
 }
 
-impl Router {
+impl<S> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
     /// Buat router baru yang kosong.
     pub fn new() -> Self {
         Self {
@@ -26,10 +29,9 @@ impl Router {
     }
 
     /// Daftarkan route GET.
-    /// Mendukung path parameter: `"/users/:id"`, `"/posts/:slug"`
     pub fn get<H, T>(mut self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, ()>,
+        H: Handler<T, S>,
         T: 'static,
     {
         self.inner = self.inner.route(path, routing::get(handler));
@@ -39,7 +41,7 @@ impl Router {
     /// Daftarkan route POST.
     pub fn post<H, T>(mut self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, ()>,
+        H: Handler<T, S>,
         T: 'static,
     {
         self.inner = self.inner.route(path, routing::post(handler));
@@ -49,7 +51,7 @@ impl Router {
     /// Daftarkan route PUT.
     pub fn put<H, T>(mut self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, ()>,
+        H: Handler<T, S>,
         T: 'static,
     {
         self.inner = self.inner.route(path, routing::put(handler));
@@ -59,7 +61,7 @@ impl Router {
     /// Daftarkan route DELETE.
     pub fn delete<H, T>(mut self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, ()>,
+        H: Handler<T, S>,
         T: 'static,
     {
         self.inner = self.inner.route(path, routing::delete(handler));
@@ -69,42 +71,40 @@ impl Router {
     /// Daftarkan route PATCH.
     pub fn patch<H, T>(mut self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, ()>,
+        H: Handler<T, S>,
         T: 'static,
     {
         self.inner = self.inner.route(path, routing::patch(handler));
         self
     }
 
-    /// Gabungkan dengan Router lain (untuk merging web + api routes).
-    pub fn merge(mut self, other: Router) -> Self {
+    /// Gabungkan dengan Router lain.
+    pub fn merge(mut self, other: Router<S>) -> Self {
         self.inner = self.inner.merge(other.inner);
         self
     }
 
     /// Nest router lain di bawah prefix tertentu.
-    ///
-    /// Contoh: `.nest("/api", api_router)` → semua route dalam `api_router`
-    /// akan diakses sebagai `/api/...`
-    pub fn nest(mut self, prefix: &str, other: Router) -> Self {
+    pub fn nest(mut self, prefix: &str, other: Router<S>) -> Self {
         self.inner = self.inner.nest(prefix, other.inner);
         self
     }
 
     /// Buat Lumina Router dari `axum::Router` yang sudah ada.
-    /// Berguna ketika perlu menggunakan fitur Axum seperti `route_layer`
-    /// yang tidak terekspos langsung oleh Lumina Router.
-    pub fn from_axum(router: AxumRouter) -> Self {
+    pub fn from_axum(router: AxumRouter<S>) -> Self {
         Self { inner: router }
     }
 
-    /// Konsumsi Router ini menjadi `axum::Router` untuk dipakai oleh server.
-    pub fn into_axum(self) -> AxumRouter {
+    /// Konsumsi Router ini menjadi `axum::Router`.
+    pub fn into_axum(self) -> AxumRouter<S> {
         self.inner
     }
 }
 
-impl Default for Router {
+impl<S> Default for Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
     fn default() -> Self {
         Self::new()
     }

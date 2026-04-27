@@ -6,7 +6,6 @@ use axum::{
     Json,
 };
 use serde::Serialize;
-use serde_json;
 use validator::Validate;
 use std::collections::HashMap;
 
@@ -38,6 +37,30 @@ where
         }
 
         Ok(ValidatedJson(value))
+    }
+}
+
+/// Wrapper untuk Axum Form extractor yang melakukan validasi otomatis.
+pub struct ValidatedForm<T>(pub T);
+
+#[async_trait]
+impl<S, T> FromRequest<S> for ValidatedForm<T>
+where
+    S: Send + Sync,
+    T: Validate + serde::de::DeserializeOwned + 'static,
+{
+    type Rejection = Response;
+
+    async fn from_request(req: Request<axum::body::Body>, state: &S) -> Result<Self, Self::Rejection> {
+        let axum::Form(value) = axum::Form::<T>::from_request(req, state)
+            .await
+            .map_err(|rejection| rejection.into_response())?;
+
+        if let Err(errors) = value.validate() {
+            return Err(ValidationErrorResponse::from(errors).into_response());
+        }
+
+        Ok(ValidatedForm(value))
     }
 }
 

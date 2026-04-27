@@ -1,8 +1,8 @@
 use serde::{Serialize, Deserialize};
 
+pub mod hash;
+
 /// Payload yang tersimpan di dalam JWT token.
-///
-/// `sub` = user_id, `exp` = unix timestamp expiry, `iat` = unix timestamp issued at.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub:   String,   // user_id
@@ -13,7 +13,6 @@ pub struct Claims {
 }
 
 impl Claims {
-    /// Buat Claims baru dengan expiry = sekarang + `hours` jam.
     pub fn new(user_id: i64, email: String, role: String, hours: usize) -> Self {
         use std::time::{SystemTime, UNIX_EPOCH};
         let now = SystemTime::now()

@@ -48,7 +48,7 @@ impl Application {
 
         // 3. Jalankan migrasi otomatis
         println!("🔄 Running migrations...");
-        migration::run_migrations(&pool.pool)
+        migration::run_migrations(&pool.pool, pool.kind)
             .await
             .expect("❌ Migration failed");
         println!("✅ Migrations done.");

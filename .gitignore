@@ -1,0 +1,36 @@
+# ============================================
+# Lumina Framework - .gitignore
+# ============================================
+
+# --- Rust Build Output ---
+# Folder ini berisi hasil kompilasi, JANGAN dicommit
+/target/
+Cargo.lock
+
+# --- Environment Variables ---
+# File .env berisi secret/config lokal, JANGAN dicommit
+.env
+
+# --- OS Files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Editor / IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Logs ---
+storage/logs/*.log
+*.log
+
+# --- Temporary Files ---
+*.tmp
+*.bak
+
+# --- Cache ---
+storage/cache/*
+!storage/cache/.gitkeep

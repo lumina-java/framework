@@ -1,0 +1,22 @@
+use axum::Json;
+use serde_json::{json, Value};
+
+pub struct {{name}};
+
+impl {{name}} {
+    /// GET /
+    pub async fn index() -> Json<Value> {
+        Json(json!({
+            "success": true,
+            "message": "Index from {{name}}"
+        }))
+    }
+
+    /// POST /
+    pub async fn store() -> Json<Value> {
+        Json(json!({
+            "success": true,
+            "message": "Store from {{name}}"
+        }))
+    }
+}

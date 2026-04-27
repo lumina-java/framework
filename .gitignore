@@ -34,3 +34,10 @@ storage/logs/*.log
 # --- Cache ---
 storage/cache/*
 !storage/cache/.gitkeep
+
+# --- Databases ---
+*.db
+*.sqlite
+
+# --- Temporary Artifacts ---
+.github/*.md

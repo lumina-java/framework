@@ -4,6 +4,7 @@ pub mod app;
 pub mod database;
 pub mod config;
 pub mod support;
+pub mod cli;
 
 // Include route files sebagai bagian dari crate.
 // Teknik #[path] membuat routes/web.rs bisa menggunakan `crate::` paths

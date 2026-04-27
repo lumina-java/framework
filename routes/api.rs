@@ -5,15 +5,11 @@ use crate::app::controllers::{
     auth_controller::AuthController,
 };
 use crate::http::middleware::auth_required;
+use crate::core::application::AppState;
+use std::sync::Arc;
 
 /// Registrasi semua API Routes (JSON responses).
-///
-/// Dibagi dua group:
-/// - **Public**   → tidak perlu token (`/auth/login`, `/auth/register`)
-/// - **Protected** → wajib `Authorization: Bearer <token>` (`/auth/me`, `/users`, ...)
-///
-/// Semua route di sini akan diprefix `/api` oleh `Application::build_router()`.
-pub fn register() -> Router {
+pub fn register() -> Router<Arc<AppState>> {
     // ── Public routes — tidak perlu JWT ──────────────────────────────────────
     let public = AxumRouter::new()
         .route("/auth/login",    routing::post(AuthController::login))

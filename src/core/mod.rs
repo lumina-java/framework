@@ -5,3 +5,4 @@ pub mod response;
 pub mod middleware;
 pub mod container;
 pub mod auth;
+pub mod view;

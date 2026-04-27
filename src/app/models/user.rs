@@ -51,7 +51,7 @@ impl Model for User {
         .execute(&pool.pool)
         .await?;
 
-        Ok(result.last_insert_rowid())
+        Ok(result.last_insert_id().unwrap_or(0))
     }
 
     async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {

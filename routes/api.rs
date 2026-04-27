@@ -3,6 +3,7 @@ use crate::core::router::Router;
 use crate::app::controllers::{
     api_controller::ApiController,
     auth_controller::AuthController,
+    product_controller::ProductController,
 };
 use crate::http::middleware::auth_required;
 use crate::core::application::AppState;
@@ -13,7 +14,9 @@ pub fn register() -> Router<Arc<AppState>> {
     // ── Public routes — tidak perlu JWT ──────────────────────────────────────
     let public = AxumRouter::new()
         .route("/auth/login",    routing::post(AuthController::api_login))
-        .route("/auth/register", routing::post(AuthController::api_register));
+        .route("/auth/register", routing::post(AuthController::api_register))
+        .route("/products",     routing::get(ProductController::index))
+        .route("/products/:id", routing::get(ProductController::show));
 
     // ── Protected routes — wajib Bearer token ───────────────────────────────
     // .route_layer() menerapkan middleware hanya ke route-route di dalam group ini

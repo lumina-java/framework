@@ -12,8 +12,8 @@ use std::sync::Arc;
 pub fn register() -> Router<Arc<AppState>> {
     // ── Public routes — tidak perlu JWT ──────────────────────────────────────
     let public = AxumRouter::new()
-        .route("/auth/login",    routing::post(AuthController::login))
-        .route("/auth/register", routing::post(AuthController::register));
+        .route("/auth/login",    routing::post(AuthController::api_login))
+        .route("/auth/register", routing::post(AuthController::api_register));
 
     // ── Protected routes — wajib Bearer token ───────────────────────────────
     // .route_layer() menerapkan middleware hanya ke route-route di dalam group ini

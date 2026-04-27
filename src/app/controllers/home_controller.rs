@@ -24,4 +24,9 @@ impl HomeController {
         // let rendered = state.view.render("home/about.html", &context);
         Html("<h1>About Page</h1><p>Rendering via Template Engine coming soon...</p>".to_string())
     }
+
+    /// GET /debug/panic — Menghasilkan panic untuk testing Error 500
+    pub async fn debug_panic() -> Html<String> {
+        panic!("Sengaja dibuat panic untuk testing halaman error 500 Lumina!");
+    }
 }

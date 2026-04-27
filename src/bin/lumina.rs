@@ -29,6 +29,9 @@ enum Commands {
         /// Name of the migration (e.g. create_products_table)
         name: String,
     },
+    /// Start the HTTP server
+    #[command(name = "serve")]
+    Serve,
 }
 
 #[tokio::main]
@@ -44,6 +47,17 @@ async fn main() {
         }
         Commands::MakeMigration { name } => {
             cli::handle_make_migration(&name).await;
+        }
+        Commands::Serve => {
+            println!("🚀 Starting Lumina Server...");
+            let mut child = std::process::Command::new("cargo")
+                .arg("run")
+                .arg("--bin")
+                .arg("lumina-server")
+                .spawn()
+                .expect("Failed to start server");
+            
+            let _ = child.wait();
         }
     }
 }

@@ -43,17 +43,29 @@ impl ApiController {
         }))
     }
 
-    /// POST /api/users — Simulasi pembuatan user baru
-    pub async fn store() -> Json<Value> {
+    /// POST /api/users — Simulasi pembuatan user baru dengan validasi
+    pub async fn store(
+        crate::core::validation::ValidatedJson(payload): crate::core::validation::ValidatedJson<CreateUserRequest>
+    ) -> Json<Value> {
         Json(json!({
             "success": true,
             "message": "User created successfully",
-            "data": {
-                "id":    4,
-                "name":  "New User",
-                "email": "new@lumina.rs",
-                "role":  "developer"
-            }
+            "data": payload
         }))
     }
+}
+
+use serde::Deserialize;
+use validator::Validate;
+
+#[derive(Debug, Deserialize, Validate, serde::Serialize)]
+pub struct CreateUserRequest {
+    #[validate(length(min = 3, message = "Nama minimal 3 karakter"))]
+    pub name: String,
+
+    #[validate(email(message = "Format email tidak valid"))]
+    pub email: String,
+
+    #[validate(length(min = 8, message = "Password minimal 8 karakter"))]
+    pub password: String,
 }

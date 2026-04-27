@@ -91,6 +91,13 @@ impl Router {
         self
     }
 
+    /// Buat Lumina Router dari `axum::Router` yang sudah ada.
+    /// Berguna ketika perlu menggunakan fitur Axum seperti `route_layer`
+    /// yang tidak terekspos langsung oleh Lumina Router.
+    pub fn from_axum(router: AxumRouter) -> Self {
+        Self { inner: router }
+    }
+
     /// Konsumsi Router ini menjadi `axum::Router` untuk dipakai oleh server.
     pub fn into_axum(self) -> AxumRouter {
         self.inner

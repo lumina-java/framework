@@ -1,14 +1,16 @@
-use axum::{extract::Request, middleware::Next, response::Response};
+use axum::{
+    body::Body,
+    extract::Request,
+    middleware::Next,
+    response::Response,
+};
 use std::time::Instant;
 
-/// Middleware logger — mencatat setiap HTTP request masuk ke terminal.
+// ─── Request Logger ────────────────────────────────────────────────────────────
+
+/// Middleware logger — mencatat setiap HTTP request ke terminal dengan warna.
 ///
-/// Output format:
-/// ```
-///   [GET]    /users      → 200  (1.23ms)
-///   [POST]   /api/users  → 201  (0.87ms)
-///   [GET]    /not-found  → 404  (0.12ms)
-/// ```
+/// Format: `[METHOD] /path → STATUS (ms)`
 pub async fn logger(req: Request, next: Next) -> Response {
     let method = req.method().clone();
     let path   = req.uri().path().to_string();
@@ -20,25 +22,23 @@ pub async fn logger(req: Request, next: Next) -> Response {
     let status  = response.status();
     let ms      = elapsed.as_secs_f64() * 1000.0;
 
-    // Pilih warna berdasarkan HTTP method
     let method_color = match method.as_str() {
-        "GET"    => "\x1b[34m", // biru
-        "POST"   => "\x1b[32m", // hijau
-        "PUT"    => "\x1b[33m", // kuning
-        "DELETE" => "\x1b[31m", // merah
-        "PATCH"  => "\x1b[35m", // magenta
-        _        => "\x1b[37m", // putih
+        "GET"    => "\x1b[34m",
+        "POST"   => "\x1b[32m",
+        "PUT"    => "\x1b[33m",
+        "DELETE" => "\x1b[31m",
+        "PATCH"  => "\x1b[35m",
+        _        => "\x1b[37m",
     };
 
-    // Pilih warna berdasarkan status code
     let status_color = if status.is_success() {
-        "\x1b[32m"      // hijau
+        "\x1b[32m"
     } else if status.is_client_error() {
-        "\x1b[33m"      // kuning
+        "\x1b[33m"
     } else if status.is_server_error() {
-        "\x1b[31m"      // merah
+        "\x1b[31m"
     } else {
-        "\x1b[37m"      // putih
+        "\x1b[37m"
     };
 
     println!(
@@ -52,4 +52,47 @@ pub async fn logger(req: Request, next: Next) -> Response {
     );
 
     response
+}
+
+// ─── Auth Middleware ────────────────────────────────────────────────────────────
+
+/// Middleware autentikasi — memvalidasi JWT Bearer token dari header `Authorization`.
+///
+/// Jika token valid: request diteruskan ke handler.
+/// Jika tidak ada atau invalid: kembalikan `401 Unauthorized` dengan JSON error.
+///
+/// Penggunaan di routes:
+/// ```rust
+/// let protected = AxumRouter::new()
+///     .route("/me", get(handler))
+///     .route_layer(from_fn(auth_required));
+/// ```
+pub async fn auth_required(req: Request, next: Next) -> Response {
+    let token = req
+        .headers()
+        .get("Authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(|t| t.to_string());
+
+    match token {
+        None => unauthorized_json("Token tidak ditemukan. Sertakan header: Authorization: Bearer <token>"),
+        Some(t) => match crate::http::auth::validate_token(&t) {
+            Ok(_claims) => next.run(req).await,
+            Err(e) => unauthorized_json(&format!("Token invalid atau expired: {}", e)),
+        },
+    }
+}
+
+/// Helper — buat Response 401 dengan body JSON.
+fn unauthorized_json(message: &str) -> Response {
+    let body = serde_json::json!({
+        "success": false,
+        "message": message
+    });
+    Response::builder()
+        .status(401)
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap()
 }

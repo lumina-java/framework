@@ -11,6 +11,7 @@ use std::sync::Arc;
 pub struct AppState {
     pub db: Arc<DatabasePool>,
     pub view: ViewEngine,
+    pub auth_service: Arc<crate::app::services::auth_service::AuthService>,
 }
 
 #[allow(dead_code)]
@@ -54,9 +55,13 @@ impl Application {
         println!("✅ Migrations done.");
 
         // 4. Inisialisasi AppState
+        let db_pool = Arc::new(pool);
+        let auth_service = Arc::new(crate::app::services::auth_service::AuthService::new(db_pool.clone()));
+
         let state = Arc::new(AppState {
-            db: Arc::new(pool),
+            db: db_pool,
             view,
+            auth_service,
         });
 
         // 5. Serve HTTP

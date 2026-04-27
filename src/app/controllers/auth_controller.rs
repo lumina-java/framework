@@ -7,9 +7,6 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 use crate::core::application::AppState;
 use crate::core::validation::{ValidatedForm, ValidatedJson};
-use crate::core::auth::{Claims, hash};
-use crate::app::models::user::User;
-use crate::database::model::Model;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -33,21 +30,12 @@ impl AuthController {
         State(state): State<Arc<AppState>>,
         ValidatedForm(payload): ValidatedForm<RegisterRequest>
     ) -> impl IntoResponse {
-        // 1. Hash password
-        let hashed_password = hash::make(&payload.password);
-
-        // 2. Simpan ke database
-        let user = User {
-            id: 0,
-            name: payload.name,
-            email: payload.email,
-            password: hashed_password,
-            role: "user".to_string(),
-        };
-
-        match user.save(&state.db).await {
-            Ok(_) => Redirect::to("/auth/login").into_response(),
-            Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)).into_response(),
+        match state.auth_service.register(payload.name, payload.email, payload.password).await {
+            Ok(_) => Redirect::to("/auth/login?success=Registrasi Berhasil! Silakan Login.").into_response(),
+            Err(e) => {
+                let uri = format!("/auth/register?error={}", e);
+                Redirect::to(&uri).into_response()
+            }
         }
     }
 
@@ -56,29 +44,15 @@ impl AuthController {
         State(state): State<Arc<AppState>>,
         ValidatedForm(payload): ValidatedForm<LoginRequest>
     ) -> impl IntoResponse {
-        // 1. Cari user berdasarkan email
-        let user = match User::find_by_email(&state.db, &payload.email).await {
-            Ok(u) => u,
-            Err(_) => return (axum::http::StatusCode::UNAUTHORIZED, "Email atau password salah").into_response(),
-        };
-
-        // 2. Verifikasi password
-        if !hash::check(&payload.password, &user.password) {
-            return (axum::http::StatusCode::UNAUTHORIZED, "Email atau password salah").into_response();
-        }
-
-        // 3. Generate JWT token
-        let claims = Claims::new(user.id, user.email, user.role, 24);
-        match crate::http::auth::generate_token(&claims) {
-            Ok(token) => {
-                // Di sini idealnya simpan di Cookie, tapi untuk demo kita kembalikan JSON
-                Json(json!({
-                    "success": true,
-                    "token": token,
-                    "message": "Login berhasil! Gunakan token ini di header Authorization: Bearer <token>"
-                })).into_response()
+        match state.auth_service.login(&payload.email, &payload.password).await {
+            Ok(_) => {
+                // Untuk demo web, kita redirect ke home dengan success message
+                Redirect::to("/?success=Login Berhasil! Selamat datang di Lumina.").into_response()
             },
-            Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Gagal generate token").into_response(),
+            Err(e) => {
+                let uri = format!("/auth/login?error={}", e);
+                Redirect::to(&uri).into_response()
+            }
         }
     }
 
@@ -87,18 +61,9 @@ impl AuthController {
         State(state): State<Arc<AppState>>,
         ValidatedJson(payload): ValidatedJson<RegisterRequest>
     ) -> Json<Value> {
-        let hashed_password = hash::make(&payload.password);
-        let user = User {
-            id: 0,
-            name: payload.name,
-            email: payload.email,
-            password: hashed_password,
-            role: "user".to_string(),
-        };
-
-        match user.save(&state.db).await {
+        match state.auth_service.register(payload.name, payload.email, payload.password).await {
             Ok(id) => Json(json!({"success": true, "message": "User registered", "id": id})),
-            Err(e) => Json(json!({"success": false, "message": format!("Error: {}", e)})),
+            Err(e) => Json(json!({"success": false, "message": e})),
         }
     }
 
@@ -107,19 +72,9 @@ impl AuthController {
         State(state): State<Arc<AppState>>,
         ValidatedJson(payload): ValidatedJson<LoginRequest>
     ) -> Json<Value> {
-        let user = match User::find_by_email(&state.db, &payload.email).await {
-            Ok(u) => u,
-            Err(_) => return Json(json!({"success": false, "message": "Unauthorized"})),
-        };
-
-        if !hash::check(&payload.password, &user.password) {
-            return Json(json!({"success": false, "message": "Unauthorized"}));
-        }
-
-        let claims = Claims::new(user.id, user.email, user.role, 24);
-        match crate::http::auth::generate_token(&claims) {
+        match state.auth_service.login(&payload.email, &payload.password).await {
             Ok(token) => Json(json!({"success": true, "token": token})),
-            Err(_) => Json(json!({"success": false, "message": "Token error"})),
+            Err(e) => Json(json!({"success": false, "message": e})),
         }
     }
 

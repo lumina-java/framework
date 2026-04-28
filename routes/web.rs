@@ -11,7 +11,7 @@ use axum::middleware::from_fn;
 /// Registrasi semua Web Routes (HTML responses).
 pub fn register() -> Router<Arc<AppState>> {
     // ─── Public Routes ───
-    let public = Router::new()
+    let public = Router::<Arc<AppState>>::new()
         .get("/",          HomeController::index)
         .get("/about",     HomeController::about)
         .get("/users",     UserController::index)
@@ -27,7 +27,7 @@ pub fn register() -> Router<Arc<AppState>> {
         .get("/debug/panic",    HomeController::debug_panic);
 
     // ─── Protected Routes (Hanya untuk User Login) ───
-    let protected = Router::new()
+    let protected = Router::<Arc<AppState>>::new()
         .get("/dashboard",   DashboardController::index)
         .get("/auth/logout",  AuthController::logout)
         .layer(from_fn(web_auth_required));

@@ -1,8 +1,7 @@
 use axum::{
-    body::Body,
     extract::Request,
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Response, Redirect},
 };
 use std::time::Instant;
 
@@ -57,16 +56,6 @@ pub async fn logger(req: Request, next: Next) -> Response {
 // ─── Auth Middleware ────────────────────────────────────────────────────────────
 
 /// Middleware autentikasi — memvalidasi JWT Bearer token dari header `Authorization`.
-///
-/// Jika token valid: request diteruskan ke handler.
-/// Jika tidak ada atau invalid: kembalikan `401 Unauthorized` dengan JSON error.
-///
-/// Penggunaan di routes:
-/// ```rust
-/// let protected = AxumRouter::new()
-///     .route("/me", get(handler))
-///     .route_layer(from_fn(auth_required));
-/// ```
 pub async fn auth_required(req: Request, next: Next) -> Response {
     let token = req
         .headers()
@@ -98,31 +87,29 @@ fn unauthorized_json(message: &str) -> Response {
 
 // ─── Web Auth Middleware ────────────────────────────────────────────────────────
 
-/// Middleware autentikasi untuk Web — memvalidasi JWT dari cookie `jwt`.
-///
-/// Jika valid: Claims disuntikkan ke Request Extensions.
-/// Jika tidak valid: Redirect ke `/auth/login`.
+/// Middleware autentikasi untuk Web — memvalidasi JWT dari Session.
 pub async fn web_auth_required(
-    cookie_jar: axum_extra::extract::CookieJar,
+    session: tower_sessions::Session,
     mut req: Request,
     next: Next,
 ) -> Response {
-    let token = cookie_jar
-        .get("jwt")
-        .map(|c| c.value().to_string());
+    let token = session.get::<String>("jwt").await.unwrap_or_default();
+    let flash = crate::core::session::FlashManager::new(&session);
 
     match token {
         Some(t) => match crate::http::auth::validate_token(&t) {
             Ok(claims) => {
-                // Simpan claims di request extension agar bisa diakses controller
                 req.extensions_mut().insert(claims);
                 next.run(req).await
             },
-            Err(_) => Redirect::to("/auth/login?error=Sesi berakhir. Silakan login kembali.").into_response(),
+            Err(_) => {
+                flash.error("Sesi berakhir. Silakan login kembali.").await;
+                Redirect::to("/auth/login").into_response()
+            },
         },
-        None => Redirect::to("/auth/login?error=Silakan login terlebih dahulu.").into_response(),
+        None => {
+            flash.error("Silakan login terlebih dahulu.").await;
+            Redirect::to("/auth/login").into_response()
+        },
     }
 }
-
-use axum::response::Redirect;
-use axum::response::IntoResponse;

@@ -56,7 +56,8 @@ impl UserController {
         use crate::app::models::user::User;
 
         // Ambil user pertama dengan email tertentu menggunakan ORM
-        let user = User::query(&state.db)
+        let db = state.db.as_ref().ok_or_else(|| crate::core::error::AppError::InternalServerError)?;
+        let user = User::query(db)
             .select("id, name, email, role, password")
             .filter("role", "=", "user")
             .order_by("id", "DESC")

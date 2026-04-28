@@ -7,11 +7,12 @@ pub struct HomeController;
 
 impl HomeController {
     /// GET /
-    pub async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
+    pub async fn index(
+        State(state): State<Arc<AppState>>,
+        session: tower_sessions::Session,
+    ) -> Html<String> {
         let context = Context::new();
-        // context.insert("name", "User");
-        
-        let rendered = state.view.render("home/index.html", &context);
+        let rendered = state.view.render_with_session("home/index.html", context, &session).await;
         Html(rendered)
     }
 

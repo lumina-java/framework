@@ -61,7 +61,14 @@
             "timeOut": "5000"
         };
 
-        // Otomatis cek query params untuk flash messages (Demo implementation)
+        // 1. Flash messages dari server (Session)
+        {% if flashes %}
+            {% for flash in flashes %}
+                toastr.{{ flash.kind }}("{{ flash.message }}");
+            {% endfor %}
+        {% endif %}
+
+        // 2. Fallback: Flash messages dari query params (Legacy/URL-based)
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('success')) {
             toastr.success(urlParams.get('success'));

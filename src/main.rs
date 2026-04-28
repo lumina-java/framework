@@ -4,6 +4,9 @@ use lumina::prelude::*;
 async fn main() {
     dotenv::dotenv().ok();
     
+    // Inisialisasi tracing-subscriber agar tracing::info dsb tercetak di console
+    tracing_subscriber::fmt::init();
+
     let app = Application::new();
     
     println!("✨ Lumina Framework");

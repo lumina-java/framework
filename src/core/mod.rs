@@ -8,4 +8,5 @@ pub mod container;
 pub mod auth;
 pub mod view;
 pub mod validation;
+pub mod security;
 pub mod session;

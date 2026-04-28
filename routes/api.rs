@@ -2,26 +2,24 @@ use axum::{Router as AxumRouter, routing, middleware::from_fn};
 use crate::core::router::Router;
 use crate::app::controllers::{
     api_controller::ApiController,
-    auth_controller::AuthController,
     product_controller::ProductController,
 };
 use crate::http::middleware::auth_required;
 use crate::core::application::AppState;
-use std::sync::Arc;
 
 /// Registrasi semua API Routes (JSON responses).
-pub fn register() -> Router<Arc<AppState>> {
+pub fn register() -> Router<AppState> {
     // ── Public routes — tidak perlu JWT ──────────────────────────────────────
     let public = AxumRouter::new()
-        .route("/auth/login",    routing::post(AuthController::api_login))
-        .route("/auth/register", routing::post(AuthController::api_register))
+        // .route("/auth/login",    routing::post(AuthController::api_login))
+        // .route("/auth/register", routing::post(AuthController::api_register))
         .route("/products",     routing::get(ProductController::index))
         .route("/products/:id", routing::get(ProductController::show));
 
     // ── Protected routes — wajib Bearer token ───────────────────────────────
     // .route_layer() menerapkan middleware hanya ke route-route di dalam group ini
     let protected = AxumRouter::new()
-        .route("/auth/me",   routing::get(AuthController::me))
+        // .route("/auth/me",   routing::get(AuthController::me))
         .route("/users",     routing::get(ApiController::index))
         .route("/users/:id", routing::get(ApiController::show))
         .route("/users",     routing::post(ApiController::store))

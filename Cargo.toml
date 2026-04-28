@@ -16,7 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-axum = "0.7"
+axum = { version = "0.7", features = ["macros"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dotenv = "0.15"
@@ -32,12 +32,13 @@ regex = "1"
 validator = { version = "0.18", features = ["derive"] }
 bcrypt = "0.15"
 tower-http = { version = "0.5", features = ["catch-panic", "cors", "trace"] }
-axum-extra = { version = "0.9", features = ["cookie"] }
+axum-extra = { version = "0.9", features = ["cookie", "cookie-private"] }
 tower = "0.4"
 thiserror = "2.0.18"
 tower-sessions = "0.13"
 tower-sessions-sqlx-store = { version = "0.13", features = ["sqlite"] }
 time = "0.3.47"
+axum_csrf = { version = "0.10.0", features = ["layer"] }
 
 [[bin]]
 name = "lumina"

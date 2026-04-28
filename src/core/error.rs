@@ -17,6 +17,9 @@ pub enum AppError {
     #[error("Validasi gagal: {0}")]
     ValidationError(String),
 
+    #[error("Bad Request: {0}")]
+    BadRequest(String),
+
     #[error("{0}")]
     Generic(String),
 
@@ -36,8 +39,9 @@ impl IntoResponse for AppError {
                 tracing::error!("Database Error: {:?}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "500", "Masalah koneksi database".to_string())
             }
-            AppError::ValidationError(msg) => (StatusCode::BAD_REQUEST, "400", msg),
-            AppError::Generic(msg) => (StatusCode::BAD_REQUEST, "400", msg),
+            AppError::ValidationError(msg) => (StatusCode::BAD_REQUEST, "422", msg.clone()),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "400", msg.clone()),
+            AppError::Generic(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "500", msg.clone()),
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "401", "Anda harus login terlebih dahulu".to_string()),
             AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "500", "Kesalahan internal server".to_string()),
         };

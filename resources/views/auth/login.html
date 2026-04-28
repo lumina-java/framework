@@ -20,14 +20,24 @@
                 {% endif %}
                 
                 <form action="/auth/login" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    
                     <div class="mb-3">
                         <label class="form-label">Email Address</label>
-                        <input type="email" name="email" class="form-control form-control-lg" placeholder="name@example.com" required>
+                        <input type="email" name="email" class="form-control form-control-lg {% if errors and errors.email %}is-invalid{% endif %}" 
+                            placeholder="name@example.com" value="{{ old.email | default(value="") }}" required>
+                        {% if errors and errors.email %}
+                            <div class="invalid-feedback">{{ errors.email }}</div>
+                        {% endif %}
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Password</label>
-                        <input type="password" name="password" class="form-control form-control-lg" placeholder="Enter password" required>
+                        <input type="password" name="password" class="form-control form-control-lg {% if errors and errors.password %}is-invalid{% endif %}" 
+                            placeholder="Enter password" required>
+                        {% if errors and errors.password %}
+                            <div class="invalid-feedback">{{ errors.password }}</div>
+                        {% endif %}
                     </div>
                     
                     <div class="d-grid gap-2 mt-4">

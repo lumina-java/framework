@@ -24,46 +24,48 @@ impl AuthController {
     /// GET /auth/login — Tampilkan halaman login (HTML)
     pub async fn show_login(
         State(state): State<Arc<AppState>>,
-        jar: CookieJar,
+        session: tower_sessions::Session,
     ) -> impl IntoResponse {
-        // Redirect if already logged in
-        if let Some(cookie) = jar.get("jwt") {
-            if crate::http::auth::validate_token(cookie.value()).is_ok() {
-                return Redirect::to("/dashboard").into_response();
-            }
+        // Redirect if already logged in via session
+        if session.get::<String>("jwt").await.unwrap_or_default().is_some() {
+            return Redirect::to("/dashboard").into_response();
         }
 
-        let rendered = state.view.render("auth/login.html", &tera::Context::new());
+        let rendered = state.view.render_with_session("auth/login.html", tera::Context::new(), &session).await;
         Html(rendered).into_response()
     }
 
     /// GET /auth/register — Tampilkan halaman registrasi (HTML)
     pub async fn show_register(
         State(state): State<Arc<AppState>>,
-        jar: CookieJar,
+        session: tower_sessions::Session,
     ) -> impl IntoResponse {
         // Redirect if already logged in
-        if let Some(cookie) = jar.get("jwt") {
-            if crate::http::auth::validate_token(cookie.value()).is_ok() {
-                return Redirect::to("/dashboard").into_response();
-            }
+        if session.get::<String>("jwt").await.unwrap_or_default().is_some() {
+            return Redirect::to("/dashboard").into_response();
         }
 
-        let rendered = state.view.render("auth/register.html", &tera::Context::new());
+        let rendered = state.view.render_with_session("auth/register.html", tera::Context::new(), &session).await;
         Html(rendered).into_response()
     }
 
     /// POST /auth/register — Proses pendaftaran user baru (Web Form)
     pub async fn register(
         State(state): State<Arc<AppState>>,
+        session: tower_sessions::Session,
         ValidatedForm(payload): ValidatedForm<RegisterRequest>
     ) -> impl IntoResponse {
         let svc = state.auth_service.as_ref().expect("db_guard seharusnya mencegah ini");
+        let flash = crate::core::session::FlashManager::new(&session);
+
         match svc.register(payload.name, payload.email, payload.password).await {
-            Ok(_) => Redirect::to("/auth/login?success=Registrasi Berhasil! Silakan Login.").into_response(),
+            Ok(_) => {
+                flash.success("Registrasi Berhasil! Silakan Login.").await;
+                Redirect::to("/auth/login").into_response()
+            },
             Err(e) => {
-                let uri = format!("/auth/register?error={}", e);
-                Redirect::to(&uri).into_response()
+                flash.error(&format!("Gagal daftar: {}", e)).await;
+                Redirect::to("/auth/register").into_response()
             }
         }
     }
@@ -71,30 +73,32 @@ impl AuthController {
     /// POST /auth/login — Proses login (Web Form)
     pub async fn login(
         State(state): State<Arc<AppState>>,
-        jar: CookieJar,
+        session: tower_sessions::Session,
         ValidatedForm(payload): ValidatedForm<LoginRequest>
     ) -> impl IntoResponse {
         let svc = state.auth_service.as_ref().expect("db_guard seharusnya mencegah ini");
+        let flash = crate::core::session::FlashManager::new(&session);
+
         match svc.login(&payload.email, &payload.password).await {
             Ok(token) => {
-                // Set cookie JWT untuk sesi web
-                let cookie = Cookie::build(("jwt", token))
-                    .path("/")
-                    .http_only(true)
-                    .build();
-                
-                (jar.add(cookie), Redirect::to("/dashboard?success=Login Berhasil! Selamat datang.")).into_response()
+                // Simpan JWT di session
+                let _ = session.insert("jwt", token).await;
+                flash.success("Login Berhasil! Selamat datang.").await;
+                Redirect::to("/dashboard").into_response()
             },
             Err(e) => {
-                let uri = format!("/auth/login?error={}", e);
-                Redirect::to(&uri).into_response()
+                flash.error(&format!("Login gagal: {}", e)).await;
+                Redirect::to("/auth/login").into_response()
             }
         }
     }
 
     /// GET /auth/logout — Hapus sesi login
-    pub async fn logout(jar: CookieJar) -> impl IntoResponse {
-        (jar.remove(Cookie::from("jwt")), Redirect::to("/auth/login?success=Berhasil logout.")).into_response()
+    pub async fn logout(session: tower_sessions::Session) -> impl IntoResponse {
+        let flash = crate::core::session::FlashManager::new(&session);
+        flash.success("Berhasil logout.").await;
+        session.clear().await;
+        Redirect::to("/auth/login")
     }
 
     /// POST /api/auth/register — Proses pendaftaran via API (JSON)

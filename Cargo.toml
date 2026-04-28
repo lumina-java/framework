@@ -34,6 +34,10 @@ bcrypt = "0.15"
 tower-http = { version = "0.5", features = ["catch-panic", "cors", "trace"] }
 axum-extra = { version = "0.9", features = ["cookie"] }
 tower = "0.4"
+thiserror = "2.0.18"
+tower-sessions = "0.13"
+tower-sessions-sqlx-store = { version = "0.13", features = ["sqlite"] }
+time = "0.3.47"
 
 [[bin]]
 name = "lumina"

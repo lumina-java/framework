@@ -37,4 +37,18 @@ impl ViewEngine {
             }
         }
     }
+
+    /// Render template dengan dukungan Session & Flash Messages
+    pub async fn render_with_session(
+        &self,
+        template_name: &str,
+        mut context: Context,
+        session: &tower_sessions::Session
+    ) -> String {
+        let flash_manager = crate::core::session::FlashManager::new(session);
+        let flashes = flash_manager.consume().await;
+        context.insert("flashes", &flashes);
+        
+        self.render(template_name, &context)
+    }
 }

@@ -13,6 +13,8 @@ use crate::support::env;
 use crate::core::view::ViewEngine;
 use crate::app::controllers::error_controller::ErrorController;
 use std::sync::Arc;
+use tower_sessions::{SessionManagerLayer, Expiry, MemoryStore};
+use time::Duration;
 
 // ─── AppState ────────────────────────────────────────────────────────────────
 
@@ -39,6 +41,12 @@ impl Application {
     }
 
     fn build_router(&self, state: Arc<AppState>) -> AxumRouter {
+        // Initialize Session Store (MemoryStore for now)
+        let session_store = MemoryStore::default();
+        let session_layer = SessionManagerLayer::new(session_store)
+            .with_secure(false) // Set to true in production with HTTPS
+            .with_expiry(Expiry::OnInactivity(Duration::days(1)));
+
         let web = crate::web_routes::register().into_axum();
         let api = crate::api_routes::register().into_axum();
 
@@ -54,6 +62,8 @@ impl Application {
             .layer(CatchPanicLayer::new())
             // db_guard — intercept semua request jika DB tidak tersedia
             .layer(from_fn_with_state(state.clone(), db_guard))
+            // Session Layer
+            .layer(session_layer)
     }
 
     pub async fn serve(self, addr: &str) {

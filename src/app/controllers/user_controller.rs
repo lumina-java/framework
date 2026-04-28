@@ -46,17 +46,12 @@ impl UserController {
     /// POST /api/users — Buat user baru dengan validasi
     pub async fn store(
         crate::core::validation::ValidatedJson(payload): crate::core::validation::ValidatedJson<CreateUserRequest>
-    ) -> axum::Json<serde_json::Value> {
-        // Jika sampai sini, data dipastikan valid
-        axum::Json(json!({
-            "status": "success",
-            "message": "User created successfully",
-            "data": payload
-        }))
+    ) -> Result<crate::core::response::ApiResponse<serde_json::Value>, crate::core::error::AppError> {
+        Ok(crate::core::response::ApiResponse::with_message(json!(payload), "User created successfully"))
     }
 
     /// GET /test-orm — Demonstrasi penggunaan QueryBuilder
-    pub async fn test_orm(State(state): State<Arc<AppState>>) -> axum::Json<serde_json::Value> {
+    pub async fn test_orm(State(state): State<Arc<AppState>>) -> Result<crate::core::response::ApiResponse<serde_json::Value>, crate::core::error::AppError> {
         use crate::database::model::Model;
         use crate::app::models::user::User;
 
@@ -67,19 +62,9 @@ impl UserController {
             .order_by("id", "DESC")
             .limit(1)
             .get()
-            .await;
+            .await?;
 
-        match user {
-            Ok(u) => axum::Json(json!({
-                "status": "success",
-                "message": "ORM query executed successfully",
-                "data": u
-            })),
-            Err(e) => axum::Json(json!({
-                "status": "error",
-                "message": format!("ORM query failed: {}", e)
-            })),
-        }
+        Ok(crate::core::response::ApiResponse::with_message(json!(user), "ORM query executed successfully"))
     }
 }
 

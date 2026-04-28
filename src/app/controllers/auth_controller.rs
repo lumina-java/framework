@@ -122,15 +122,12 @@ impl AuthController {
     }
 
     /// GET /api/auth/me — Protected API route
-    pub async fn me() -> Json<Value> {
-        Json(json!({
-            "success": true,
-            "data": {
-                "id": 1,
-                "name": "Authenticated User",
-                "message": "Fitur 'me' akan diekstrak dari request extensions pada tahap selanjutnya."
-            }
-        }))
+    pub async fn me() -> Result<crate::core::response::ApiResponse<serde_json::Value>, crate::core::error::AppError> {
+        Ok(crate::core::response::ApiResponse::success(json!({
+            "id": 1,
+            "name": "Authenticated User",
+            "message": "Fitur 'me' akan diekstrak dari request extensions pada tahap selanjutnya."
+        })))
     }
 }
 

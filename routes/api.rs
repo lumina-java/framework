@@ -25,6 +25,7 @@ pub fn register() -> Router<Arc<AppState>> {
         .route("/users",     routing::get(ApiController::index))
         .route("/users/:id", routing::get(ApiController::show))
         .route("/users",     routing::post(ApiController::store))
+        .route("/invoices",  routing::post(ApiController::store_invoice))
         .route_layer(from_fn(auth_required));
 
     // Gabungkan public + protected, bungkus kembali dalam Lumina Router

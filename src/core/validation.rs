@@ -98,6 +98,13 @@ impl From<validator::ValidationErrors> for ValidationErrorResponse {
 
 impl IntoResponse for ValidationErrorResponse {
     fn into_response(self) -> Response {
-        (StatusCode::UNPROCESSABLE_ENTITY, Json(self)).into_response()
+        let body = serde_json::json!({
+            "metaData": {
+                "code": "422",
+                "message": self.message
+            },
+            "response": self.errors
+        });
+        (StatusCode::UNPROCESSABLE_ENTITY, Json(body)).into_response()
     }
 }

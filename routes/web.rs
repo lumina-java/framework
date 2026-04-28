@@ -14,6 +14,10 @@ pub fn register() -> Router<Arc<AppState>> {
         // Authentication
         .get("/auth/login",    crate::app::controllers::auth_controller::AuthController::show_login)
         .get("/auth/register", crate::app::controllers::auth_controller::AuthController::show_register)
+        .get("/auth/logout",   crate::app::controllers::auth_controller::AuthController::logout)
         .post("/auth/login",   crate::app::controllers::auth_controller::AuthController::login)
         .post("/auth/register", crate::app::controllers::auth_controller::AuthController::register)
+        
+        // Dashboard
+        .get("/dashboard",     crate::app::controllers::dashboard_controller::DashboardController::index)
 }

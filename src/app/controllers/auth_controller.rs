@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{State, Query},
     response::{Html, IntoResponse, Redirect},
     Json,
 };
@@ -10,18 +10,36 @@ use crate::core::validation::{ValidatedForm, ValidatedJson};
 use serde::Deserialize;
 use validator::Validate;
 
+#[derive(Deserialize)]
+pub struct AuthQuery {
+    success: Option<String>,
+    error: Option<String>,
+}
+
 pub struct AuthController;
 
 impl AuthController {
     /// GET /auth/login — Tampilkan halaman login (HTML)
-    pub async fn show_login(State(state): State<Arc<AppState>>) -> Html<String> {
-        let rendered = state.view.render("auth/login.html", &tera::Context::new());
+    pub async fn show_login(
+        Query(query): Query<AuthQuery>,
+        State(state): State<Arc<AppState>>
+    ) -> Html<String> {
+        let mut context = tera::Context::new();
+        if let Some(msg) = query.success { context.insert("success_msg", &msg); }
+        if let Some(msg) = query.error { context.insert("error_msg", &msg); }
+        let rendered = state.view.render("auth/login.html", &context);
         Html(rendered)
     }
 
     /// GET /auth/register — Tampilkan halaman registrasi (HTML)
-    pub async fn show_register(State(state): State<Arc<AppState>>) -> Html<String> {
-        let rendered = state.view.render("auth/register.html", &tera::Context::new());
+    pub async fn show_register(
+        Query(query): Query<AuthQuery>,
+        State(state): State<Arc<AppState>>
+    ) -> Html<String> {
+        let mut context = tera::Context::new();
+        if let Some(msg) = query.success { context.insert("success_msg", &msg); }
+        if let Some(msg) = query.error { context.insert("error_msg", &msg); }
+        let rendered = state.view.render("auth/register.html", &context);
         Html(rendered)
     }
 
@@ -45,15 +63,26 @@ impl AuthController {
         ValidatedForm(payload): ValidatedForm<LoginRequest>
     ) -> impl IntoResponse {
         match state.auth_service.login(&payload.email, &payload.password).await {
-            Ok(_) => {
-                // Untuk demo web, kita redirect ke home dengan success message
-                Redirect::to("/?success=Login Berhasil! Selamat datang di Lumina.").into_response()
+            Ok(token) => {
+                // Set token as a cookie
+                let cookie = format!("token={}; Path=/; HttpOnly; SameSite=Lax", token);
+                let mut response = Redirect::to("/dashboard?success=Login Berhasil! Selamat datang di Lumina.").into_response();
+                response.headers_mut().insert(axum::http::header::SET_COOKIE, cookie.parse().unwrap());
+                response
             },
             Err(e) => {
                 let uri = format!("/auth/login?error={}", e);
                 Redirect::to(&uri).into_response()
             }
         }
+    }
+
+    /// GET /auth/logout — Proses logout (Web)
+    pub async fn logout() -> impl IntoResponse {
+        let cookie = "token=; Path=/; HttpOnly; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        let mut response = Redirect::to("/auth/login?success=Berhasil logout.").into_response();
+        response.headers_mut().insert(axum::http::header::SET_COOKIE, cookie.parse().unwrap());
+        response
     }
 
     /// POST /api/auth/register — Proses pendaftaran via API (JSON)

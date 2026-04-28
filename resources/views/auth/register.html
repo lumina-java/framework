@@ -12,6 +12,13 @@
                     <p class="text-muted">Create your account to get started</p>
                 </div>
                 
+                {% if success_msg %}
+                <div class="alert alert-success">{{ success_msg }}</div>
+                {% endif %}
+                {% if error_msg %}
+                <div class="alert alert-danger">{{ error_msg }}</div>
+                {% endif %}
+                
                 <form action="/auth/register" method="POST">
                     <div class="row">
                         <div class="col-md-12 mb-3">

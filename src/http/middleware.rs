@@ -96,3 +96,34 @@ fn unauthorized_json(message: &str) -> Response {
         .body(Body::from(body.to_string()))
         .unwrap()
 }
+
+// ─── Web Auth Middleware ────────────────────────────────────────────────────────
+
+/// Middleware autentikasi untuk Web — memvalidasi JWT dari cookie `jwt`.
+///
+/// Jika valid: Claims disuntikkan ke Request Extensions.
+/// Jika tidak valid: Redirect ke `/auth/login`.
+pub async fn web_auth_required(
+    cookie_jar: axum_extra::extract::CookieJar,
+    mut req: Request,
+    next: Next,
+) -> Response {
+    let token = cookie_jar
+        .get("jwt")
+        .map(|c| c.value().to_string());
+
+    match token {
+        Some(t) => match crate::http::auth::validate_token(&t) {
+            Ok(claims) => {
+                // Simpan claims di request extension agar bisa diakses controller
+                req.extensions_mut().insert(claims);
+                next.run(req).await
+            },
+            Err(_) => Redirect::to("/auth/login?error=Sesi berakhir. Silakan login kembali.").into_response(),
+        },
+        None => Redirect::to("/auth/login?error=Silakan login terlebih dahulu.").into_response(),
+    }
+}
+
+use axum::response::Redirect;
+use axum::response::IntoResponse;

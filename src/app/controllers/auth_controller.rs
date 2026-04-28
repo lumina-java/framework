@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{State, Query},
     response::{Html, IntoResponse, Redirect},
     Json,
 };
@@ -11,6 +11,12 @@ use serde::Deserialize;
 use validator::Validate;
 use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::Cookie;
+
+#[derive(Deserialize)]
+pub struct AuthQuery {
+    success: Option<String>,
+    error: Option<String>,
+}
 
 pub struct AuthController;
 

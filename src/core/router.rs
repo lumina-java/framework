@@ -95,6 +95,19 @@ where
         Self { inner: router }
     }
 
+    /// Tambahkan middleware (layer) ke router.
+    pub fn layer<L>(mut self, layer: L) -> Self
+    where
+        L: tower::Layer<axum::routing::Route> + Clone + Send + 'static,
+        L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Response: axum::response::IntoResponse + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Error: Into<std::convert::Infallible> + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
+    {
+        self.inner = self.inner.layer(layer);
+        self
+    }
+
     /// Konsumsi Router ini menjadi `axum::Router`.
     pub fn into_axum(self) -> AxumRouter<S> {
         self.inner

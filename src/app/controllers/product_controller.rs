@@ -10,7 +10,8 @@ pub struct ProductController;
 impl ProductController {
     /// GET /api/products — Daftar semua produk
     pub async fn index(State(state): State<Arc<AppState>>) -> Json<Value> {
-        match Product::all(&state.db).await {
+        let db = state.db.as_ref().expect("db_guard seharusnya mencegah ini");
+        match Product::all(db).await {
             Ok(products) => Json(json!({
                 "status": "success",
                 "data": products
@@ -27,7 +28,8 @@ impl ProductController {
         State(state): State<Arc<AppState>>,
         Path(id): Path<i64>
     ) -> Json<Value> {
-        match Product::find(&state.db, id).await {
+        let db = state.db.as_ref().expect("db_guard seharusnya mencegah ini");
+        match Product::find(db, id).await {
             Ok(product) => Json(json!({
                 "status": "success",
                 "data": product

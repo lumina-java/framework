@@ -11,6 +11,7 @@ pub fn register() -> Router<Arc<AppState>> {
         .get("/about",     HomeController::about)
         .get("/users",     UserController::index)
         .get("/users/:id", UserController::show)
+        .get("/test-orm",  UserController::test_orm)
         // Authentication
         .get("/auth/login",    crate::app::controllers::auth_controller::AuthController::show_login)
         .get("/auth/register", crate::app::controllers::auth_controller::AuthController::show_register)

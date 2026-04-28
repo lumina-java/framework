@@ -54,6 +54,33 @@ impl UserController {
             "data": payload
         }))
     }
+
+    /// GET /test-orm — Demonstrasi penggunaan QueryBuilder
+    pub async fn test_orm(State(state): State<Arc<AppState>>) -> axum::Json<serde_json::Value> {
+        use crate::database::model::Model;
+        use crate::app::models::user::User;
+
+        // Ambil user pertama dengan email tertentu menggunakan ORM
+        let user = User::query(&state.db)
+            .select("id, name, email, role, password")
+            .filter("role", "=", "user")
+            .order_by("id", "DESC")
+            .limit(1)
+            .get()
+            .await;
+
+        match user {
+            Ok(u) => axum::Json(json!({
+                "status": "success",
+                "message": "ORM query executed successfully",
+                "data": u
+            })),
+            Err(e) => axum::Json(json!({
+                "status": "error",
+                "message": format!("ORM query failed: {}", e)
+            })),
+        }
+    }
 }
 
 use serde::Deserialize;

@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use super::connection::DatabasePool;
+use super::orm::QueryBuilder;
 
 /// Trait yang wajib diimplementasikan oleh setiap Model.
 ///
@@ -12,7 +13,7 @@ use super::connection::DatabasePool;
 /// let all  = User::all(&pool).await?;
 /// ```
 #[async_trait]
-pub trait Model: Sized + Send + Sync {
+pub trait Model: Sized + Send + Sync + for<'r> sqlx::FromRow<'r, sqlx::any::AnyRow> + Unpin {
     /// Nama tabel di database (konstanta compile-time)
     const TABLE: &'static str;
 
@@ -29,4 +30,9 @@ pub trait Model: Sized + Send + Sync {
 
     /// Soft delete — set `deleted_at = NOW()` tanpa menghapus baris.
     async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error>;
+
+    /// Inisialisasi QueryBuilder untuk model ini.
+    fn query(pool: &DatabasePool) -> QueryBuilder<'_, Self> {
+        QueryBuilder::new(pool, Self::TABLE)
+    }
 }

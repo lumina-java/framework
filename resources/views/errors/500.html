@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+
+{% block title %}500 - Kesalahan Server{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height: 60vh;">
+    <div class="col-md-6 text-center">
+        <h1 class="display-1 fw-bold text-danger">500</h1>
+        <h3 class="mb-4">Internal Server Error</h3>
+        <p class="text-muted mb-4">
+            Terjadi kesalahan teknis di server kami. Tim IT kami telah mendapatkan notifikasi. 
+            Mohon coba beberapa saat lagi.
+        </p>
+        <div class="d-flex justify-content-center gap-3">
+            <a href="/" class="btn btn-outline-primary px-4">Beranda</a>
+            <button onclick="location.reload()" class="btn btn-danger px-4 shadow">Coba Lagi</button>
+        </div>
+    </div>
+</div>
+{% endblock %}

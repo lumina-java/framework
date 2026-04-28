@@ -60,34 +60,27 @@ impl AuthController {
     pub async fn api_register(
         State(state): State<Arc<AppState>>,
         ValidatedJson(payload): ValidatedJson<RegisterRequest>
-    ) -> Json<Value> {
-        match state.auth_service.register(payload.name, payload.email, payload.password).await {
-            Ok(id) => Json(json!({"success": true, "message": "User registered", "id": id})),
-            Err(e) => Json(json!({"success": false, "message": e})),
-        }
+    ) -> Result<crate::core::response::ApiResponse<serde_json::Value>, crate::core::error::AppError> {
+        let id = state.auth_service.register(payload.name, payload.email, payload.password).await?;
+        Ok(crate::core::response::ApiResponse::with_message(json!({"id": id}), "User registered"))
     }
 
     /// POST /api/auth/login — Proses login via API (JSON)
     pub async fn api_login(
         State(state): State<Arc<AppState>>,
         ValidatedJson(payload): ValidatedJson<LoginRequest>
-    ) -> Json<Value> {
-        match state.auth_service.login(&payload.email, &payload.password).await {
-            Ok(token) => Json(json!({"success": true, "token": token})),
-            Err(e) => Json(json!({"success": false, "message": e})),
-        }
+    ) -> Result<crate::core::response::ApiResponse<serde_json::Value>, crate::core::error::AppError> {
+        let token = state.auth_service.login(&payload.email, &payload.password).await?;
+        Ok(crate::core::response::ApiResponse::with_message(json!({"token": token}), "Login success"))
     }
 
     /// GET /api/auth/me — Protected API route
-    pub async fn me() -> Json<Value> {
-        Json(json!({
-            "success": true,
-            "data": {
-                "id": 1,
-                "name": "Authenticated User",
-                "message": "Fitur 'me' akan diekstrak dari request extensions pada tahap selanjutnya."
-            }
-        }))
+    pub async fn me() -> Result<crate::core::response::ApiResponse<serde_json::Value>, crate::core::error::AppError> {
+        Ok(crate::core::response::ApiResponse::success(json!({
+            "id": 1,
+            "name": "Authenticated User",
+            "message": "Fitur 'me' akan diekstrak dari request extensions pada tahap selanjutnya."
+        })))
     }
 }
 

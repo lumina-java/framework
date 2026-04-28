@@ -2,7 +2,7 @@ use axum::{
     body::Body,
     extract::Request,
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use std::time::Instant;
 
@@ -87,12 +87,11 @@ pub async fn auth_required(req: Request, next: Next) -> Response {
 /// Helper — buat Response 401 dengan body JSON.
 fn unauthorized_json(message: &str) -> Response {
     let body = serde_json::json!({
-        "success": false,
-        "message": message
+        "metaData": {
+            "code": "401",
+            "message": message
+        },
+        "response": null
     });
-    Response::builder()
-        .status(401)
-        .header("content-type", "application/json")
-        .body(Body::from(body.to_string()))
-        .unwrap()
+    axum::response::Json(body).into_response()
 }

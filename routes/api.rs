@@ -9,7 +9,7 @@ use crate::http::middleware::auth_required;
 use crate::core::application::AppState;
 
 /// Registrasi semua API Routes (JSON responses).
-pub fn register() -> Router<AppState> {
+pub fn register(config: &crate::core::config::ConfigManager) -> Router<AppState> {
     // ── Public routes — tidak perlu JWT ──────────────────────────────────────
     let public = AxumRouter::new()
         // .route("/auth/login",    routing::post(AuthController::api_login))
@@ -34,9 +34,7 @@ pub fn register() -> Router<AppState> {
             .merge(public)
             .merge(protected)
             .layer(axum::extract::DefaultBodyLimit::max(
-                crate::support::env::env("UPLOAD_MAX_SIZE_MB", "2")
-                    .parse::<usize>()
-                    .unwrap_or(2) * 1024 * 1024
+                config.get_int("UPLOAD_MAX_SIZE_MB", 2) as usize * 1024 * 1024
             )),
     )
 }

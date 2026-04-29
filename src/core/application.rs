@@ -9,7 +9,6 @@ use crate::http::server::Server;
 use crate::http::middleware::logger;
 use crate::core::container::Container;
 use crate::database::{connection::DatabasePool, migration};
-use crate::support::env;
 use crate::core::view::ViewEngine;
 use crate::app::controllers::error_controller::ErrorController;
 use std::sync::Arc;
@@ -31,6 +30,7 @@ pub struct AppState {
     pub db_error: Option<String>,
     pub csrf_config: CsrfConfig,
     pub storage: Arc<crate::core::storage::Storage>,
+    pub config: crate::core::config::Config,
 }
 
 impl FromRef<AppState> for CsrfConfig {
@@ -60,8 +60,8 @@ impl Application {
 
         let csrf_layer = CsrfLayer::new(csrf::config());
 
-        let web = crate::web_routes::register().into_axum();
-        let api = crate::api_routes::register().into_axum();
+        let web = crate::web_routes::register(&state.config).into_axum();
+        let api = crate::api_routes::register(&state.config).into_axum();
 
         AxumRouter::new()
             .merge(web)
@@ -84,11 +84,12 @@ impl Application {
     }
 
     pub async fn serve(self, addr: &str) {
-        // ── 1. Inisialisasi View Engine terlebih dahulu (tidak butuh DB) ──
+        // ── 1. Inisialisasi Config & View Engine ───────────────────────────
+        let config = Arc::new(crate::core::config::ConfigManager::new());
         let view = ViewEngine::new();
 
         // ── 2. Coba connect ke database ───────────────────────────────────
-        let db_url = env("DATABASE_URL", "sqlite:./lumina.db");
+        let db_url = config.get_db_url();
 
         let (db_pool, auth_service, db_error) = match DatabasePool::connect(&db_url).await {
             Ok(pool) => {
@@ -132,6 +133,7 @@ impl Application {
             db_error,
             csrf_config: csrf::config(),
             storage: Arc::new(crate::core::storage::Storage::new_local("storage/app/public", "/storage")),
+            config,
         };
 
         // ── 5. Serve HTTP ──────────────────────────────────────────────────

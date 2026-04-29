@@ -8,7 +8,7 @@ use crate::http::middleware::web_auth_required;
 use axum::middleware::from_fn;
 
 /// Registrasi semua Web Routes (HTML responses).
-pub fn register() -> Router<AppState> {
+pub fn register(_config: &crate::core::config::ConfigManager) -> Router<AppState> {
     // ─── Public Routes ───
     let public = Router::<AppState>::new()
         .get("/",          HomeController::index)

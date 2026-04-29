@@ -1,5 +1,4 @@
 use axum::{extract::State, response::Html};
-use std::sync::Arc;
 use crate::core::application::AppState;
 use tera::Context;
 
@@ -8,7 +7,7 @@ pub struct HomeController;
 impl HomeController {
     /// GET /
     pub async fn index(
-        State(state): State<Arc<AppState>>,
+        State(state): State<AppState>,
         session: tower_sessions::Session,
     ) -> Html<String> {
         let context = Context::new();
@@ -17,7 +16,7 @@ impl HomeController {
     }
 
     /// GET /about
-    pub async fn about(State(_state): State<Arc<AppState>>) -> Html<String> {
+    pub async fn about(State(_state): State<AppState>) -> Html<String> {
         let mut context = Context::new();
         context.insert("title", "About Lumina");
         

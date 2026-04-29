@@ -1,5 +1,4 @@
 use axum::{extract::{State, Path}, Json};
-use std::sync::Arc;
 use serde_json::{json, Value};
 use crate::core::application::AppState;
 use crate::database::model::Model;
@@ -9,7 +8,7 @@ pub struct ProductController;
 
 impl ProductController {
     /// GET /api/products — Daftar semua produk
-    pub async fn index(State(state): State<Arc<AppState>>) -> Json<Value> {
+    pub async fn index(State(state): State<AppState>) -> Json<Value> {
         let db = state.db.as_ref().expect("db_guard seharusnya mencegah ini");
         match Product::all(db).await {
             Ok(products) => Json(json!({
@@ -25,7 +24,7 @@ impl ProductController {
 
     /// GET /api/products/:id — Detail produk berdasarkan ID
     pub async fn show(
-        State(state): State<Arc<AppState>>,
+        State(state): State<AppState>,
         Path(id): Path<i64>
     ) -> Json<Value> {
         let db = state.db.as_ref().expect("db_guard seharusnya mencegah ini");

@@ -56,7 +56,7 @@ pub async fn logger(req: Request, next: Next) -> Response {
 // ─── Auth Middleware ────────────────────────────────────────────────────────────
 
 /// Middleware autentikasi — memvalidasi JWT Bearer token dari header `Authorization`.
-pub async fn auth_required(req: Request, next: Next) -> Response {
+pub async fn auth_required(mut req: Request, next: Next) -> Response {
     let token = req
         .headers()
         .get("Authorization")
@@ -67,7 +67,10 @@ pub async fn auth_required(req: Request, next: Next) -> Response {
     match token {
         None => unauthorized_json("Token tidak ditemukan. Sertakan header: Authorization: Bearer <token>"),
         Some(t) => match crate::http::auth::validate_token(&t) {
-            Ok(_claims) => next.run(req).await,
+            Ok(user) => {
+                req.extensions_mut().insert(user);
+                next.run(req).await
+            },
             Err(e) => unauthorized_json(&format!("Token invalid atau expired: {}", e)),
         },
     }
@@ -98,8 +101,8 @@ pub async fn web_auth_required(
 
     match token {
         Some(t) => match crate::http::auth::validate_token(&t) {
-            Ok(claims) => {
-                req.extensions_mut().insert(claims);
+            Ok(user) => {
+                req.extensions_mut().insert(user);
                 next.run(req).await
             },
             Err(_) => {

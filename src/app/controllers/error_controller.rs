@@ -20,7 +20,7 @@ impl ErrorController {
     /// Handler untuk 404 Not Found.
     /// Dipasang sebagai `fallback()` pada router utama.
     pub async fn not_found(
-        State(state): State<Arc<AppState>>,
+        State(state): State<AppState>,
         req: axum::extract::Request,
     ) -> impl IntoResponse {
         let path = req.uri().path().to_string();

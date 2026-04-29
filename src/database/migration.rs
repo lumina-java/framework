@@ -19,7 +19,7 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
             "CREATE TABLE IF NOT EXISTS _migrations (
                 id       INT AUTO_INCREMENT PRIMARY KEY,
                 name     VARCHAR(255) NOT NULL UNIQUE,
-                run_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                run_at   DATETIME DEFAULT CURRENT_TIMESTAMP
             )"
         }
         DatabaseKind::Postgres => {
@@ -73,7 +73,7 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
         match kind {
             DatabaseKind::MySql => {
                 sql = re_autoinc.replace_all(&sql, "INT AUTO_INCREMENT PRIMARY KEY").to_string();
-                sql = re_datetime.replace_all(&sql, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP").to_string();
+                sql = re_datetime.replace_all(&sql, "DATETIME DEFAULT CURRENT_TIMESTAMP").to_string();
                 // Ganti TEXT ke VARCHAR(255) hanya jika baris tersebut berisi UNIQUE (biasanya email/username)
                 // Ini pendekatan sederhana, untuk project besar disarankan migrasi terpisah.
                 if sql.contains("UNIQUE") {

@@ -1,110 +1,64 @@
-use axum::{
-    async_trait,
-    extract::FromRequest,
-    http::{Request, StatusCode},
-    response::{IntoResponse, Response},
-    Json,
-};
-use serde::Serialize;
-use validator::Validate;
+use validator::{Validate, ValidationErrors};
 use std::collections::HashMap;
 
-/// Wrapper untuk Axum Json extractor yang melakukan validasi otomatis.
-///
-/// Penggunaan:
-/// ```rust
-/// pub async fn store(ValidatedJson(payload): ValidatedJson<MyRequest>) -> impl IntoResponse { ... }
-/// ```
+/// Trait untuk mempermudah ekstraksi error dari validator ke format yang ramah UI/API.
+pub trait Validatable {
+    fn to_map(&self) -> HashMap<String, String>;
+}
+
+impl Validatable for ValidationErrors {
+    fn to_map(&self) -> HashMap<String, String> {
+        let mut errors = HashMap::new();
+        for (field, field_errors) in self.field_errors() {
+            if let Some(error) = field_errors.first() {
+                let message = error.message.clone().unwrap_or_else(|| {
+                    // Default messages berdasarkan code validator
+                    match error.code.as_ref() {
+                        "email" => "Format email tidak valid.".into(),
+                        "length" => "Panjang karakter tidak sesuai.".into(),
+                        "required" => "Field ini wajib diisi.".into(),
+                        _ => format!("Field {} tidak valid.", field).into(),
+                    }
+                });
+                errors.insert(field.to_string(), message.to_string());
+            }
+        }
+        errors
+    }
+}
+
+/// Helper untuk menyimpan old input ke session (agar form tidak kosong saat error).
+pub fn flash_errors(_session: &tower_sessions::Session, _errors: HashMap<String, String>) {
+    // Implementasi flash logic di sini jika diperlukan selain via render
+}
+
+use axum::{
+    async_trait,
+    extract::{FromRequest, Request},
+    Json,
+};
+use serde::de::DeserializeOwned;
+
 pub struct ValidatedJson<T>(pub T);
 
 #[async_trait]
-impl<S, T> FromRequest<S> for ValidatedJson<T>
+impl<T, S> FromRequest<S> for ValidatedJson<T>
 where
+    T: DeserializeOwned + Validate,
     S: Send + Sync,
-    T: Validate + serde::de::DeserializeOwned + 'static,
+    Json<T>: FromRequest<S>,
 {
-    type Rejection = Response;
+    type Rejection = crate::core::error::AppError;
 
-    async fn from_request(req: Request<axum::body::Body>, state: &S) -> Result<Self, Self::Rejection> {
-        // 1. Ekstrak sebagai Json terlebih dahulu
-        let Json(value) = Json::<T>::from_request(req, state)
-            .await
-            .map_err(|rejection| rejection.into_response())?;
-
-        // 2. Lakukan validasi
-        if let Err(errors) = value.validate() {
-            return Err(ValidationErrorResponse::from(errors).into_response());
-        }
-
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        let value = Json::<T>::from_request(req, state).await.map_err(|_e| {
+             crate::core::error::AppError::BadRequest("Format JSON tidak valid".to_string())
+        })?.0;
+        
+        value.validate().map_err(|e| {
+             crate::core::error::AppError::ValidationError(format!("{}", e))
+        })?;
+        
         Ok(ValidatedJson(value))
-    }
-}
-
-/// Wrapper untuk Axum Form extractor yang melakukan validasi otomatis.
-pub struct ValidatedForm<T>(pub T);
-
-#[async_trait]
-impl<S, T> FromRequest<S> for ValidatedForm<T>
-where
-    S: Send + Sync,
-    T: Validate + serde::de::DeserializeOwned + 'static,
-{
-    type Rejection = Response;
-
-    async fn from_request(req: Request<axum::body::Body>, state: &S) -> Result<Self, Self::Rejection> {
-        let axum::Form(value) = axum::Form::<T>::from_request(req, state)
-            .await
-            .map_err(|rejection| rejection.into_response())?;
-
-        if let Err(errors) = value.validate() {
-            return Err(ValidationErrorResponse::from(errors).into_response());
-        }
-
-        Ok(ValidatedForm(value))
-    }
-}
-
-/// Struktur response error validasi (422 Unprocessable Entity)
-#[derive(Serialize)]
-pub struct ValidationErrorResponse {
-    pub message: String,
-    pub errors: HashMap<String, Vec<String>>,
-}
-
-impl From<validator::ValidationErrors> for ValidationErrorResponse {
-    fn from(errors: validator::ValidationErrors) -> Self {
-        let mut error_map = HashMap::new();
-
-        for (field, field_errors) in errors.field_errors() {
-            let messages: Vec<String> = field_errors
-                .iter()
-                .map(|e| {
-                    e.message
-                        .as_ref()
-                        .map(|m| m.to_string())
-                        .unwrap_or_else(|| format!("Invalid value for field: {}", field))
-                })
-                .collect();
-            
-            error_map.insert(field.to_string(), messages);
-        }
-
-        Self {
-            message: "The given data was invalid.".to_string(),
-            errors: error_map,
-        }
-    }
-}
-
-impl IntoResponse for ValidationErrorResponse {
-    fn into_response(self) -> Response {
-        let body = serde_json::json!({
-            "metaData": {
-                "code": "422",
-                "message": self.message
-            },
-            "response": self.errors
-        });
-        (StatusCode::UNPROCESSABLE_ENTITY, Json(body)).into_response()
     }
 }

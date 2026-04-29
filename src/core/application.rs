@@ -14,9 +14,12 @@ use crate::core::view::ViewEngine;
 use crate::app::controllers::error_controller::ErrorController;
 use std::sync::Arc;
 use tower_sessions::{SessionManagerLayer, Expiry, MemoryStore};
+use axum_csrf::CsrfLayer;
+use crate::core::security::csrf;
 use time::Duration;
 
-// ─── AppState ────────────────────────────────────────────────────────────────
+use axum::extract::FromRef;
+use axum_csrf::CsrfConfig;
 
 /// State global yang dibagikan ke semua handler.
 #[derive(Clone)]
@@ -26,6 +29,14 @@ pub struct AppState {
     pub auth_service: Option<Arc<crate::app::services::auth_service::AuthService>>,
     /// Pesan error database yang akan ditampilkan di halaman whoops.
     pub db_error: Option<String>,
+    pub csrf_config: CsrfConfig,
+    pub storage: Arc<crate::core::storage::Storage>,
+}
+
+impl FromRef<AppState> for CsrfConfig {
+    fn from_ref(state: &AppState) -> Self {
+        state.csrf_config.clone()
+    }
 }
 
 #[allow(dead_code)]
@@ -40,12 +51,14 @@ impl Application {
         }
     }
 
-    fn build_router(&self, state: Arc<AppState>) -> AxumRouter {
+    fn build_router(&self, state: AppState) -> AxumRouter {
         // Initialize Session Store (MemoryStore for now)
         let session_store = MemoryStore::default();
         let session_layer = SessionManagerLayer::new(session_store)
             .with_secure(false) // Set to true in production with HTTPS
             .with_expiry(Expiry::OnInactivity(Duration::days(1)));
+
+        let csrf_layer = CsrfLayer::new(csrf::config());
 
         let web = crate::web_routes::register().into_axum();
         let api = crate::api_routes::register().into_axum();
@@ -53,7 +66,9 @@ impl Application {
         AxumRouter::new()
             .merge(web)
             .nest("/api", api)
-            // ── Fallback 404 — menangkap semua route yang tidak terdaftar ──
+            // ── Serve Storage public folder ─────────────────────────────────
+            .nest_service("/storage", tower_http::services::ServeDir::new("storage/app/public"))
+            // ── Fallback 404 ────────────────────────────────────────────────
             .fallback(ErrorController::not_found)
             .with_state(state.clone())
             // ── Middleware stack (urutan: dari luar ke dalam) ──────────────
@@ -62,6 +77,8 @@ impl Application {
             .layer(CatchPanicLayer::new())
             // db_guard — intercept semua request jika DB tidak tersedia
             .layer(from_fn_with_state(state.clone(), db_guard))
+            // CSRF Layer
+            .layer(csrf_layer)
             // Session Layer
             .layer(session_layer)
     }
@@ -108,12 +125,14 @@ impl Application {
         };
 
         // ── 4. Bangun AppState ─────────────────────────────────────────────
-        let state = Arc::new(AppState {
+        let state = AppState {
             db: db_pool,
             view,
             auth_service,
             db_error,
-        });
+            csrf_config: csrf::config(),
+            storage: Arc::new(crate::core::storage::Storage::new_local("storage/app/public", "/storage")),
+        };
 
         // ── 5. Serve HTTP ──────────────────────────────────────────────────
         println!("🌐 Listening on http://{}", addr);
@@ -127,7 +146,7 @@ impl Application {
 
 /// Middleware yang mengecek ketersediaan database sebelum meneruskan request.
 pub async fn db_guard(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> Response {

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,27 +14,69 @@
             --alert-red: #ff5370;
             --retur-orange: #ffb64d;
         }
-        body { background-color: #f4f7fa; font-family: 'Inter', 'Segoe UI', sans-serif; color: #333; }
-        .text-primary { color: var(--medical-blue) !important; }
-        .btn-primary { background-color: var(--medical-blue); border-color: var(--medical-blue); }
-        .btn-success { background-color: var(--pharmacy-green); border-color: var(--pharmacy-green); }
-        .navbar { background-color: #ffffff; border-bottom: 2px solid var(--medical-blue); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .hero { padding: 80px 0; background: linear-gradient(135deg, var(--medical-blue) 0%, #1e63d3 100%); color: white; margin-bottom: 40px; }
-        .card { border: none; border-radius: 12px; transition: transform 0.2s; }
-        .card:hover { transform: translateY(-5px); }
-        .footer { padding: 40px 0; color: #6c757d; font-size: 0.9rem; }
+
+        body {
+            background-color: #f4f7fa;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            color: #333;
+        }
+
+        .text-primary {
+            color: var(--medical-blue) !important;
+        }
+
+        .btn-primary {
+            background-color: var(--medical-blue);
+            border-color: var(--medical-blue);
+        }
+
+        .btn-success {
+            background-color: var(--pharmacy-green);
+            border-color: var(--pharmacy-green);
+        }
+
+        .navbar {
+            background-color: #ffffff;
+            border-bottom: 2px solid var(--medical-blue);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .hero {
+            padding: 80px 0;
+            background: linear-gradient(135deg, var(--medical-blue) 0%, #1e63d3 100%);
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            border: none;
+            border-radius: 12px;
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .footer {
+            padding: 40px 0;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
+
 <body>
     <nav class="navbar navbar-expand-lg">
         <div class="container">
-            <a class="navbar-brand fw-bold text-primary" href="/">✨ LUMINA SIMRS</a>
+            <a class="navbar-brand fw-bold text-primary" href="/">✨ LUMINA</a>
             <div class="collapse navbar-collapse">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
                     <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
                     <li class="nav-item"><a class="nav-link" href="/auth/login">Login</a></li>
-                    <li class="nav-item"><a class="nav-link btn btn-sm btn-outline-primary ms-2" href="/auth/register">Register</a></li>
+                    <li class="nav-item"><a class="nav-link btn btn-sm btn-outline-primary ms-2"
+                            href="/auth/register">Register</a></li>
                 </ul>
             </div>
         </div>
@@ -78,4 +121,5 @@
         }
     </script>
 </body>
+
 </html>

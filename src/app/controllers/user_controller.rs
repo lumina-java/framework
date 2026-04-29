@@ -1,5 +1,4 @@
 use axum::{extract::{Path, State}, response::Html};
-use std::sync::Arc;
 use crate::core::application::AppState;
 use tera::Context;
 use serde_json::json;
@@ -8,7 +7,7 @@ pub struct UserController;
 
 impl UserController {
     /// GET /users — Tampilkan daftar semua user (HTML)
-    pub async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
+    pub async fn index(State(state): State<AppState>) -> Html<String> {
         let mut context = Context::new();
         
         // Data dummy untuk demo template loop
@@ -25,7 +24,7 @@ impl UserController {
     }
 
     /// GET /users/:id — Tampilkan detail user berdasarkan ID
-    pub async fn show(State(state): State<Arc<AppState>>, Path(id): Path<u32>) -> Html<String> {
+    pub async fn show(State(state): State<AppState>, Path(id): Path<u32>) -> Html<String> {
         let mut context = Context::new();
         
         let (name, email) = match id {
@@ -51,7 +50,7 @@ impl UserController {
     }
 
     /// GET /test-orm — Demonstrasi penggunaan QueryBuilder
-    pub async fn test_orm(State(state): State<Arc<AppState>>) -> Result<crate::core::response::ApiResponse<serde_json::Value>, crate::core::error::AppError> {
+    pub async fn test_orm(State(state): State<AppState>) -> Result<crate::core::response::ApiResponse<serde_json::Value>, crate::core::error::AppError> {
         use crate::database::model::Model;
         use crate::app::models::user::User;
 

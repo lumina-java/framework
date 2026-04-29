@@ -57,6 +57,27 @@ pub async fn handle_make_migration(name: &str) {
     }
 }
 
+pub async fn handle_make_job(name: &str) {
+    let file_name = camel_to_snake(name);
+    let path_str = format!("src/app/jobs/{}.rs", file_name);
+    let path = Path::new(&path_str);
+
+    if path.exists() {
+        println!("❌ Job {} sudah ada!", path_str);
+        return;
+    }
+
+    let stub = include_str!("stubs/job.stub");
+    let content = stub.replace("{{name}}", name);
+
+    if let Err(e) = fs::write(path, content) {
+        println!("❌ Gagal membuat job: {}", e);
+    } else {
+        println!("✅ Job berhasil dibuat: {}", path_str);
+        println!("📌 Jangan lupa daftarkan di src/app/jobs/mod.rs");
+    }
+}
+
 fn camel_to_snake(s: &str) -> String {
     let mut snake = String::new();
     for (i, c) in s.chars().enumerate() {

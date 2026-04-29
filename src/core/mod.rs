@@ -12,3 +12,4 @@ pub mod security;
 pub mod session;
 pub mod storage;
 pub mod config;
+pub mod queue;

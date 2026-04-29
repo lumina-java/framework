@@ -2,7 +2,7 @@ use std::sync::Arc;
 use crate::database::connection::DatabasePool;
 use crate::app::models::user::User;
 use crate::database::model::Model;
-use crate::core::auth::{Claims, hash};
+use crate::core::auth::{AuthUser, hash};
 
 pub struct AuthService {
     db: Arc<DatabasePool>,
@@ -37,8 +37,8 @@ impl AuthService {
             return Err("Email atau password salah".to_string());
         }
 
-        let claims = Claims::new(user.id, user.email, user.role, 24);
-        crate::http::auth::generate_token(&claims)
+        let auth_user = AuthUser::new(user.id, user.email, user.role, 24);
+        crate::http::auth::generate_token(&auth_user)
             .map_err(|_| "Gagal generate token".to_string())
     }
 }

@@ -30,6 +30,7 @@ pub struct AppState {
     /// Pesan error database yang akan ditampilkan di halaman whoops.
     pub db_error: Option<String>,
     pub csrf_config: CsrfConfig,
+    pub storage: Arc<crate::core::storage::Storage>,
 }
 
 impl FromRef<AppState> for CsrfConfig {
@@ -65,7 +66,9 @@ impl Application {
         AxumRouter::new()
             .merge(web)
             .nest("/api", api)
-            // ── Fallback 404 — menangkap semua route yang tidak terdaftar ──
+            // ── Serve Storage public folder ─────────────────────────────────
+            .nest_service("/storage", tower_http::services::ServeDir::new("storage/app/public"))
+            // ── Fallback 404 ────────────────────────────────────────────────
             .fallback(ErrorController::not_found)
             .with_state(state.clone())
             // ── Middleware stack (urutan: dari luar ke dalam) ──────────────
@@ -128,6 +131,7 @@ impl Application {
             auth_service,
             db_error,
             csrf_config: csrf::config(),
+            storage: Arc::new(crate::core::storage::Storage::new_local("storage/app/public", "/storage")),
         };
 
         // ── 5. Serve HTTP ──────────────────────────────────────────────────

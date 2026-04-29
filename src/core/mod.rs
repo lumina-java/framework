@@ -10,3 +10,4 @@ pub mod view;
 pub mod validation;
 pub mod security;
 pub mod session;
+pub mod storage;

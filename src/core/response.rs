@@ -28,6 +28,15 @@ impl<T> ApiResponse<T> {
     }
 }
 
+impl ApiResponse<serde_json::Value> {
+    pub fn error(message: &str) -> Self {
+        Self {
+            data: serde_json::Value::Null,
+            message: message.to_string(),
+        }
+    }
+}
+
 impl<T: Serialize> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> Response {
         let body = Json(json!({

@@ -1,25 +1,24 @@
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
-use crate::core::auth::Claims;
+use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, Algorithm};
+use crate::core::auth::AuthUser;
 
-/// Generate JWT token dari Claims.
-/// Secret diambil dari environment variable `JWT_SECRET`.
-pub fn generate_token(claims: &Claims) -> Result<String, jsonwebtoken::errors::Error> {
-    let secret = crate::support::env("JWT_SECRET", "lumina-secret-change-in-production");
+/// Generate JWT token dari AuthUser.
+pub fn generate_token(user: &AuthUser) -> Result<String, jsonwebtoken::errors::Error> {
+    let secret = std::env::var("APP_KEY").unwrap_or_else(|_| "secret".to_string());
     encode(
         &Header::default(),
-        claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
+        user,
+        &EncodingKey::from_secret(secret.as_ref()),
     )
 }
 
 /// Validasi dan decode JWT token.
-/// Mengembalikan Claims jika valid, error jika expired atau invalid signature.
-pub fn validate_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
-    let secret = crate::support::env("JWT_SECRET", "lumina-secret-change-in-production");
-    let data = decode::<Claims>(
+/// Mengembalikan AuthUser jika valid, error jika expired atau invalid signature.
+pub fn validate_token(token: &str) -> Result<AuthUser, jsonwebtoken::errors::Error> {
+    let secret = std::env::var("APP_KEY").unwrap_or_else(|_| "secret".to_string());
+    let data = decode::<AuthUser>(
         token,
-        &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &DecodingKey::from_secret(secret.as_ref()),
+        &Validation::new(Algorithm::HS256),
     )?;
     Ok(data.claims)
 }

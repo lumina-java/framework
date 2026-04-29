@@ -42,7 +42,7 @@ impl AuthController {
         session: tower_sessions::Session,
     ) -> impl IntoResponse {
         // Redirect if already logged in via session
-        if session.get::<crate::core::auth::Claims>("user").await.unwrap_or_default().is_some() {
+        if session.get::<crate::core::auth::AuthUser>("user").await.unwrap_or_default().is_some() {
             return (token, Redirect::to("/dashboard")).into_response();
         }
 
@@ -176,11 +176,12 @@ impl AuthController {
         if let Some(u) = user {
             if crate::core::auth::hash::check(&form.password, &u.password) {
                 // Generate JWT
-                let claims = crate::core::auth::Claims::new(u.id, u.email, u.role, 24);
-                let token_str = crate::http::auth::generate_token(&claims).unwrap();
+                let auth_user = crate::core::auth::AuthUser::new(u.id, u.email, u.role, 24);
+                let token_str = crate::http::auth::generate_token(&auth_user).unwrap();
                 
                 // Simpan ke Session
                 session.insert("jwt", token_str).await.unwrap();
+                session.insert("user", auth_user).await.unwrap();
                 
                 flash.success("Selamat Datang!").await;
                 (token, Redirect::to("/dashboard")).into_response()

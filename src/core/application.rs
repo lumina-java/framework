@@ -75,8 +75,8 @@ impl Application {
             .with_state(state.clone())
             // ── Middleware stack (urutan: dari luar ke dalam) ──────────────
             .layer(from_fn(logger))
-            // Catch Panic Layer — menangkap panic dan mengembalikan 500
-            .layer(CatchPanicLayer::new())
+            // Catch Panic Layer — menangkap panic dan mengembalikan 500 / Halaman DD
+            .layer(CatchPanicLayer::custom(crate::support::debug::handle_panic))
             // db_guard — intercept semua request jika DB tidak tersedia
             .layer(from_fn_with_state(state.clone(), db_guard))
             // CSRF Layer

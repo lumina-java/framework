@@ -13,3 +13,4 @@ pub mod session;
 pub mod storage;
 pub mod config;
 pub mod queue;
+pub mod cache;

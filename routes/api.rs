@@ -25,6 +25,26 @@ pub fn register(config: &crate::core::config::ConfigManager) -> Router<AppState>
                 })),
                 Err(e) => crate::core::response::ApiResponse::error(&e),
             }
+        }))
+        .route("/test-cache", routing::get(|State(state): State<AppState>| async move {
+            let key = "test_key";
+            
+            // Coba ambil dari cache
+            if let Some(val) = state.cache.get::<String>(key).await {
+                return crate::core::response::ApiResponse::success(serde_json::json!({
+                    "status": "Cache Hit",
+                    "data": val
+                }));
+            }
+
+            // Jika Miss, simpan ke cache (TTL 10 detik)
+            let new_data = "Lumina Cache Berhasil! 🧊".to_string();
+            state.cache.put(key, new_data.clone(), 10).await;
+
+            crate::core::response::ApiResponse::success(serde_json::json!({
+                "status": "Cache Miss (Data set for 10s)",
+                "data": new_data
+            }))
         }));
 
     // ── Protected routes — wajib Bearer token ───────────────────────────────

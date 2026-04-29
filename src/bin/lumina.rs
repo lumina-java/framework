@@ -29,6 +29,12 @@ enum Commands {
         /// Name of the migration (e.g. create_products_table)
         name: String,
     },
+    /// Generate a new background job
+    #[command(name = "make:job")]
+    MakeJob {
+        /// Name of the job (e.g. SendEmailJob)
+        name: String,
+    },
     /// Start the HTTP server
     #[command(name = "serve")]
     Serve,
@@ -47,6 +53,9 @@ async fn main() {
         }
         Commands::MakeMigration { name } => {
             cli::handle_make_migration(&name).await;
+        }
+        Commands::MakeJob { name } => {
+            cli::handle_make_job(&name).await;
         }
         Commands::Serve => {
             println!("🚀 Starting Lumina Server...");

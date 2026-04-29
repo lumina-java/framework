@@ -31,6 +31,7 @@ pub struct AppState {
     pub csrf_config: CsrfConfig,
     pub storage: Arc<crate::core::storage::Storage>,
     pub config: crate::core::config::Config,
+    pub queue: Arc<crate::core::queue::QueueManager>,
 }
 
 impl FromRef<AppState> for CsrfConfig {
@@ -88,7 +89,12 @@ impl Application {
         let config = Arc::new(crate::core::config::ConfigManager::new());
         let view = ViewEngine::new();
 
-        // ── 2. Coba connect ke database ───────────────────────────────────
+        // ── 2. Inisialisasi Queue System ──────────────────────────────────
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
+        let queue_manager = Arc::new(crate::core::queue::QueueManager::new(tx));
+        let worker = crate::core::queue::QueueWorker::new(rx);
+
+        // ── 3. Coba connect ke database ───────────────────────────────────
         let db_url = config.get_db_url();
 
         let (db_pool, auth_service, db_error) = match DatabasePool::connect(&db_url).await {
@@ -134,11 +140,17 @@ impl Application {
             csrf_config: csrf::config(),
             storage: Arc::new(crate::core::storage::Storage::new_local("storage/app/public", "/storage")),
             config,
+            queue: queue_manager,
         };
 
-        // ── 5. Serve HTTP ──────────────────────────────────────────────────
+        let state_arc = Arc::new(state);
+
+        // ── 5. Jalankan Background Worker ──────────────────────────────────
+        tokio::spawn(worker.run(state_arc.clone()));
+
+        // ── 6. Serve HTTP ──────────────────────────────────────────────────
         println!("🌐 Listening on http://{}", addr);
-        let router = self.build_router(state);
+        let router = self.build_router((*state_arc).clone());
         let server = Server::new(addr.to_string());
         server.start(router).await;
     }

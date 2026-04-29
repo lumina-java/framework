@@ -1,4 +1,4 @@
-use axum::{Router as AxumRouter, routing, middleware::from_fn};
+use axum::{Router as AxumRouter, routing, middleware::from_fn, extract::State};
 use crate::core::router::Router;
 use crate::app::controllers::{
     api_controller::ApiController,
@@ -16,7 +16,16 @@ pub fn register(config: &crate::core::config::ConfigManager) -> Router<AppState>
         // .route("/auth/register", routing::post(AuthController::api_register))
         .route("/products",     routing::get(ProductController::index))
         .route("/products/:id", routing::get(ProductController::show))
-        .route("/storage/test-upload", routing::post(StorageController::test_upload));
+        .route("/storage/test-upload", routing::post(StorageController::test_upload))
+        .route("/test-queue", routing::get(|State(state): State<AppState>| async move {
+            let job = crate::app::jobs::test_job::TestJob::new("Halo dari Antrean!");
+            match state.queue.dispatch(job).await {
+                Ok(_) => crate::core::response::ApiResponse::success(serde_json::json!({
+                    "message": "Job dikirim ke antrean"
+                })),
+                Err(e) => crate::core::response::ApiResponse::error(&e),
+            }
+        }));
 
     // ── Protected routes — wajib Bearer token ───────────────────────────────
     // .route_layer() menerapkan middleware hanya ke route-route di dalam group ini

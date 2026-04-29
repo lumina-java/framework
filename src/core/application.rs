@@ -32,6 +32,7 @@ pub struct AppState {
     pub storage: Arc<crate::core::storage::Storage>,
     pub config: crate::core::config::Config,
     pub queue: Arc<crate::core::queue::QueueManager>,
+    pub cache: Arc<crate::core::cache::CacheManager>,
 }
 
 impl FromRef<AppState> for CsrfConfig {
@@ -88,6 +89,7 @@ impl Application {
         // ── 1. Inisialisasi Config & View Engine ───────────────────────────
         let config = Arc::new(crate::core::config::ConfigManager::new());
         let view = ViewEngine::new();
+        let cache = Arc::new(crate::core::cache::CacheManager::new());
 
         // ── 2. Inisialisasi Queue System ──────────────────────────────────
         let (tx, rx) = tokio::sync::mpsc::channel(100);
@@ -141,6 +143,7 @@ impl Application {
             storage: Arc::new(crate::core::storage::Storage::new_local("storage/app/public", "/storage")),
             config,
             queue: queue_manager,
+            cache,
         };
 
         let state_arc = Arc::new(state);

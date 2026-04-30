@@ -1,6 +1,6 @@
-use axum::{extract::State, response::Html};
+use axum::{extract::State, response::{Html, IntoResponse}};
 use crate::core::application::AppState;
-use tera::Context;
+use crate::core::view::View;
 
 pub struct HomeController;
 
@@ -9,20 +9,18 @@ impl HomeController {
     pub async fn index(
         State(state): State<AppState>,
         session: tower_sessions::Session,
-    ) -> Html<String> {
-        let context = Context::new();
-        let rendered = state.view.render_with_session("home/index.html", context, &session).await;
-        Html(rendered)
+    ) -> impl IntoResponse {
+        View::make("home.index")
+            .render(&state, &session)
+            .await
     }
 
     /// GET /about
-    pub async fn about(State(_state): State<AppState>) -> Html<String> {
-        let mut context = Context::new();
-        context.insert("title", "About Lumina");
-        
-        // Kita belum buat about.html, jadi sementara bisa gunakan index atau buat baru
-        // let rendered = state.view.render("home/about.html", &context);
-        Html("<h1>About Page</h1><p>Rendering via Template Engine coming soon...</p>".to_string())
+    pub async fn about(State(state): State<AppState>, session: tower_sessions::Session) -> impl IntoResponse {
+        View::make("home.about")
+            .with("title", "About Lumina")
+            .render(&state, &session)
+            .await
     }
 
     /// GET /debug/panic — Menghasilkan panic untuk testing Error 500

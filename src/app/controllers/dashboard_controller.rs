@@ -1,11 +1,10 @@
 use axum::{
     extract::State,
-    response::{Html, IntoResponse},
+    response::IntoResponse,
 };
 use crate::core::application::AppState;
 use crate::core::auth::AuthUser;
-use serde_json::json;
-use tera::Context;
+use crate::core::view::View;
 
 pub struct DashboardController;
 
@@ -18,18 +17,11 @@ impl DashboardController {
         session: tower_sessions::Session,
         user: AuthUser,
     ) -> impl IntoResponse {
-        let mut context = Context::new();
-        context.insert("user", &json!({
-            "email": user.email,
-            "role": user.role,
-            "sub": user.sub
-        }));
-        context.insert("user_id", &user.sub);
-        context.insert("email", &user.email);
-        context.insert("role", &user.role);
-        context.insert("title", "Dashboard — Lumina");
-
-        let rendered = state.view.render_with_session("dashboard/index.html", context, &session).await;
-        Html(rendered)
+        
+        View::make("dashboard.index")
+            .with("user", user)
+            .with("title", "Dashboard — Lumina")
+            .render(&state, &session)
+            .await
     }
 }

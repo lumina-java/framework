@@ -32,9 +32,10 @@ Lumina mengikuti pola **MVC** terinspirasi dari Laravel, dibangun di atas:
 | HTTP Layer | Axum 0.7 |
 | Database | SQLx (SQLite / MySQL / PostgreSQL) |
 | Template Engine | Tera |
-| Auth / JWT | jsonwebtoken |
+| Autentikasi | jsonwebtoken |
 | Validasi | validator |
 | Password Hashing | bcrypt |
+| Debugging | Custom dd!() & Dump Tool |
 
 ```
 lumina/
@@ -241,6 +242,55 @@ impl ApiController {
 }
 ```
 
+### Fluent Redirect API
+
+Lumina menyediakan *builder* untuk redirect bergaya Laravel:
+
+```rust
+use crate::core::response::Redirect;
+
+pub async fn store(session: Session) -> impl IntoResponse {
+    Redirect::to("/dashboard")
+        .with_success("Data berhasil disimpan!")
+        .send(&session)
+        .await
+}
+```
+
+Tersedia metode:
+- `.with_success(msg)`: Pesan sukses hijau.
+- `.with_error(msg)`: Pesan error merah.
+- `.with_errors(hashmap)`: Error validasi per field.
+- `.with_input(struct/json)`: Menyimpan data form agar tidak hilang (*Old Input*).
+
+### Extractor & Dependency Injection
+
+Lumina menggunakan sistem *Extractor* milik Axum untuk menyuntikkan data secara otomatis ke dalam parameter fungsi Controller (Dependency Injection).
+
+| Parameter | Nama Extractor | Fungsi |
+|-----------|----------------|--------|
+| `State(state)` | `State<AppState>` | Memberikan akses ke database, view engine, dan service global. |
+| `session` | `Session` | Akses ke session user (Flash messages, data login, dll). |
+| `token` | `CsrfToken` | Digunakan untuk validasi CSRF dan sinkronisasi token di form. |
+| `user` | `AuthUser` | Mengambil data user yang sedang login secara otomatis. |
+| `Path(id)` | `Path<T>` | Mengambil parameter ID dari URL (misal: `/users/:id`). |
+| `ValidatedForm(f)`| `ValidatedForm<T>` | Mengambil data form dan memvalidasinya secara otomatis. |
+
+#### Contoh Penggunaan Lengkap:
+
+```rust
+pub async fn profile(
+    State(state): State<AppState>, // Inject State
+    user: AuthUser,                // Inject User Login
+    session: Session               // Inject Session
+) -> impl IntoResponse {
+    View::make("user.profile")
+        .with("user", user)
+        .render(&state, &session)
+        .await
+}
+```
+
 ---
 
 ## Model & Database
@@ -380,17 +430,22 @@ Jika validasi gagal, Lumina otomatis mengembalikan **HTTP 422**:
 }
 ```
 
-### ValidatedForm (untuk Web Form)
+### ValidatedForm (Otomatis & Cerdas)
+
+`ValidatedForm<T>` adalah cara paling elegan untuk menangani form HTML. Berbeda dengan `ValidatedJson`, extractor ini **otomatis** melakukan interupsi jika data tidak valid.
 
 ```rust
 use crate::core::validation::ValidatedForm;
 
 pub async fn store(
-    State(state): State<Arc<AppState>>,
+    // Jika validasi gagal, Lumina otomatis:
+    // 1. Redirect balik ke halaman asal (Referer).
+    // 2. Flash pesan error ke session.
+    // 3. Simpan data input ke session (Old Input).
     ValidatedForm(payload): ValidatedForm<CreateProductRequest>
 ) -> impl IntoResponse {
-    // payload sudah tervalidasi
-    Redirect::to("/products?success=Produk berhasil dibuat").into_response()
+    // Jika kode ini jalan, berarti data SUDAH PASTI VALID.
+    Redirect::to("/products").with_success("Produk dibuat!").send(&session).await
 }
 ```
 
@@ -777,6 +832,29 @@ curl http://localhost:8000/api/products/1
 | `❌ Parsing error(s)` saat startup | Periksa sintaks template HTML di `resources/views/` |
 | JWT token invalid | Pastikan `JWT_SECRET` sama di semua environment |
 | `cargo run` gagal build | Jalankan `cargo check` untuk melihat error detail |
+
+---
+
+## 🛠️ Debugging Tools (Premium)
+
+Lumina dilengkapi dengan alat bantu debugging premium:
+
+### Dump & Die (`dd!`)
+
+Gunakan makro `dd!()` di mana saja dalam kode Rust Anda untuk menghentikan eksekusi dan menampilkan data secara visual di browser dengan tampilan *Dark Mode* yang elegan.
+
+```rust
+let user = User::find(&db, 1).await?;
+dd!(user); // Eksekusi berhenti di sini dan merender UI debugger
+```
+
+### Template Dump (`dump`)
+
+Dalam template Tera, Anda bisa melihat isi variabel menggunakan filter `dump`:
+
+```html
+{{ dump(var=products) }}
+```
 
 ---
 

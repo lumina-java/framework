@@ -34,10 +34,12 @@ pub fn flash_errors(_session: &tower_sessions::Session, _errors: HashMap<String,
 
 use axum::{
     async_trait,
-    extract::{FromRequest, Request},
+    extract::{FromRequest, FromRequestParts, Request},
     Json,
+    response::IntoResponse,
 };
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 pub struct ValidatedJson<T>(pub T);
 
@@ -60,5 +62,80 @@ where
         })?;
         
         Ok(ValidatedJson(value))
+    }
+}
+
+/// Wrapper untuk Form yang otomatis divalidasi dan diredirect balik jika gagal.
+pub struct ValidatedForm<T>(pub T);
+
+pub struct FormValidationRejection(pub axum::response::Response);
+
+impl IntoResponse for FormValidationRejection {
+    fn into_response(self) -> axum::response::Response {
+        self.0
+    }
+}
+
+#[async_trait]
+impl<T, S> FromRequest<S> for ValidatedForm<T>
+where
+    T: DeserializeOwned + Serialize + Validate + Send + Sync + 'static,
+    S: Send + Sync,
+    axum::Form<T>: FromRequest<S>,
+{
+    type Rejection = FormValidationRejection;
+
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        // Ambil Session dan Referer sebelum request dikonsumsi
+        let session = req.extensions().get::<tower_sessions::Session>().cloned();
+        let referer = req.headers()
+            .get(axum::http::header::REFERER)
+            .and_then(|h| h.to_str().ok())
+            .unwrap_or("/")
+            .to_string();
+
+        // Ekstrak CsrfToken untuk memastikan sinkronisasi saat redirect
+        let (mut parts, body) = req.into_parts();
+        let token = axum_csrf::CsrfToken::from_request_parts(&mut parts, state).await.ok();
+        let req = Request::from_parts(parts, body);
+
+        let form_res = axum::Form::<T>::from_request(req, state).await;
+        let value = form_res.ok().map(|axum::Form(v)| v);
+
+        if let Some(value) = value {
+            if let Err(e) = value.validate() {
+                if let Some(session) = session {
+                    let _ = session.insert("_errors", e.to_map()).await;
+                    let _ = session.insert("_old", serde_json::to_value(&value).unwrap_or_default()).await;
+                    
+                    let flash = crate::core::session::FlashManager::new(&session);
+                    flash.error("Validasi gagal. Mohon periksa kembali form Anda.").await;
+                }
+
+                let redirect = axum::response::Redirect::to(&referer);
+                let res = if let Some(t) = token {
+                    (t, redirect).into_response()
+                } else {
+                    redirect.into_response()
+                };
+                
+                return Err(FormValidationRejection(res));
+            }
+            Ok(ValidatedForm(value))
+        } else {
+            if let Some(session) = session {
+                let flash = crate::core::session::FlashManager::new(&session);
+                flash.error("Format data tidak valid.").await;
+            }
+            
+            let redirect = axum::response::Redirect::to(&referer);
+            let res = if let Some(t) = token {
+                (t, redirect).into_response()
+            } else {
+                redirect.into_response()
+            };
+
+            Err(FormValidationRejection(res))
+        }
     }
 }

@@ -86,3 +86,62 @@ fn dump_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Resul
         Ok(tera::Value::String("".to_string()))
     }
 }
+
+/// Helper untuk merender view secara elegan (Laravel-style)
+pub struct View;
+
+pub struct ViewBuilder {
+    template: String,
+    context: Context,
+}
+
+impl View {
+    /// Membuat instance ViewBuilder baru. Gunakan titik sebagai separator subdirektori (misal: "auth.login")
+    pub fn make(template: &str) -> ViewBuilder {
+        ViewBuilder::new(template)
+    }
+}
+
+impl ViewBuilder {
+    pub fn new(template: &str) -> Self {
+        let mut template_name = template.replace(".", "/");
+        if !template_name.ends_with(".html") {
+            template_name.push_str(".html");
+        }
+        
+        Self {
+            template: template_name,
+            context: Context::new(),
+        }
+    }
+
+    /// Menambahkan data ke dalam context template
+    pub fn with<T: serde::Serialize>(mut self, key: &str, value: T) -> Self {
+        self.context.insert(key, &value);
+        self
+    }
+
+    /// Mengeksekusi render dan mengembalikan ViewResponse
+    pub async fn render(self, state: &crate::core::application::AppState, session: &tower_sessions::Session) -> ViewResponse {
+        let html = state.view.render_with_session(&self.template, self.context, session).await;
+        ViewResponse { html }
+    }
+}
+
+pub struct ViewResponse {
+    pub html: String,
+}
+
+impl ViewResponse {
+    /// Mengonversi hasil render ke Axum Response dengan sinkronisasi CsrfToken
+    pub fn into_response(self, token: axum_csrf::CsrfToken) -> axum::response::Response {
+        use axum::response::IntoResponse;
+        (token, axum::response::Html(self.html)).into_response()
+    }
+}
+
+impl axum::response::IntoResponse for ViewResponse {
+    fn into_response(self) -> axum::response::Response {
+        axum::response::Html(self.html).into_response()
+    }
+}

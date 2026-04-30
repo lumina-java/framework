@@ -18,6 +18,9 @@ impl ViewEngine {
         };
         
         tera.autoescape_on(vec![".html", ".htm", ".xml"]);
+        
+        // Register custom function 'dump'
+        tera.register_function("dump", dump_fn);
 
         Self {
             inner: Arc::new(tera),
@@ -64,5 +67,22 @@ impl ViewEngine {
         }
         
         self.render(template_name, &context)
+    }
+}
+
+/// Custom function untuk mencetak variabel JSON di Tera.
+fn dump_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+    if let Some(val) = args.get("var") {
+        let pretty = serde_json::to_string_pretty(val).unwrap_or_else(|_| "Error serializing".to_string());
+        let html = format!(
+            r#"<div style="background: #1e293b; color: #7dd3fc; font-family: 'Fira Code', monospace; padding: 20px; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 4px 6px rgba(0,0,0,0.3); margin: 20px 0; position: relative;">
+                <div style="position: absolute; top: 0; right: 0; background: rgba(56, 189, 248, 0.1); color: #38bdf8; padding: 2px 10px; border-radius: 0 12px 0 12px; font-size: 10px; font-weight: 600; text-transform: uppercase;">Tera Dump</div>
+                <pre style="margin: 0; font-size: 13px; white-space: pre-wrap; word-wrap: break-word;">{}</pre>
+            </div>"#, 
+            pretty
+        );
+        Ok(tera::Value::String(html))
+    } else {
+        Ok(tera::Value::String("".to_string()))
     }
 }

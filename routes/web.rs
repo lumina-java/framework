@@ -23,7 +23,8 @@ pub fn register(_config: &crate::core::config::ConfigManager) -> Router<AppState
         .post("/auth/register", AuthController::register)
         
         // Debug
-        .get("/debug/panic",    HomeController::debug_panic);
+        .get("/debug/panic",    HomeController::debug_panic)
+        .get("/debug/dd",       HomeController::debug_dd);
 
     // ─── Protected Routes (Hanya untuk User Login) ───
     let protected = Router::<AppState>::new()

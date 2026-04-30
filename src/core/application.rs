@@ -37,6 +37,14 @@ pub struct AppState {
     pub cache: Arc<crate::core::cache::CacheManager>,
 }
 
+impl AppState {
+    /// Akses cepat ke Database Pool.
+    /// Panik jika database tidak terhubung (seharusnya ditangani oleh db_guard).
+    pub fn db(&self) -> &DatabasePool {
+        self.db.as_ref().expect("Database connection is not available")
+    }
+}
+
 impl FromRef<AppState> for CsrfConfig {
     fn from_ref(state: &AppState) -> Self {
         state.csrf_config.clone()

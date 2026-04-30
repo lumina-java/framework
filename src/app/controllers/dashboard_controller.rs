@@ -1,27 +1,23 @@
-use axum::{
-    extract::State,
-    response::IntoResponse,
-};
-use crate::core::application::AppState;
-use crate::core::auth::AuthUser;
+use crate::core::request::Request;
 use crate::core::view::View;
+use axum::response::IntoResponse;
 
 pub struct DashboardController;
 
 impl DashboardController {
     /// GET /dashboard
-    /// Route ini dilindungi oleh middleware web_auth.
-    /// AuthUser disuntikkan secara otomatis (Dependency Injection) melalui Extractor.
-    pub async fn index(
-        State(state): State<AppState>,
-        session: tower_sessions::Session,
-        user: AuthUser,
-    ) -> impl IntoResponse {
-        
+    /// Menggunakan Request bundle untuk akses cepat ke State, Session, dan User.
+    pub async fn index(req: Request) -> impl IntoResponse {
+        // Karena route ini dilindungi middleware, req.user pasti Some
+        let user = req.user.expect("Unauthorized access to dashboard");
+
         View::make("dashboard.index")
-            .with("user", user)
             .with("title", "Dashboard — Lumina")
-            .render(&state, &session)
+            .with("tuan", "Tuang adalah lumina")
+            .with("user_id", &user.sub)
+            .with("email", &user.email)
+            .with("role", &user.role)
+            .render(&req.state, &req.session)
             .await
     }
 }

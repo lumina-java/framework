@@ -11,14 +11,113 @@
 2. [Instalasi & Setup](#instalasi--setup)
 3. [Konfigurasi](#konfigurasi)
 4. [Routing](#routing)
-5. [Controller](#controller)
-6. [Model & Database](#model--database)
+5. [Controller & View](#controller--view)
+6. [Model & Database (ORM)](#model--database-orm)
 7. [Validasi Request](#validasi-request)
-8. [Template Engine](#template-engine)
-9. [Autentikasi JWT](#autentikasi-jwt)
-10. [Service Layer](#service-layer)
-11. [Middleware](#middleware)
-12. [CLI Tools](#cli-tools)
+8. [Autentikasi & Facade Auth](#autentikasi--facade-auth)
+9. [Session & Persistence](#session--persistence)
+10. [Debugging (dd!)](#debugging-dd)
+11. [CLI Tools](#cli-tools)
+12. [**CHEAT SHEET (Quick Reference)**](./CHEAT_SHEET.md)
+
+---
+
+## Arsitektur
+... (keep existing content) ...
+
+## Controller & View
+
+### View Builder (Laravel Style)
+Lumina menggunakan fluent API untuk merender template. Ini menghindari penggunaan `tera::Context` secara manual.
+
+```rust
+use crate::core::view::View;
+
+pub async fn index(State(state): State<AppState>, session: Session) -> impl IntoResponse {
+    View::make("home.index")
+        .with("title", "Lumina Framework")
+        .with("version", "v0.1.0")
+        .render(&state, &session)
+        .await
+}
+```
+
+---
+
+## Model & Database (ORM)
+
+### Relasi (Relationships)
+Lumina mendukung relasi dasar secara out-of-the-box.
+
+#### Has Many
+```rust
+// Di dalam impl User
+pub async fn posts(&self, db: &DatabasePool) -> Result<Vec<Post>, sqlx::Error> {
+    Self::has_many::<Post>(db, "user_id", self.id).await
+}
+```
+
+#### Belongs To
+```rust
+// Di dalam impl Post
+pub async fn user(&self, db: &DatabasePool) -> Result<User, sqlx::Error> {
+    Self::belongs_to::<User>(db, self.user_id).await
+}
+```
+
+---
+
+## Autentikasi & Facade Auth
+
+Untuk mempermudah penggunaan, gunakan struct `Auth` yang menyediakan API statis untuk operasi autentikasi.
+
+```rust
+use crate::core::auth::Auth;
+
+// Cek password
+if Auth::check("plain_password", &hashed_password) { ... }
+
+// Login User (Menyimpan JWT dan data user ke session)
+Auth::login(&session, auth_user).await?;
+
+// Logout
+Auth::logout(&session).await;
+```
+
+---
+
+## Session & Persistence
+
+Secara default, Lumina menyimpan session di **Database (MySQL/PostgreSQL/SQLite)** sesuai konfigurasi `DATABASE_URL` Anda.
+
+- **Persistence**: Session tetap ada meskipun server di-restart.
+- **Auto Logout**: User akan otomatis logout jika tidak ada aktivitas selama **5 menit** (Inactivity Timeout).
+- **Fallback**: Jika database tidak tersedia, Lumina akan otomatis menggunakan memori RAM sebagai penyimpanan sementara.
+
+---
+
+## Debugging (dd!)
+
+Gunakan makro `dd!` (Dump & Die) untuk melihat isi variabel langsung di browser dengan tampilan yang cantik.
+
+```rust
+crate::dd!(user_data);
+```
+
+---
+
+## CLI Tools
+
+| Command | Deskripsi |
+|---|---|
+| `./lumina watch` | Menjalankan server dengan **Hot Reload**. |
+| `./lumina serve` | Menjalankan server biasa. |
+| `./lumina migrate` | Menjalankan migrasi database. |
+| `./lumina make:controller` | Membuat file controller baru. |
+
+---
+
+> Lihat [CHEAT_SHEET.md](./CHEAT_SHEET.md) untuk referensi cepat penulisan kode "Beauty Code".
 
 ---
 

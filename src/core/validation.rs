@@ -65,7 +65,11 @@ where
     }
 }
 
-/// Wrapper untuk Form yang otomatis divalidasi dan diredirect balik jika gagal.
+/// Trait opsional untuk form yang membutuhkan validasi CSRF otomatis.
+pub trait CsrfValidatable {
+    fn get_csrf_token(&self) -> &str;
+}
+
 pub struct ValidatedForm<T>(pub T);
 
 pub struct FormValidationRejection(pub axum::response::Response);

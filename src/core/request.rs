@@ -15,6 +15,7 @@ pub struct Request {
     pub session: Session,
     pub token: CsrfToken,
     pub user: Option<AuthUser>,
+    pub headers: axum::http::HeaderMap,
 }
 
 #[async_trait]
@@ -45,6 +46,7 @@ where
             session,
             token,
             user,
+            headers: parts.headers.clone(),
         })
     }
 }
@@ -52,10 +54,8 @@ where
 use axum::extract::FromRef;
 
 impl Request {
-    /// Ambil user yang sedang login (jika ada).
-    pub fn user(&self) -> Option<AuthUser> {
-        // Implementasi pengambilan user dari extensions parts jika diperlukan, 
-        // tapi AuthUser biasanya sudah ada di parameter terpisah.
-        None 
+    /// Cek apakah request berasal dari HTMX.
+    pub fn is_htmx(&self) -> bool {
+        self.headers.contains_key("HX-Request")
     }
 }

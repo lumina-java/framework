@@ -18,7 +18,9 @@
 9. [Session & Persistence](#session--persistence)
 10. [Debugging (dd!)](#debugging-dd)
 11. [CLI Tools](#cli-tools)
-12. [**CHEAT SHEET (Quick Reference)**](./CHEAT_SHEET.md)
+12. [Eager Loading (N+1 Solution)](#eager-loading-n1-solution)
+13. [HTMX Integration (Zero-Mouse UI)](#htmx-integration-zero-mouse-ui)
+14. [**CHEAT SHEET (Quick Reference)**](./CHEAT_SHEET.md)
 
 ---
 
@@ -63,6 +65,89 @@ pub async fn posts(&self, db: &DatabasePool) -> Result<Vec<Post>, sqlx::Error> {
 pub async fn user(&self, db: &DatabasePool) -> Result<User, sqlx::Error> {
     Self::belongs_to::<User>(db, self.user_id).await
 }
+```
+
+---
+
+---
+
+## Eager Loading (N+1 Solution)
+
+Eager Loading digunakan untuk mengambil data relasi secara efisien dalam satu query tambahan (menggunakan `WHERE IN`), menghindari masalah N+1 query yang lambat.
+
+### Cara Penggunaan
+Cukup tambahkan `.with("nama_relasi")` pada saat membangun query.
+
+```rust
+// Mengambil user beserta semua posts mereka (Hanya 2 query total)
+let users = User::query(&db).with("posts").get().await?;
+
+for u in users {
+    // Data posts tersedia di Option<Vec<Post>>
+    if let Some(posts) = u.posts {
+        println!("User {} punya {} posts", u.name, posts.len());
+    }
+}
+```
+
+### Konfigurasi Model
+Untuk mendukung Eager Loading, model harus mengimplementasikan metode `eager_load` pada trait `Model`.
+
+```rust
+#[async_trait]
+impl Model for User {
+    // ...
+    async fn eager_load(models: &mut [Self], db: &DatabasePool, relation: &str) {
+        if relation == "posts" {
+            let ids: Vec<i64> = models.iter().map(|m| m.id).collect();
+            let all_posts = Post::query(db).where_in("user_id", &ids).get().await.unwrap_or_default();
+            
+            for model in models {
+                let user_posts = all_posts.iter()
+                    .filter(|p| p.user_id == model.id)
+                    .cloned()
+                    .collect();
+                model.posts = Some(user_posts);
+            }
+        }
+    }
+}
+```
+
+---
+
+## HTMX Integration (Zero-Mouse UI)
+
+Lumina terintegrasi dengan **HTMX** untuk memberikan pengalaman Single Page Application (SPA) tanpa perlu menulis JavaScript. Ini sangat mendukung workflow **Keyboardholic**.
+
+### Fitur Utama
+1.  **Partial Rendering**: Lumina otomatis mendeteksi request HTMX dan dapat merender hanya bagian konten tanpa layout penuh.
+2.  **HX-Boost**: Semua link standar otomatis dikonversi menjadi request HTMX yang cepat.
+3.  **is_htmx Detection**: Di dalam controller, Anda bisa mengecek `req.is_htmx()` untuk memberikan respon yang berbeda.
+
+### Penggunaan di Controller
+Gunakan `req.is_htmx()` untuk logika percabangan jika diperlukan. Secara default, `View::render(&req)` sudah menyuntikkan variabel `is_htmx` ke template.
+
+```rust
+pub async fn index(req: Request) -> impl IntoResponse {
+    View::make("dashboard.index")
+        .render(&req) // Otomatis mengirim variabel is_htmx ke template
+        .await
+}
+```
+
+### Penggunaan di Template
+Lumina menggunakan pola kondisinal di `layout.html` untuk menangani partial render:
+
+```html
+{% if is_htmx %}
+    {% block content %}{% endblock %}
+{% else %}
+    <!-- Full Layout with Scripts & Styles -->
+    <body hx-boost="true">
+        {% block content %}{% endblock %}
+    </body>
+{% endif %}
 ```
 
 ---

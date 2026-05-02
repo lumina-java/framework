@@ -14,7 +14,11 @@ path = "src/lib.rs"
 name = "lumina-server"
 path = "src/main.rs"
 
+[workspace]
+members = ["lumina_macros"]
+
 [dependencies]
+lumina_macros = { path = "lumina_macros" }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["macros", "multipart"] }
 serde = { version = "1", features = ["derive"] }

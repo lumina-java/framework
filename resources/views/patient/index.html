@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-title-box d-flex align-items-center justify-content-between">
+    <h4 class="mb-0">Patient Management</h4>
+    <div class="page-title-right">
+        <a href="/patients/create" class="btn btn-primary" hx-boost="true">
+            <i class="ri-add-line align-bottom me-1"></i> Tambah Baru (Alt+N)
+        </a>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-striped table-hover align-middle table-nowrap mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Created At</th>
+                        <th class="text-end">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.id }}</td>
+                        <td>{{ item.name }}</td>
+                        <td>{{ item.created_at }}</td>
+                        <td class="text-end">
+                            <a href="/patients/{{ item.id }}/edit" class="btn btn-sm btn-soft-info" hx-boost="true">Edit</a>
+                            <form action="/patients/{{ item.id }}/delete" method="POST" class="d-inline" hx-boost="true" onsubmit="return confirm('Yakin ingin menghapus?')">
+                                <button type="submit" class="btn btn-sm btn-soft-danger">Hapus</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center">Data kosong.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

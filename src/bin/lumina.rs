@@ -41,6 +41,12 @@ enum Commands {
     /// Watch for changes and auto-reload the server
     #[command(name = "watch")]
     Watch,
+    /// Generate a full CRUD scaffolding (Model, Controller, Migration, Views)
+    #[command(name = "make:crud")]
+    MakeCrud {
+        /// Name of the entity (e.g. Patient)
+        name: String,
+    },
 }
 
 #[tokio::main]
@@ -59,6 +65,9 @@ async fn main() {
         }
         Commands::MakeJob { name } => {
             cli::handle_make_job(&name).await;
+        }
+        Commands::MakeCrud { name } => {
+            cli::handle_make_crud(&name).await;
         }
         Commands::Serve => {
             println!("🚀 Starting Lumina Server...");

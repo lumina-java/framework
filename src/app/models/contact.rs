@@ -4,7 +4,7 @@ use sqlx::FromRow;
 use crate::database::{connection::DatabasePool, model::Model};
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
-pub struct {{name}} {
+pub struct Contact {
     pub id: i64,
     pub name: String,
     pub created_at: Option<String>,
@@ -13,12 +13,12 @@ pub struct {{name}} {
 }
 
 #[async_trait]
-impl Model for {{name}} {
-    const TABLE: &'static str = "{{table_name}}";
+impl Model for Contact {
+    const TABLE: &'static str = "contacts";
 
     async fn find(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
         sqlx::query_as::<_, Self>(
-            "SELECT * FROM {{table_name}} WHERE id = ? AND deleted_at IS NULL"
+            "SELECT * FROM contacts WHERE id = ? AND deleted_at IS NULL"
         )
         .bind(id)
         .fetch_one(&pool.pool)
@@ -27,7 +27,7 @@ impl Model for {{name}} {
 
     async fn all(pool: &DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as::<_, Self>(
-            "SELECT * FROM {{table_name}} WHERE deleted_at IS NULL"
+            "SELECT * FROM contacts WHERE deleted_at IS NULL"
         )
         .fetch_all(&pool.pool)
         .await
@@ -35,7 +35,7 @@ impl Model for {{name}} {
 
     async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {
         let result = sqlx::query(
-            "INSERT INTO {{table_name}} (name) VALUES (?)"
+            "INSERT INTO contacts (name) VALUES (?)"
         )
         .bind(&self.name)
         .execute(&pool.pool)
@@ -45,7 +45,7 @@ impl Model for {{name}} {
     }
 
     async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
-        sqlx::query("UPDATE {{table_name}} SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
+        sqlx::query("UPDATE contacts SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
             .bind(id)
             .execute(&pool.pool)
             .await?;

@@ -22,6 +22,7 @@ impl AuthService {
             email,
             password: hashed_password,
             role: "user".to_string(),
+            posts: None,
         };
 
         user.save(&self.db).await

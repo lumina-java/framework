@@ -127,14 +127,27 @@ impl Redirect {
         axum::response::Redirect::to(&self.path)
     }
 
-    /// Helper paling sakti: Kirim redirect sekaligus sinkronisasi token CSRF
+    /// Helper paling sakti: Kirim redirect sekaligus sinkronisasi token CSRF.
+    /// Otomatis mendeteksi HTMX dan mengirim header HX-Redirect jika diperlukan.
     pub async fn go(
         self, 
-        token: axum_csrf::CsrfToken, 
-        session: &tower_sessions::Session
+        req: &crate::core::request::Request
     ) -> axum::response::Response {
-        let redirect = self.send(session).await;
-        (token, redirect).into_response()
+        let session = &req.session;
+        let token = req.token.clone();
+        let path = self.path.clone(); // Clone path dulu sebelum self di-move
+        
+        let _ = self.send(session).await;
+
+        if req.is_htmx() {
+            (
+                token,
+                [("HX-Redirect", path)],
+            ).into_response()
+        } else {
+            let redirect = axum::response::Redirect::to(&path);
+            (token, redirect).into_response()
+        }
     }
 }
 

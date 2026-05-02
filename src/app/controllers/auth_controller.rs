@@ -41,7 +41,7 @@ impl AuthController {
     pub async fn show_login(req: Request) -> impl IntoResponse {
         // Redirect jika sudah login
         if req.user.is_some() {
-            return Redirect::to("/dashboard").go(req.token, &req.session).await;
+            return Redirect::to("/dashboard").go(&req).await
         }
 
         View::make("auth.login")
@@ -67,7 +67,7 @@ impl AuthController {
     ) -> impl IntoResponse {
         // 1. Validasi CSRF
         if req.token.verify(&form.csrf_token).is_err() {
-             return Redirect::to("/auth/register").with_error("Invalid CSRF Token").go(req.token, &req.session).await;
+             return Redirect::to("/auth/register").with_error("Invalid CSRF Token").go(&req).await
         }
 
         // 2. Validasi Password Confirmation
@@ -78,7 +78,7 @@ impl AuthController {
             return Redirect::to("/auth/register")
                 .with_errors(errors)
                 .with_input(json!({"name": form.name, "email": form.email}))
-                .go(req.token, &req.session).await;
+                .go(&req).await
         }
 
         // 3. Proses Simpan
@@ -89,11 +89,11 @@ impl AuthController {
             .execute(&req.state.db().pool).await;
 
         match result {
-            Ok(_) => Redirect::to("/auth/login").with_success("Registrasi Berhasil! Silakan Login.").go(req.token, &req.session).await,
+            Ok(_) => Redirect::to("/auth/login").with_success("Registrasi Berhasil! Silakan Login.").go(&req).await,
             Err(_) => Redirect::to("/auth/register")
                 .with_input(json!({"name": form.name, "email": form.email}))
                 .with_error("Registrasi Gagal: Email mungkin sudah terdaftar.")
-                .go(req.token, &req.session).await
+                .go(&req).await
         }
     }
 
@@ -104,7 +104,7 @@ impl AuthController {
     ) -> impl IntoResponse {
         // 1. Validasi CSRF
         if req.token.verify(&form.csrf_token).is_err() {
-             return Redirect::to("/auth/login").with_error("Invalid CSRF Token").go(req.token, &req.session).await;
+             return Redirect::to("/auth/login").with_error("Invalid CSRF Token").go(&req).await
         }
 
         // 2. Autentikasi menggunakan Facade Auth
@@ -115,19 +115,19 @@ impl AuthController {
                 let auth_user = Auth::user(u.id, u.email, u.role);
                 let _ = Auth::login(&req.session, auth_user).await;
                 
-                return Redirect::to("/dashboard").with_success("Selamat Datang kembali!").go(req.token, &req.session).await;
+                return Redirect::to("/dashboard").with_success("Selamat Datang kembali!").go(&req).await
             }
         }
         
         Redirect::to("/auth/login")
             .with_input(json!({"email": form.email}))
             .with_error("Email atau Password salah.")
-            .go(req.token, &req.session).await
+            .go(&req).await
     }
 
     /// GET /auth/logout — Hapus sesi login
     pub async fn logout(req: Request) -> impl IntoResponse {
         Auth::logout(&req.session).await;
-        Redirect::to("/auth/login").with_success("Anda telah berhasil logout.").go(req.token, &req.session).await
+        Redirect::to("/auth/login").with_success("Anda telah berhasil logout.").go(&req).await
     }
 }

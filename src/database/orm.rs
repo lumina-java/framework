@@ -11,6 +11,7 @@ pub struct QueryBuilder<'a, T> {
     args: AnyArguments<'a>,
     limit: Option<usize>,
     order_by: Option<String>,
+    eager_with: Vec<String>,
     _marker: PhantomData<T>,
 }
 
@@ -27,8 +28,16 @@ where
             args: AnyArguments::default(),
             limit: None,
             order_by: None,
+            eager_with: Vec::new(),
             _marker: PhantomData,
         }
+    }
+
+    /// Eager load relasi.
+    /// Contoh: `.with("posts")`
+    pub fn with(mut self, relation: &str) -> Self {
+        self.eager_with.push(relation.to_string());
+        self
     }
 
     /// Tentukan kolom yang akan diambil.
@@ -107,11 +116,20 @@ where
     }
 
     /// Ambil semua record yang cocok.
-    pub async fn get(self) -> Result<Vec<T>, sqlx::Error> {
+    pub async fn get(self) -> Result<Vec<T>, sqlx::Error> 
+    where T: crate::database::model::Model
+    {
         let sql = self.build_sql();
-        sqlx::query_as_with::<sqlx::Any, T, _>(&sql, self.args)
+        let mut items = sqlx::query_as_with::<sqlx::Any, T, _>(&sql, self.args)
             .fetch_all(&self.pool.pool)
-            .await
+            .await?;
+
+        // Jalankan Eager Loading jika ada relasi yang diminta
+        for relation in self.eager_with {
+            T::eager_load(&relation, &mut items, self.pool).await?;
+        }
+
+        Ok(items)
     }
 
     /// Ambil record pertama yang cocok.

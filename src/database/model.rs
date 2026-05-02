@@ -54,4 +54,10 @@ pub trait Model: Sized + Send + Sync + for<'r> sqlx::FromRow<'r, sqlx::any::AnyR
     {
         R::find(pool, foreign_key_id).await
     }
+
+    /// Eager Load relasi untuk sekumpulan model (N+1 Solution).
+    /// Di-override oleh model untuk mendukung .with("relation")
+    async fn eager_load(_relation: &str, _items: &mut [Self], _pool: &DatabasePool) -> Result<(), sqlx::Error> {
+        Ok(())
+    }
 }

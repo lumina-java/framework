@@ -4,13 +4,15 @@ use sqlx::FromRow;
 use crate::database::{connection::DatabasePool, model::Model};
 
 /// Model User — merepresentasikan satu baris dari tabel `users`.
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
 pub struct User {
     pub id:       i64,
     pub name:     String,
     pub email:    String,
     pub password: String,
     pub role:     String,
+    #[sqlx(skip)]
+    pub posts:    Option<Vec<Post>>,
 }
 
 #[async_trait]
@@ -64,6 +66,27 @@ impl Model for User {
         .await?;
 
         Ok(true)
+    }
+
+    async fn eager_load(relation: &str, items: &mut [Self], pool: &DatabasePool) -> Result<(), sqlx::Error> {
+        if relation == "posts" {
+            let ids: Vec<i64> = items.iter().map(|u| u.id).collect();
+            if ids.is_empty() { return Ok(()); }
+
+            let posts = Post::query(pool)
+                .where_in("user_id", ids)
+                .get()
+                .await?;
+
+            for user in items {
+                let user_posts: Vec<Post> = posts.iter()
+                    .filter(|p| p.user_id == user.id)
+                    .cloned()
+                    .collect();
+                user.posts = Some(user_posts);
+            }
+        }
+        Ok(())
     }
 }
 

@@ -10,6 +10,8 @@ pub struct Post {
     pub user_id: i64,
     pub title: String,
     pub content: String,
+    #[sqlx(skip)]
+    pub author: Option<User>,
 }
 
 #[async_trait]
@@ -52,6 +54,25 @@ impl Model for Post {
             .execute(&pool.pool)
             .await?;
         Ok(true)
+    }
+
+    async fn eager_load(relation: &str, items: &mut [Self], pool: &DatabasePool) -> Result<(), sqlx::Error> {
+        if relation == "user" || relation == "author" {
+            let ids: Vec<i64> = items.iter().map(|p| p.user_id).collect();
+            if ids.is_empty() { return Ok(()); }
+
+            let users = User::query(pool)
+                .where_in("id", ids)
+                .get()
+                .await?;
+
+            for post in items {
+                post.author = users.iter()
+                    .find(|u| u.id == post.user_id)
+                    .cloned();
+            }
+        }
+        Ok(())
     }
 }
 

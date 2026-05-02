@@ -67,6 +67,8 @@ impl Model for User {
     }
 }
 
+use crate::app::models::post::Post;
+
 impl User {
     pub async fn find_by_email(pool: &DatabasePool, email: &str) -> Result<Self, sqlx::Error> {
         sqlx::query_as::<_, User>(
@@ -77,5 +79,10 @@ impl User {
         .bind(email)
         .fetch_one(&pool.pool)
         .await
+    }
+
+    /// Relasi: User has many Posts
+    pub async fn posts(&self, pool: &DatabasePool) -> Result<Vec<Post>, sqlx::Error> {
+        Self::has_many::<Post>(pool, "user_id", self.id).await
     }
 }

@@ -35,8 +35,8 @@ tower-http = { version = "0.5", features = ["catch-panic", "cors", "trace", "fs"
 axum-extra = { version = "0.9", features = ["cookie", "cookie-private"] }
 tower = "0.4"
 thiserror = "2.0.18"
-tower-sessions = "0.13"
-tower-sessions-sqlx-store = { version = "0.13", features = ["sqlite"] }
+tower-sessions = "0.12"
+tower-sessions-sqlx-store = { version = "0.13", features = ["mysql", "sqlite", "postgres"] }
 time = "0.3.47"
 axum_csrf = { version = "0.10.0", features = ["layer"] }
 moka = { version = "0.12.15", features = ["future"] }

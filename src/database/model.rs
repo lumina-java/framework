@@ -35,4 +35,23 @@ pub trait Model: Sized + Send + Sync + for<'r> sqlx::FromRow<'r, sqlx::any::AnyR
     fn query(pool: &DatabasePool) -> QueryBuilder<'_, Self> {
         QueryBuilder::new(pool, Self::TABLE)
     }
+
+    /// Definisi relasi Has-Many.
+    /// Contoh: `user.has_many::<Post>(db, "user_id", user.id).await`
+    async fn has_many<R>(pool: &DatabasePool, foreign_key: &str, local_id: i64) -> Result<Vec<R>, sqlx::Error> 
+    where R: Model 
+    {
+        R::query(pool)
+            .filter(foreign_key, "=", local_id)
+            .get()
+            .await
+    }
+
+    /// Definisi relasi Belongs-To.
+    /// Contoh: `post.belongs_to::<User>(db, post.user_id).await`
+    async fn belongs_to<R>(pool: &DatabasePool, foreign_key_id: i64) -> Result<R, sqlx::Error>
+    where R: Model
+    {
+        R::find(pool, foreign_key_id).await
+    }
 }

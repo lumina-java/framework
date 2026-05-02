@@ -51,3 +51,29 @@ where
             .ok_or(crate::core::error::AppError::Unauthorized)
     }
 }
+/// Auth Facade — Memberikan API yang bersih untuk operasi autentikasi.
+pub struct Auth;
+
+impl Auth {
+    /// Cek kecocokan password.
+    pub fn check(plain: &str, hashed: &str) -> bool {
+        self::hash::check(plain, hashed)
+    }
+
+    /// Hasilkan AuthUser baru.
+    pub fn user(user_id: i64, email: String, role: String) -> AuthUser {
+        AuthUser::new(user_id, email, role, 24)
+    }
+
+    /// Simpan user ke session (Login).
+    pub async fn login(session: &tower_sessions::Session, user: AuthUser) -> Result<(), tower_sessions::session::Error> {
+        let token = crate::http::auth::generate_token(&user).unwrap_or_default();
+        let _ = session.insert("jwt", token).await;
+        session.insert("user", user).await
+    }
+
+    /// Hapus user dari session (Logout).
+    pub async fn logout(session: &tower_sessions::Session) {
+        session.clear().await;
+    }
+}

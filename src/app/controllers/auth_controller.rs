@@ -1,16 +1,15 @@
-use axum::{
-    extract::State,
-    response::{Html, IntoResponse},
-};
+use axum::response::IntoResponse;
 use crate::core::response::Redirect;
+use crate::core::view::View;
 use serde_json::json;
-use crate::core::application::AppState;
-use crate::core::validation::Validatable;
-use serde::Deserialize;
+use crate::core::auth::Auth;
+use crate::app::models::user::User;
+use crate::core::validation::ValidatedForm;
+use crate::core::request::Request;
+use serde::{Deserialize, Serialize};
 use validator::Validate;
-use axum_csrf::CsrfToken;
 
-#[derive(Deserialize, Validate)]
+#[derive(Deserialize, Serialize, Validate)]
 pub struct RegisterForm {
     #[validate(length(min = 3, message = "Nama minimal 3 karakter"))]
     pub name: String,
@@ -25,7 +24,7 @@ pub struct RegisterForm {
     pub csrf_token: String,
 }
 
-#[derive(Deserialize, Validate)]
+#[derive(Deserialize, Serialize, Validate)]
 pub struct LoginForm {
     #[validate(email(message = "Format email tidak valid"))]
     pub email: String,
@@ -37,124 +36,96 @@ pub struct AuthController;
 
 impl AuthController {
     /// GET /auth/login — Tampilkan halaman login (HTML)
-    pub async fn show_login(
-        State(state): State<AppState>,
-        token: CsrfToken,
-        session: tower_sessions::Session,
-    ) -> impl IntoResponse {
-        // Redirect if already logged in via session
-        if session.get::<crate::core::auth::AuthUser>("user").await.unwrap_or_default().is_some() {
-            return (token, Redirect::to("/dashboard")).into_response();
+    pub async fn show_login(req: Request) -> impl IntoResponse {
+        // Redirect jika sudah login
+        if req.user.is_some() {
+            return Redirect::to("/dashboard").go(req.token, &req.session).await;
         }
 
-        let mut context = tera::Context::new();
-        context.insert("csrf_token", &token.authenticity_token().unwrap());
-
-        let rendered = state.view.render_with_session("auth/login.html", context, &session).await;
-        (token, Html(rendered)).into_response()
+        View::make("auth.login")
+            .with("csrf_token", req.token.authenticity_token().unwrap())
+            .render(&req.state, &req.session)
+            .await
+            .into_response(req.token)
     }
 
     /// GET /auth/register — Tampilkan halaman registrasi (HTML)
-    pub async fn show_register(
-        State(state): State<AppState>,
-        token: CsrfToken,
-        session: tower_sessions::Session,
-    ) -> impl IntoResponse {
-        let mut context = tera::Context::new();
-        context.insert("csrf_token", &token.authenticity_token().unwrap());
-
-        let rendered = state.view.render_with_session("auth/register.html", context, &session).await;
-        (token, Html(rendered)).into_response()
+    pub async fn show_register(req: Request) -> impl IntoResponse {
+        View::make("auth.register")
+            .with("csrf_token", req.token.authenticity_token().unwrap())
+            .render(&req.state, &req.session)
+            .await
+            .into_response(req.token)
     }
 
     /// POST /auth/register — Proses pendaftaran user baru
     pub async fn register(
-        State(state): State<AppState>,
-        token: CsrfToken,
-        session: tower_sessions::Session,
-        axum::Form(form): axum::Form<RegisterForm>,
+        req: Request,
+        ValidatedForm(form): ValidatedForm<RegisterForm>,
     ) -> impl IntoResponse {
         // 1. Validasi CSRF
-        if let Err(_) = token.verify(&form.csrf_token) {
-             return (token, Redirect::to("/auth/register").with_error("Invalid CSRF Token").send(&session).await).into_response();
+        if req.token.verify(&form.csrf_token).is_err() {
+             return Redirect::to("/auth/register").with_error("Invalid CSRF Token").go(req.token, &req.session).await;
         }
 
-        // 2. Validasi Form & Password Confirmation
-        if let Err(e) = form.validate() {
-            return (token, Redirect::to("/auth/register")
-                .with_errors(e.to_map())
-                .with_input(json!({"name": form.name, "email": form.email}))
-                .with_error("Validasi gagal. Mohon periksa kembali form Anda.")
-                .send(&session).await).into_response();
-        }
-
+        // 2. Validasi Password Confirmation
         if form.password != form.password_confirmation {
             let mut errors = std::collections::HashMap::new();
             errors.insert("password".to_string(), "Konfirmasi password tidak cocok.".to_string());
             
-            return (token, Redirect::to("/auth/register")
+            return Redirect::to("/auth/register")
                 .with_errors(errors)
                 .with_input(json!({"name": form.name, "email": form.email}))
-                .send(&session).await).into_response();
+                .go(req.token, &req.session).await;
         }
 
         // 3. Proses Simpan
         let hashed_password = crate::core::auth::hash::make(&form.password);
-        let db = state.db.as_ref().expect("Database terputus").pool.clone();
         
         let result = sqlx::query("INSERT INTO users (name, email, password, role, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())")
             .bind(&form.name).bind(&form.email).bind(&hashed_password).bind("user")
-            .execute(&db).await;
+            .execute(&req.state.db().pool).await;
 
         match result {
-            Ok(_) => (token, Redirect::to("/auth/login").with_success("Registrasi Berhasil! Silakan Login.").send(&session).await).into_response(),
-            Err(_) => (token, Redirect::to("/auth/register")
+            Ok(_) => Redirect::to("/auth/login").with_success("Registrasi Berhasil! Silakan Login.").go(req.token, &req.session).await,
+            Err(_) => Redirect::to("/auth/register")
                 .with_input(json!({"name": form.name, "email": form.email}))
-                .with_error("Registrasi Gagal: Email mungkin sudah terdaftar.").send(&session).await).into_response()
+                .with_error("Registrasi Gagal: Email mungkin sudah terdaftar.")
+                .go(req.token, &req.session).await
         }
     }
 
     /// POST /auth/login — Proses login
     pub async fn login(
-        State(state): State<AppState>,
-        token: CsrfToken,
-        session: tower_sessions::Session,
-        axum::Form(form): axum::Form<LoginForm>,
+        req: Request,
+        ValidatedForm(form): ValidatedForm<LoginForm>,
     ) -> impl IntoResponse {
         // 1. Validasi CSRF
-        if let Err(_) = token.verify(&form.csrf_token) {
-             return (token, Redirect::to("/auth/login").with_error("Invalid CSRF Token").send(&session).await).into_response();
+        if req.token.verify(&form.csrf_token).is_err() {
+             return Redirect::to("/auth/login").with_error("Invalid CSRF Token").go(req.token, &req.session).await;
         }
 
-        // 2. Validasi Struktur Form
-        if let Err(e) = form.validate() {
-            return (token, Redirect::to("/auth/login")
-                .with_errors(e.to_map())
-                .with_input(json!({"email": form.email}))
-                .with_error("Format email tidak valid.").send(&session).await).into_response();
-        }
-
-        // 3. Autentikasi
-        let db = state.db.as_ref().expect("Database terputus").pool.clone();
-        let user: Option<crate::app::models::user::User> = sqlx::query_as("SELECT id, name, email, password, role FROM users WHERE email = ? AND deleted_at IS NULL")
-            .bind(&form.email).fetch_optional(&db).await.unwrap_or_default();
+        // 2. Autentikasi menggunakan Facade Auth
+        let user = User::find_by_email(req.state.db(), &form.email).await.ok();
 
         if let Some(u) = user {
-            if crate::core::auth::hash::check(&form.password, &u.password) {
-                let auth_user = crate::core::auth::AuthUser::new(u.id, u.email, u.role, 24);
-                let _ = session.insert("jwt", crate::http::auth::generate_token(&auth_user).unwrap()).await;
-                let _ = session.insert("user", auth_user).await;
+            if Auth::check(&form.password, &u.password) {
+                let auth_user = Auth::user(u.id, u.email, u.role);
+                let _ = Auth::login(&req.session, auth_user).await;
                 
-                return (token, Redirect::to("/dashboard").with_success("Selamat Datang kembali!").send(&session).await).into_response();
+                return Redirect::to("/dashboard").with_success("Selamat Datang kembali!").go(req.token, &req.session).await;
             }
         }
         
-        (token, Redirect::to("/auth/login").with_input(json!({"email": form.email})).with_error("Email atau Password salah.").send(&session).await).into_response()
+        Redirect::to("/auth/login")
+            .with_input(json!({"email": form.email}))
+            .with_error("Email atau Password salah.")
+            .go(req.token, &req.session).await
     }
 
     /// GET /auth/logout — Hapus sesi login
-    pub async fn logout(token: CsrfToken, session: tower_sessions::Session) -> impl IntoResponse {
-        session.clear().await;
-        (token, Redirect::to("/auth/login").with_success("Anda telah berhasil logout.").send(&session).await)
+    pub async fn logout(req: Request) -> impl IntoResponse {
+        Auth::logout(&req.session).await;
+        Redirect::to("/auth/login").with_success("Anda telah berhasil logout.").go(req.token, &req.session).await
     }
 }

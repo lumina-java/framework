@@ -38,6 +38,9 @@ enum Commands {
     /// Start the HTTP server
     #[command(name = "serve")]
     Serve,
+    /// Watch for changes and auto-reload the server
+    #[command(name = "watch")]
+    Watch,
 }
 
 #[tokio::main]
@@ -65,6 +68,17 @@ async fn main() {
                 .arg("lumina-server")
                 .spawn()
                 .expect("Failed to start server");
+            
+            let _ = child.wait();
+        }
+        Commands::Watch => {
+            println!("👀 Lumina is watching your code... (Auto-reload enabled)");
+            let mut child = std::process::Command::new("cargo")
+                .arg("watch")
+                .arg("-x")
+                .arg("run --bin lumina-server")
+                .spawn()
+                .expect("Failed to start cargo-watch. Make sure it's installed: cargo install cargo-watch");
             
             let _ = child.wait();
         }

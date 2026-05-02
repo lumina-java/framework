@@ -1,35 +1,23 @@
-use axum::{
-    extract::State,
-    response::{Html, IntoResponse},
-};
-use crate::core::application::AppState;
-use crate::core::auth::AuthUser;
-use serde_json::json;
-use tera::Context;
+use crate::core::request::Request;
+use crate::core::view::View;
+use axum::response::IntoResponse;
 
 pub struct DashboardController;
 
 impl DashboardController {
     /// GET /dashboard
-    /// Route ini dilindungi oleh middleware web_auth.
-    /// AuthUser disuntikkan secara otomatis (Dependency Injection) melalui Extractor.
-    pub async fn index(
-        State(state): State<AppState>,
-        session: tower_sessions::Session,
-        user: AuthUser,
-    ) -> impl IntoResponse {
-        let mut context = Context::new();
-        context.insert("user", &json!({
-            "email": user.email,
-            "role": user.role,
-            "sub": user.sub
-        }));
-        context.insert("user_id", &user.sub);
-        context.insert("email", &user.email);
-        context.insert("role", &user.role);
-        context.insert("title", "Dashboard — Lumina");
+    /// Menggunakan Request bundle untuk akses cepat ke State, Session, dan User.
+    pub async fn index(req: Request) -> impl IntoResponse {
+        // Karena route ini dilindungi middleware, req.user pasti Some
+        let user = req.user.expect("Unauthorized access to dashboard");
 
-        let rendered = state.view.render_with_session("dashboard/index.html", context, &session).await;
-        Html(rendered)
+        View::make("dashboard.index")
+            .with("title", "Dashboard — Lumina")
+            .with("tuan", "Tuang adalah lumina")
+            .with("user_id", &user.sub)
+            .with("email", &user.email)
+            .with("role", &user.role)
+            .render(&req.state, &req.session)
+            .await
     }
 }

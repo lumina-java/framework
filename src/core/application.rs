@@ -13,6 +13,8 @@ use crate::core::view::ViewEngine;
 use crate::app::controllers::error_controller::ErrorController;
 use std::sync::Arc;
 use tower_sessions::{SessionManagerLayer, Expiry, MemoryStore};
+use crate::core::session::store::LuminaSessionStore;
+use tower_sessions_sqlx_store::{MySqlStore, SqliteStore, PostgresStore};
 use axum_csrf::CsrfLayer;
 use crate::core::security::csrf;
 use time::Duration;
@@ -35,6 +37,14 @@ pub struct AppState {
     pub cache: Arc<crate::core::cache::CacheManager>,
 }
 
+impl AppState {
+    /// Akses cepat ke Database Pool.
+    /// Panik jika database tidak terhubung (seharusnya ditangani oleh db_guard).
+    pub fn db(&self) -> &DatabasePool {
+        self.db.as_ref().expect("Database connection is not available")
+    }
+}
+
 impl FromRef<AppState> for CsrfConfig {
     fn from_ref(state: &AppState) -> Self {
         state.csrf_config.clone()
@@ -53,12 +63,10 @@ impl Application {
         }
     }
 
-    fn build_router(&self, state: AppState) -> AxumRouter {
-        // Initialize Session Store (MemoryStore for now)
-        let session_store = MemoryStore::default();
+    fn build_router(&self, state: AppState, session_store: LuminaSessionStore) -> AxumRouter {
         let session_layer = SessionManagerLayer::new(session_store)
             .with_secure(false) // Set to true in production with HTTPS
-            .with_expiry(Expiry::OnInactivity(Duration::days(1)));
+            .with_expiry(Expiry::OnInactivity(Duration::minutes(5)));
 
         let csrf_layer = CsrfLayer::new(csrf::config());
 
@@ -135,25 +143,54 @@ impl Application {
 
         // ── 4. Bangun AppState ─────────────────────────────────────────────
         let state = AppState {
-            db: db_pool,
+            db: db_pool.clone(),
             view,
             auth_service,
             db_error,
             csrf_config: csrf::config(),
             storage: Arc::new(crate::core::storage::Storage::new_local("storage/app/public", "/storage")),
-            config,
+            config: config.clone(),
             queue: queue_manager,
             cache,
         };
 
         let state_arc = Arc::new(state);
 
-        // ── 5. Jalankan Background Worker ──────────────────────────────────
+        // ── 5. Inisialisasi Session Store (Persistent) ──────────────────────
+        let session_db_url = config.get_db_url();
+        let mut session_store = LuminaSessionStore::Memory(MemoryStore::default());
+
+        if db_pool.is_some() {
+            if session_db_url.starts_with("mysql:") {
+                if let Ok(pool) = sqlx::MySqlPool::connect(&session_db_url).await {
+                    let store = MySqlStore::new(pool);
+                    let _ = store.migrate().await;
+                    session_store = LuminaSessionStore::MySql(store);
+                    println!("💾 Session Store: Persistent (MySQL)");
+                }
+            } else if session_db_url.starts_with("postgres:") || session_db_url.starts_with("postgresql:") {
+                if let Ok(pool) = sqlx::PgPool::connect(&session_db_url).await {
+                    let store = PostgresStore::new(pool);
+                    let _ = store.migrate().await;
+                    session_store = LuminaSessionStore::Postgres(store);
+                    println!("💾 Session Store: Persistent (PostgreSQL)");
+                }
+            } else if session_db_url.starts_with("sqlite:") {
+                if let Ok(pool) = sqlx::SqlitePool::connect(&session_db_url).await {
+                    let store = SqliteStore::new(pool);
+                    let _ = store.migrate().await;
+                    session_store = LuminaSessionStore::Sqlite(store);
+                    println!("💾 Session Store: Persistent (SQLite)");
+                }
+            }
+        }
+
+        // ── 6. Jalankan Background Worker ──────────────────────────────────
         tokio::spawn(worker.run(state_arc.clone()));
 
-        // ── 6. Serve HTTP ──────────────────────────────────────────────────
+        // ── 7. Serve HTTP ──────────────────────────────────────────────────
         println!("🌐 Listening on http://{}", addr);
-        let router = self.build_router((*state_arc).clone());
+        let router = self.build_router((*state_arc).clone(), session_store);
         let server = Server::new(addr.to_string());
         server.start(router).await;
     }

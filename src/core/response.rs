@@ -95,6 +95,15 @@ impl Redirect {
         self
     }
 
+    /// Redirect kembali ke halaman sebelumnya (Referer)
+    pub fn back(req: &axum::http::Request<axum::body::Body>) -> Self {
+        let referer = req.headers()
+            .get(axum::http::header::REFERER)
+            .and_then(|h| h.to_str().ok())
+            .unwrap_or("/");
+        Self::to(referer)
+    }
+
     /// Eksekusi semua perubahan ke session dan kembalikan axum Redirect
     pub async fn send(self, session: &tower_sessions::Session) -> axum::response::Redirect {
         let flash = crate::core::session::FlashManager::new(session);
@@ -116,6 +125,16 @@ impl Redirect {
         }
 
         axum::response::Redirect::to(&self.path)
+    }
+
+    /// Helper paling sakti: Kirim redirect sekaligus sinkronisasi token CSRF
+    pub async fn go(
+        self, 
+        token: axum_csrf::CsrfToken, 
+        session: &tower_sessions::Session
+    ) -> axum::response::Response {
+        let redirect = self.send(session).await;
+        (token, redirect).into_response()
     }
 }
 

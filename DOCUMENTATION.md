@@ -11,14 +11,113 @@
 2. [Instalasi & Setup](#instalasi--setup)
 3. [Konfigurasi](#konfigurasi)
 4. [Routing](#routing)
-5. [Controller](#controller)
-6. [Model & Database](#model--database)
+5. [Controller & View](#controller--view)
+6. [Model & Database (ORM)](#model--database-orm)
 7. [Validasi Request](#validasi-request)
-8. [Template Engine](#template-engine)
-9. [Autentikasi JWT](#autentikasi-jwt)
-10. [Service Layer](#service-layer)
-11. [Middleware](#middleware)
-12. [CLI Tools](#cli-tools)
+8. [Autentikasi & Facade Auth](#autentikasi--facade-auth)
+9. [Session & Persistence](#session--persistence)
+10. [Debugging (dd!)](#debugging-dd)
+11. [CLI Tools](#cli-tools)
+12. [**CHEAT SHEET (Quick Reference)**](./CHEAT_SHEET.md)
+
+---
+
+## Arsitektur
+... (keep existing content) ...
+
+## Controller & View
+
+### View Builder (Laravel Style)
+Lumina menggunakan fluent API untuk merender template. Ini menghindari penggunaan `tera::Context` secara manual.
+
+```rust
+use crate::core::view::View;
+
+pub async fn index(State(state): State<AppState>, session: Session) -> impl IntoResponse {
+    View::make("home.index")
+        .with("title", "Lumina Framework")
+        .with("version", "v0.1.0")
+        .render(&state, &session)
+        .await
+}
+```
+
+---
+
+## Model & Database (ORM)
+
+### Relasi (Relationships)
+Lumina mendukung relasi dasar secara out-of-the-box.
+
+#### Has Many
+```rust
+// Di dalam impl User
+pub async fn posts(&self, db: &DatabasePool) -> Result<Vec<Post>, sqlx::Error> {
+    Self::has_many::<Post>(db, "user_id", self.id).await
+}
+```
+
+#### Belongs To
+```rust
+// Di dalam impl Post
+pub async fn user(&self, db: &DatabasePool) -> Result<User, sqlx::Error> {
+    Self::belongs_to::<User>(db, self.user_id).await
+}
+```
+
+---
+
+## Autentikasi & Facade Auth
+
+Untuk mempermudah penggunaan, gunakan struct `Auth` yang menyediakan API statis untuk operasi autentikasi.
+
+```rust
+use crate::core::auth::Auth;
+
+// Cek password
+if Auth::check("plain_password", &hashed_password) { ... }
+
+// Login User (Menyimpan JWT dan data user ke session)
+Auth::login(&session, auth_user).await?;
+
+// Logout
+Auth::logout(&session).await;
+```
+
+---
+
+## Session & Persistence
+
+Secara default, Lumina menyimpan session di **Database (MySQL/PostgreSQL/SQLite)** sesuai konfigurasi `DATABASE_URL` Anda.
+
+- **Persistence**: Session tetap ada meskipun server di-restart.
+- **Auto Logout**: User akan otomatis logout jika tidak ada aktivitas selama **5 menit** (Inactivity Timeout).
+- **Fallback**: Jika database tidak tersedia, Lumina akan otomatis menggunakan memori RAM sebagai penyimpanan sementara.
+
+---
+
+## Debugging (dd!)
+
+Gunakan makro `dd!` (Dump & Die) untuk melihat isi variabel langsung di browser dengan tampilan yang cantik.
+
+```rust
+crate::dd!(user_data);
+```
+
+---
+
+## CLI Tools
+
+| Command | Deskripsi |
+|---|---|
+| `./lumina watch` | Menjalankan server dengan **Hot Reload**. |
+| `./lumina serve` | Menjalankan server biasa. |
+| `./lumina migrate` | Menjalankan migrasi database. |
+| `./lumina make:controller` | Membuat file controller baru. |
+
+---
+
+> Lihat [CHEAT_SHEET.md](./CHEAT_SHEET.md) untuk referensi cepat penulisan kode "Beauty Code".
 
 ---
 
@@ -32,9 +131,10 @@ Lumina mengikuti pola **MVC** terinspirasi dari Laravel, dibangun di atas:
 | HTTP Layer | Axum 0.7 |
 | Database | SQLx (SQLite / MySQL / PostgreSQL) |
 | Template Engine | Tera |
-| Auth / JWT | jsonwebtoken |
+| Autentikasi | jsonwebtoken |
 | Validasi | validator |
 | Password Hashing | bcrypt |
+| Debugging | Custom dd!() & Dump Tool |
 
 ```
 lumina/
@@ -241,6 +341,55 @@ impl ApiController {
 }
 ```
 
+### Fluent Redirect API
+
+Lumina menyediakan *builder* untuk redirect bergaya Laravel:
+
+```rust
+use crate::core::response::Redirect;
+
+pub async fn store(session: Session) -> impl IntoResponse {
+    Redirect::to("/dashboard")
+        .with_success("Data berhasil disimpan!")
+        .send(&session)
+        .await
+}
+```
+
+Tersedia metode:
+- `.with_success(msg)`: Pesan sukses hijau.
+- `.with_error(msg)`: Pesan error merah.
+- `.with_errors(hashmap)`: Error validasi per field.
+- `.with_input(struct/json)`: Menyimpan data form agar tidak hilang (*Old Input*).
+
+### Extractor & Dependency Injection
+
+Lumina menggunakan sistem *Extractor* milik Axum untuk menyuntikkan data secara otomatis ke dalam parameter fungsi Controller (Dependency Injection).
+
+| Parameter | Nama Extractor | Fungsi |
+|-----------|----------------|--------|
+| `State(state)` | `State<AppState>` | Memberikan akses ke database, view engine, dan service global. |
+| `session` | `Session` | Akses ke session user (Flash messages, data login, dll). |
+| `token` | `CsrfToken` | Digunakan untuk validasi CSRF dan sinkronisasi token di form. |
+| `user` | `AuthUser` | Mengambil data user yang sedang login secara otomatis. |
+| `Path(id)` | `Path<T>` | Mengambil parameter ID dari URL (misal: `/users/:id`). |
+| `ValidatedForm(f)`| `ValidatedForm<T>` | Mengambil data form dan memvalidasinya secara otomatis. |
+
+#### Contoh Penggunaan Lengkap:
+
+```rust
+pub async fn profile(
+    State(state): State<AppState>, // Inject State
+    user: AuthUser,                // Inject User Login
+    session: Session               // Inject Session
+) -> impl IntoResponse {
+    View::make("user.profile")
+        .with("user", user)
+        .render(&state, &session)
+        .await
+}
+```
+
 ---
 
 ## Model & Database
@@ -380,17 +529,22 @@ Jika validasi gagal, Lumina otomatis mengembalikan **HTTP 422**:
 }
 ```
 
-### ValidatedForm (untuk Web Form)
+### ValidatedForm (Otomatis & Cerdas)
+
+`ValidatedForm<T>` adalah cara paling elegan untuk menangani form HTML. Berbeda dengan `ValidatedJson`, extractor ini **otomatis** melakukan interupsi jika data tidak valid.
 
 ```rust
 use crate::core::validation::ValidatedForm;
 
 pub async fn store(
-    State(state): State<Arc<AppState>>,
+    // Jika validasi gagal, Lumina otomatis:
+    // 1. Redirect balik ke halaman asal (Referer).
+    // 2. Flash pesan error ke session.
+    // 3. Simpan data input ke session (Old Input).
     ValidatedForm(payload): ValidatedForm<CreateProductRequest>
 ) -> impl IntoResponse {
-    // payload sudah tervalidasi
-    Redirect::to("/products?success=Produk berhasil dibuat").into_response()
+    // Jika kode ini jalan, berarti data SUDAH PASTI VALID.
+    Redirect::to("/products").with_success("Produk dibuat!").send(&session).await
 }
 ```
 
@@ -777,6 +931,29 @@ curl http://localhost:8000/api/products/1
 | `❌ Parsing error(s)` saat startup | Periksa sintaks template HTML di `resources/views/` |
 | JWT token invalid | Pastikan `JWT_SECRET` sama di semua environment |
 | `cargo run` gagal build | Jalankan `cargo check` untuk melihat error detail |
+
+---
+
+## 🛠️ Debugging Tools (Premium)
+
+Lumina dilengkapi dengan alat bantu debugging premium:
+
+### Dump & Die (`dd!`)
+
+Gunakan makro `dd!()` di mana saja dalam kode Rust Anda untuk menghentikan eksekusi dan menampilkan data secara visual di browser dengan tampilan *Dark Mode* yang elegan.
+
+```rust
+let user = User::find(&db, 1).await?;
+dd!(user); // Eksekusi berhenti di sini dan merender UI debugger
+```
+
+### Template Dump (`dump`)
+
+Dalam template Tera, Anda bisa melihat isi variabel menggunakan filter `dump`:
+
+```html
+{{ dump(var=products) }}
+```
 
 ---
 

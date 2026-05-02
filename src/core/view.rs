@@ -121,9 +121,12 @@ impl ViewBuilder {
         self
     }
 
-    /// Mengeksekusi render dan mengembalikan ViewResponse
-    pub async fn render(self, state: &crate::core::application::AppState, session: &tower_sessions::Session) -> ViewResponse {
-        let html = state.view.render_with_session(&self.template, self.context, session).await;
+    /// Mengeksekusi render dan mengembalikan ViewResponse.
+    /// Sekarang mendukung deteksi HTMX otomatis jika Request dilewatkan.
+    pub async fn render(mut self, req: &crate::core::request::Request) -> ViewResponse {
+        self.context.insert("is_htmx", &req.is_htmx());
+        
+        let html = req.state.view.render_with_session(&self.template, self.context, &req.session).await;
         ViewResponse { html }
     }
 }

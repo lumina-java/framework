@@ -1,25 +1,21 @@
-use axum::{extract::State, response::{Html, IntoResponse}};
-use crate::core::application::AppState;
+use axum::response::{Html, IntoResponse};
 use crate::core::view::View;
 
 pub struct HomeController;
 
 impl HomeController {
     /// GET /
-    pub async fn index(
-        State(state): State<AppState>,
-        session: tower_sessions::Session,
-    ) -> impl IntoResponse {
+    pub async fn index(req: crate::core::request::Request) -> impl IntoResponse {
         View::make("home.index")
-            .render(&state, &session)
+            .render(&req)
             .await
     }
 
     /// GET /about
-    pub async fn about(State(state): State<AppState>, session: tower_sessions::Session) -> impl IntoResponse {
+    pub async fn about(req: crate::core::request::Request) -> impl IntoResponse {
         View::make("home.about")
             .with("title", "About Lumina")
-            .render(&state, &session)
+            .render(&req)
             .await
     }
 

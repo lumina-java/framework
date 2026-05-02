@@ -6,29 +6,31 @@ use crate::core::auth::Auth;
 use crate::app::models::user::User;
 use crate::core::validation::ValidatedForm;
 use crate::core::request::Request;
-use serde::{Deserialize, Serialize};
-use validator::Validate;
+use lumina_macros::lumina_form;
 
-#[derive(Deserialize, Serialize, Validate)]
+#[lumina_form]
 pub struct RegisterForm {
-    #[validate(length(min = 3, message = "Nama minimal 3 karakter"))]
+    #[rule("required|min:3")]
     pub name: String,
     
-    #[validate(email(message = "Format email tidak valid"))]
+    #[rule("required|email")]
     pub email: String,
     
-    #[validate(length(min = 6, message = "Password minimal 6 karakter"))]
+    #[rule("required|min:6")]
     pub password: String,
 
     pub password_confirmation: String,
     pub csrf_token: String,
 }
 
-#[derive(Deserialize, Serialize, Validate)]
+#[lumina_form]
 pub struct LoginForm {
-    #[validate(email(message = "Format email tidak valid"))]
+    #[rule("required|email")]
     pub email: String,
+    
+    #[rule("required")]
     pub password: String,
+    
     pub csrf_token: String,
 }
 
@@ -44,7 +46,7 @@ impl AuthController {
 
         View::make("auth.login")
             .with("csrf_token", req.token.authenticity_token().unwrap())
-            .render(&req.state, &req.session)
+            .render(&req)
             .await
             .into_response(req.token)
     }
@@ -53,7 +55,7 @@ impl AuthController {
     pub async fn show_register(req: Request) -> impl IntoResponse {
         View::make("auth.register")
             .with("csrf_token", req.token.authenticity_token().unwrap())
-            .render(&req.state, &req.session)
+            .render(&req)
             .await
             .into_response(req.token)
     }

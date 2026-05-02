@@ -66,6 +66,9 @@ let author = post.user(db).await?; // Belongs To
 
 // 💾 Simpan / Update
 user.save(db).await?;
+
+// ⚡ Eager Loading (Solusi N+1)
+let users = User::query(db).with("posts").get().await?;
 ```
 
 ---
@@ -98,6 +101,10 @@ Jangan biarkan bug bersembunyi.
 ```rust
 // Dump and Die (Browser akan menampilkan data dengan cantik dan berhenti di situ)
 crate::dd!(variabel_anda);
+
+// 🚀 HTMX (Zero-Mouse UI)
+// Lumina otomatis mendukung partial rendering di layout.html
+// Cukup gunakan hx-boost="true" pada tag body.
 ```
 
 ---
@@ -115,9 +122,9 @@ crate::dd!(variabel_anda);
 
 ## 💡 Saran Pengembangan Berikutnya (Next Skills)
 
-1.  **Eager Loading**: Optimasi query untuk relasi (mengurangi N+1 query).
-2.  **HTMX Integration**: Membuat aplikasi interaktif tanpa menulis banyak JavaScript.
-3.  **Global Middleware Groups**: Kemudahan registrasi middleware dalam grup (web, api, auth).
-4.  **Lumina Blueprint**: CLI yang lebih pintar untuk generate seluruh CRUD sekaligus.
+1.  **Validation Macros**: Deklarasi validasi non-teknis `required|email|unique`.
+2.  **Global Middleware Groups**: Kemudahan registrasi middleware dalam grup (web, api, auth).
+3.  **Lumina Blueprint**: CLI yang lebih pintar untuk generate seluruh CRUD sekaligus.
+4.  **Task Scheduling**: Menjalankan cron jobs bergaya Laravel.
 
 > **Dokumentasi Lengkap:** [DOCUMENTATION.md](./DOCUMENTATION.md)

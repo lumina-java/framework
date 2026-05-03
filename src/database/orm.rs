@@ -58,6 +58,44 @@ where
         self
     }
 
+    /// Shortcut WHERE column = value
+    pub fn where_eq<V>(self, column: &str, value: V) -> Self
+    where
+        V: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
+    {
+        self.filter(column, "=", value)
+    }
+
+    /// Shortcut WHERE column != value
+    pub fn where_ne<V>(self, column: &str, value: V) -> Self
+    where
+        V: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
+    {
+        self.filter(column, "!=", value)
+    }
+
+    /// Shortcut WHERE column LIKE value
+    pub fn where_like<V>(self, column: &str, value: V) -> Self
+    where
+        V: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
+    {
+        self.filter(column, "LIKE", value)
+    }
+
+    /// Shortcut WHERE column IS NULL
+    pub fn where_null(mut self, column: &str) -> Self {
+        let prefix = if self.wheres.is_empty() { "" } else { "AND " };
+        self.wheres.push(format!("{}{} IS NULL", prefix, column));
+        self
+    }
+
+    /// Shortcut WHERE column IS NOT NULL
+    pub fn where_not_null(mut self, column: &str) -> Self {
+        let prefix = if self.wheres.is_empty() { "" } else { "AND " };
+        self.wheres.push(format!("{}{} IS NOT NULL", prefix, column));
+        self
+    }
+
     /// Tambahkan klausa OR WHERE.
     pub fn or_filter<V>(mut self, column: &str, operator: &str, value: V) -> Self
     where

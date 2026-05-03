@@ -58,4 +58,49 @@ impl Request {
     pub fn is_htmx(&self) -> bool {
         self.headers.contains_key("HX-Request")
     }
+
+    /// Shortcut untuk mengambil instance DatabasePool.
+    pub fn db(&self) -> &crate::database::connection::DatabasePool {
+        self.state.db()
+    }
+
+    /// Shortcut untuk mengambil user yang sedang login.
+    pub fn user(&self) -> Option<crate::core::auth::AuthUser> {
+        self.user.clone()
+    }
+
+    /// Shortcut untuk membuat instance ViewBuilder.
+    pub fn view(&self, template: &str) -> crate::core::view::ViewBuilder {
+        crate::core::view::View::make(template)
+    }
+
+    /// Shortcut untuk membuat instance Redirect.
+    pub fn redirect(&self, path: &str) -> crate::core::response::Redirect {
+        crate::core::response::Redirect::to(path)
+    }
+
+    /// Shortcut untuk redirect kembali ke halaman asal (Referer).
+    pub fn back(&self) -> crate::core::response::Redirect {
+        let referer = self.headers
+            .get(axum::http::header::REFERER)
+            .and_then(|h| h.to_str().ok())
+            .unwrap_or("/");
+        crate::core::response::Redirect::to(referer)
+    }
+
+    /// Shortcut untuk mengambil nilai dari session.
+    pub async fn session_get<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
+        self.session.get::<T>(key).await.unwrap_or_default()
+    }
+
+    /// Shortcut untuk menyimpan nilai ke dalam session.
+    pub async fn session_set<T: serde::Serialize>(&self, key: &str, value: T) {
+        let _ = self.session.insert(key, value).await;
+    }
+
+    /// Shortcut untuk mengembalikan JSON response secara instan.
+    pub fn json<T: serde::Serialize>(&self, value: T) -> axum::response::Response {
+        use axum::response::IntoResponse;
+        axum::Json(value).into_response()
+    }
 }

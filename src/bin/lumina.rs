@@ -47,6 +47,15 @@ enum Commands {
         /// Name of the entity (e.g. Patient)
         name: String,
     },
+    /// Generate a full Authentication scaffolding (Register, Login, Views)
+    #[command(name = "make:auth")]
+    MakeAuth,
+    /// Check the status of database migrations
+    #[command(name = "migrate:status")]
+    MigrateStatus,
+    /// Rollback the last applied migration
+    #[command(name = "migrate:rollback")]
+    MigrateRollback,
 }
 
 #[tokio::main]
@@ -68,6 +77,15 @@ async fn main() {
         }
         Commands::MakeCrud { name } => {
             cli::handle_make_crud(&name).await;
+        }
+        Commands::MakeAuth => {
+            cli::handle_make_auth().await;
+        }
+        Commands::MigrateStatus => {
+            cli::handle_migrate_status().await;
+        }
+        Commands::MigrateRollback => {
+            cli::handle_migrate_rollback().await;
         }
         Commands::Serve => {
             println!("🚀 Starting Lumina Server...");

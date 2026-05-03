@@ -20,9 +20,9 @@ pub struct {{name}}Controller;
 impl {{name}}Controller {
     /// GET /{{snake_name}}s
     pub async fn index(req: Request) -> impl IntoResponse {
-        let items = {{name}}::query(req.state.db()).get().await.unwrap_or_default();
+        let items = {{name}}::query(req.db()).get().await.unwrap_or_default();
 
-        View::make("{{snake_name}}.index")
+        req.view("{{snake_name}}.index")
             .with("items", &items)
             .render(&req)
             .await
@@ -30,7 +30,7 @@ impl {{name}}Controller {
 
     /// GET /{{snake_name}}s/create
     pub async fn create(req: Request) -> impl IntoResponse {
-        View::make("{{snake_name}}.create")
+        req.view("{{snake_name}}.create")
             .with("csrf_token", req.token.authenticity_token().unwrap())
             .render(&req)
             .await
@@ -42,27 +42,27 @@ impl {{name}}Controller {
         crate::core::validation::ValidatedForm(form): crate::core::validation::ValidatedForm<{{name}}Form>,
     ) -> impl IntoResponse {
         if req.token.verify(&form.csrf_token).is_err() {
-            return Redirect::to("/{{snake_name}}s/create").with_error("Invalid CSRF Token").go(&req).await
+            return req.redirect("/{{snake_name}}s/create").with_error("Invalid CSRF Token").go(&req).await
         }
 
-        let result = sqlx::query("INSERT INTO {{table_name}} (name, created_at, updated_at) VALUES (?, NOW(), NOW())")
+        let result = sqlx::query("INSERT INTO {{table_name}} (name) VALUES (?)")
             .bind(&form.name)
-            .execute(&req.state.db().pool).await;
+            .execute(&req.db().pool).await;
 
         match result {
-            Ok(_) => Redirect::to("/{{snake_name}}s").with_success("Data berhasil disimpan!").go(req.token, &req.session).await,
-            Err(e) => Redirect::to("/{{snake_name}}s/create")
+            Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data berhasil disimpan!").go(&req).await,
+            Err(e) => req.redirect("/{{snake_name}}s/create")
                 .with_input(json!({"name": form.name}))
-                .with_error(format!("Gagal menyimpan data: {}", e))
-                .go(req.token, &req.session).await
+                .with_error(&format!("Gagal menyimpan data: {}", e))
+                .go(&req).await
         }
     }
 
     /// GET /{{snake_name}}s/:id/edit
     pub async fn edit(req: Request, axum::extract::Path(id): axum::extract::Path<i64>) -> impl IntoResponse {
-        let item = {{name}}::find(req.state.db(), id).await.expect("Data tidak ditemukan");
+        let item = {{name}}::find(req.db(), id).await.expect("Data tidak ditemukan");
 
-        View::make("{{snake_name}}.edit")
+        req.view("{{snake_name}}.edit")
             .with("item", &item)
             .with("csrf_token", req.token.authenticity_token().unwrap())
             .render(&req)
@@ -76,29 +76,29 @@ impl {{name}}Controller {
         crate::core::validation::ValidatedForm(form): crate::core::validation::ValidatedForm<{{name}}Form>,
     ) -> impl IntoResponse {
         if req.token.verify(&form.csrf_token).is_err() {
-            return Redirect::to(&format!("/{{snake_name}}s/{}/edit", id)).with_error("Invalid CSRF Token").go(&req).await
+            return req.redirect(&format!("/{{snake_name}}s/{}/edit", id)).with_error("Invalid CSRF Token").go(&req).await
         }
 
-        let result = sqlx::query("UPDATE {{table_name}} SET name = ?, updated_at = NOW() WHERE id = ?")
+        let result = sqlx::query("UPDATE {{table_name}} SET name = ? WHERE id = ?")
             .bind(&form.name)
             .bind(id)
-            .execute(&req.state.db().pool).await;
+            .execute(&req.db().pool).await;
 
         match result {
-            Ok(_) => Redirect::to("/{{snake_name}}s").with_success("Data berhasil diupdate!").go(req.token, &req.session).await,
-            Err(e) => Redirect::to(&format!("/{{snake_name}}s/{}/edit", id))
+            Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data berhasil diupdate!").go(&req).await,
+            Err(e) => req.redirect(&format!("/{{snake_name}}s/{}/edit", id))
                 .with_input(json!({"name": form.name}))
-                .with_error(format!("Gagal update data: {}", e))
-                .go(req.token, &req.session).await
+                .with_error(&format!("Gagal update data: {}", e))
+                .go(&req).await
         }
     }
 
     /// POST /{{snake_name}}s/:id/delete
-    pub async fn destroy(req: Request, axum::extract::Path(id): axum::extract::Path<i64>) -> impl IntoResponse {
+    pub async fn delete(req: Request, axum::extract::Path(id): axum::extract::Path<i64>) -> impl IntoResponse {
         let _ = sqlx::query("DELETE FROM {{table_name}} WHERE id = ?")
             .bind(id)
-            .execute(&req.state.db().pool).await;
+            .execute(&req.db().pool).await;
 
-        Redirect::to("/{{snake_name}}s").with_success("Data berhasil dihapus!").go(req.token, &req.session).await
+        req.redirect("/{{snake_name}}s").with_success("Data berhasil dihapus!").go(&req).await
     }
 }

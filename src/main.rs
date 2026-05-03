@@ -2,7 +2,36 @@ use lumina::prelude::*;
 
 #[tokio::main]
 async fn main() {
-    dotenv::dotenv().ok();
+    std::panic::set_hook(Box::new(|info| {
+        let msg = if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else if let Some(s) = info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else {
+            "Unknown panic".to_string()
+        };
+
+        let loc = info.location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_else(|| "Unknown location".to_string());
+
+        lumina::support::debug::PANIC_INFO.with(|p| {
+            *p.borrow_mut() = Some((msg, loc));
+        });
+    }));
+
+    if !std::path::Path::new(".env").exists() {
+        println!("\x1b[1;33m⚠️  [WARNING] File .env tidak ditemukan!\x1b[0m");
+        println!("\x1b[33mSilakan copy dari .env.example untuk konfigurasi dasar:\x1b[0m");
+        println!("  \x1b[1mcp .env.example .env\x1b[0m\n");
+    } else {
+        dotenv::dotenv().ok();
+        if std::env::var("DATABASE_URL").unwrap_or_default().is_empty() {
+            println!("\x1b[1;31m⚠️  [WARNING] DATABASE_URL di .env kosong!\x1b[0m");
+            println!("\x1b[31mPastikan untuk mengisi DATABASE_URL di file .env Anda, contoh:\x1b[0m");
+            println!("  \x1b[1mDATABASE_URL=mysql://root:password@127.0.0.1:3306/db_name\x1b[0m\n");
+        }
+    }
     
     // Inisialisasi tracing-subscriber agar tracing::info dsb tercetak di console
     tracing_subscriber::fmt::init();

@@ -475,6 +475,46 @@ pub async fn profile(
 }
 ```
 
+### ⚡ Lumina Request & Fluent API (Laravel-Style)
+
+Untuk mempermudah kurva belajar dan mengurangi import boilerplate, Lumina menyediakan bundle extractor `Request` yang dibekali dengan *shortcut methods* ekspresif bergaya Laravel.
+
+| Shortcut Method | Return Type | Kegunaan |
+|-----------------|-------------|----------|
+| `req.db()` | `&DatabasePool` | Akses langsung ke database pool |
+| `req.view(tpl)` | `ViewBuilder` | Membuat view builder baru |
+| `req.redirect(p)`| `Redirect` | Membuat instance Laravel-style redirect |
+| `req.back()` | `Redirect` | Membuat redirect kembali ke halaman asal |
+| `req.session_get(k)`| `Option<T>` | Mengambil data session |
+| `req.session_set(k, v)`| `()` | Menyimpan data ke session |
+| `req.json(v)` | `Response` | Mengembalikan JSON response instan |
+
+#### Contoh Penggunaan Praktis:
+
+```rust
+use crate::core::request::Request;
+
+pub struct HomeController;
+
+impl HomeController {
+    pub async fn index(req: Request) -> impl IntoResponse {
+        // req.view() otomatis menggunakan ViewEngine di state
+        req.view("home.index")
+            .with("title", "Lumina Framework")
+            .render(&req)
+            .await
+    }
+
+    pub async fn store(req: Request) -> impl IntoResponse {
+        // req.redirect() mempermudah redirect response
+        req.redirect("/dashboard")
+            .with_success("Data berhasil disimpan!")
+            .go(&req)
+            .await
+    }
+}
+```
+
 ---
 
 ## Model & Database

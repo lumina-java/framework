@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
-use sqlx::FromRow;
+use sqlx::{FromRow, Row};
 use crate::database::{connection::DatabasePool, model::Model};
 use crate::app::models::user::User;
+use crate::app::models::tag::Tag;
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
 pub struct Post {
@@ -12,6 +13,8 @@ pub struct Post {
     pub content: String,
     #[sqlx(skip)]
     pub author: Option<User>,
+    #[sqlx(skip)]
+    pub tags: Option<Vec<Tag>>,
 }
 
 #[async_trait]
@@ -71,6 +74,35 @@ impl Model for Post {
                     .find(|u| u.id == post.user_id)
                     .cloned();
             }
+        } else if relation == "tags" {
+            let ids: Vec<i64> = items.iter().map(|p| p.id).collect();
+            if ids.is_empty() { return Ok(()); }
+
+            // Eager load many-to-many using a single query
+            // SELECT t.*, pt.post_id FROM tags t JOIN post_tag pt ON t.id = pt.tag_id WHERE pt.post_id IN (...)
+            let sql = format!(
+                "SELECT t.id, t.name, pt.post_id FROM tags t JOIN post_tag pt ON t.id = pt.tag_id WHERE pt.post_id IN ({}) AND t.deleted_at IS NULL",
+                vec!["?"; ids.len()].join(",")
+            );
+
+            let mut query = sqlx::query(&sql);
+            for id in ids { query = query.bind(id); }
+
+            let rows = query.fetch_all(&pool.pool).await?;
+            
+            for post in items {
+                let post_tags: Vec<Tag> = rows.iter()
+                    .filter(|row| {
+                        let p_id: i64 = row.get("post_id");
+                        p_id == post.id
+                    })
+                    .map(|row| Tag {
+                        id: row.get("id"),
+                        name: row.get("name"),
+                    })
+                    .collect();
+                post.tags = Some(post_tags);
+            }
         }
         Ok(())
     }
@@ -80,5 +112,10 @@ impl Post {
     /// Relasi: Post belongs to User
     pub async fn user(&self, pool: &DatabasePool) -> Result<User, sqlx::Error> {
         Self::belongs_to::<User>(pool, self.user_id).await
+    }
+
+    /// Relasi: Post has many Tags (Many-to-Many)
+    pub async fn tags(&self, pool: &DatabasePool) -> Result<Vec<Tag>, sqlx::Error> {
+        Self::belongs_to_many::<Tag>(pool, "post_tag", "post_id", "tag_id", self.id).await
     }
 }

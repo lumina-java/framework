@@ -35,6 +35,12 @@ enum Commands {
         /// Name of the job (e.g. SendEmailJob)
         name: String,
     },
+    /// Generate a new request for validation
+    #[command(name = "make:request")]
+    MakeRequest {
+        /// Name of the request (e.g. StoreUserRequest)
+        name: String,
+    },
     /// Start the HTTP server
     #[command(name = "serve")]
     Serve,
@@ -74,6 +80,9 @@ async fn main() {
         }
         Commands::MakeJob { name } => {
             cli::handle_make_job(&name).await;
+        }
+        Commands::MakeRequest { name } => {
+            cli::handle_make_request(&name).await;
         }
         Commands::MakeCrud { name } => {
             cli::handle_make_crud(&name).await;

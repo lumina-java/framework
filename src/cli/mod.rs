@@ -96,6 +96,36 @@ pub async fn handle_make_job(name: &str) {
     }
 }
 
+pub async fn handle_make_request(name: &str) {
+    let file_name = camel_to_snake(name);
+    let path_str = format!("src/app/requests/{}.rs", file_name);
+    let path = Path::new(&path_str);
+
+    if path.exists() {
+        println!("❌ Request {} sudah ada!", path_str);
+        return;
+    }
+
+    let stub = include_str!("stubs/request.stub");
+    let content = stub.replace("{{name}}", name);
+
+    if let Err(e) = fs::write(path, content) {
+        println!("❌ Gagal membuat request: {}", e);
+    } else {
+        println!("✅ Request berhasil dibuat: {}", path_str);
+        let mod_file = "src/app/requests/mod.rs";
+        if let Ok(content) = fs::read_to_string(mod_file) {
+            let mod_line = format!("pub mod {};", file_name);
+            if !content.contains(&mod_line) {
+                let mut f = fs::OpenOptions::new().append(true).open(mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod {};", file_name);
+                println!("✅ Request auto-registered in requests/mod.rs");
+            }
+        }
+    }
+}
+
 pub async fn handle_make_crud(name: &str) {
     let snake_name = camel_to_snake(name);
     let table_name = format!("{}s", snake_name);

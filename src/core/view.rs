@@ -5,6 +5,7 @@ use std::cell::RefCell;
 thread_local! {
     static CURRENT_ERRORS: RefCell<serde_json::Value> = RefCell::new(serde_json::json!({}));
     static CURRENT_FLASHES: RefCell<serde_json::Value> = RefCell::new(serde_json::json!([]));
+    static CURRENT_OLD: RefCell<serde_json::Value> = RefCell::new(serde_json::json!({}));
 }
 
 #[derive(Clone)]
@@ -29,6 +30,9 @@ impl ViewEngine {
         tera.register_function("dump", dump_fn);
         tera.register_function("form_error", form_error_fn);
         tera.register_function("alert_flash", alert_flash_fn);
+        tera.register_function("old", old_fn);
+        tera.register_function("error_class", error_class_fn);
+        tera.register_function("has_error", has_error_fn);
 
         Self {
             inner: Arc::new(tera),
@@ -47,6 +51,7 @@ impl ViewEngine {
         // Reset thread locals
         CURRENT_ERRORS.with(|e| *e.borrow_mut() = serde_json::json!({}));
         CURRENT_FLASHES.with(|f| *f.borrow_mut() = serde_json::json!([]));
+        CURRENT_OLD.with(|o| *o.borrow_mut() = serde_json::json!({}));
         res
     }
 
@@ -110,6 +115,8 @@ impl ViewEngine {
             }
         }
         context.insert("old", &old_with_defaults);
+        
+        CURRENT_OLD.with(|o| *o.borrow_mut() = old.clone());
         if !old.as_object().unwrap_or(&serde_json::Map::new()).is_empty() {
              session.remove::<serde_json::Value>("_old").await.unwrap();
         }
@@ -175,6 +182,38 @@ fn alert_flash_fn(_args: &std::collections::HashMap<String, tera::Value>) -> ter
     }
     
     Ok(tera::Value::String(html))
+}
+
+fn old_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+    let field = args.get("field").and_then(|v| v.as_str()).unwrap_or("");
+    let default = args.get("default").unwrap_or(&tera::Value::String("".to_string())).clone();
+    
+    let old_data = CURRENT_OLD.with(|o| o.borrow().clone());
+    if let Some(val) = old_data.get(field) {
+        // Convert serde_json::Value to tera::Value
+        return Ok(tera::to_value(val).unwrap_or(default));
+    }
+    
+    Ok(default)
+}
+
+fn error_class_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+    let field = args.get("field").and_then(|v| v.as_str()).unwrap_or("");
+    let class = args.get("class").and_then(|v| v.as_str()).unwrap_or("is-invalid");
+    
+    let errors = CURRENT_ERRORS.with(|e| e.borrow().clone());
+    if errors.get(field).is_some() {
+        return Ok(tera::Value::String(class.to_string()));
+    }
+    
+    Ok(tera::Value::String("".to_string()))
+}
+
+fn has_error_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+    let field = args.get("field").and_then(|v| v.as_str()).unwrap_or("");
+    let errors = CURRENT_ERRORS.with(|e| e.borrow().clone());
+    
+    Ok(tera::Value::Bool(errors.get(field).is_some()))
 }
 
 /// Helper untuk merender view secara elegan (Laravel-style)

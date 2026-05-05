@@ -20,7 +20,8 @@
 11. [CLI Tools](#cli-tools)
 12. [Eager Loading (N+1 Solution)](#eager-loading-n1-solution)
 13. [HTMX Integration (Zero-Mouse UI)](#htmx-integration-zero-mouse-ui)
-14. [**CHEAT SHEET (Quick Reference)**](./CHEAT_SHEET.md)
+14. [File Upload & Image Manipulation (Advanced)](#file-upload--image-manipulation-advanced)
+15. [**CHEAT SHEET (Quick Reference)**](./CHEAT_SHEET.md)
 
 ---
 
@@ -62,10 +63,13 @@ pub async fn posts(&self, db: &DatabasePool) -> Result<Vec<Post>, sqlx::Error> {
 #### Belongs To
 ```rust
 // Di dalam impl Post
-pub async fn user(&self, db: &DatabasePool) -> Result<User, sqlx::Error> {
-    Self::belongs_to::<User>(db, self.user_id).await
+pub    async fn user(&self, db: &DatabasePool) -> Result<User, sqlx::Error> {
+        Self::belongs_to::<User>(db, self.user_id).await
+    }
 }
 ```
+
+> 📖 **Panduan Lengkap:** Untuk tutorial mendalam tentang relasi (HasOne, HasMany, ManyToMany) dan Eager Loading, silakan baca [**Tutorial Database Relationships**](./docs/RELATIONSHIPS.md).
 
 ---
 
@@ -1045,6 +1049,32 @@ curl http://localhost:8000/api/products
 # Produk by ID
 curl http://localhost:8000/api/products/1
 ```
+
+---
+ 
+## File Upload & Image Manipulation (Advanced)
+
+Lumina menyediakan sistem penanganan file yang intuitif dan *fluent*, terinspirasi dari kemudahan Laravel namun dengan performa pemrosesan gambar native Rust yang sangat cepat.
+
+### Ringkasan Penggunaan
+
+Gunakan `LuminaMultipart` di controller untuk mengekstrak file dan data form secara otomatis.
+
+```rust
+pub async fn store(req: Request, multipart: LuminaMultipart) -> impl IntoResponse {
+    if let Some(file) = multipart.file("image") {
+        // Manipulasi & Simpan
+        let path = file.clone()
+            .thumbnail(300, 300)
+            .grayscale()
+            .store(&req, "avatars").await?;
+            
+        return req.redirect("/profile").with_success("Avatar diupdate!").go(&req).await;
+    }
+}
+```
+
+> 📖 **Panduan Lengkap:** Untuk tutorial mendalam tentang manipulasi gambar, silakan baca [**Tutorial File Upload & Image Manipulation**](./docs/FILE_UPLOAD.md).
 
 ---
 

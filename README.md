@@ -18,6 +18,7 @@ Inspired by Laravel's clean and readable syntax.
 - 🔐 **JWT Auth** — Register, Login, Protected routes siap pakai
 - 🎭 **Template Engine** — Tera (Jinja2-like) untuk HTML rendering
 - 🛡️ **Middleware** — Logger & Auth middleware bawaan
+- 📁 **File Upload** — Penanganan multipart & manipulasi gambar (resize, thumb, gray)
 
 ---
 

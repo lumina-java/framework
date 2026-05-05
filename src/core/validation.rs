@@ -15,8 +15,18 @@ impl Validatable for ValidationErrors {
                     // Default messages berdasarkan code validator
                     match error.code.as_ref() {
                         "email" => "Format email tidak valid.".into(),
-                        "length" => "Panjang karakter tidak sesuai.".into(),
+                        "length" => {
+                            if let Some(min) = error.params.get("min") {
+                                format!("Minimal {} karakter.", min).into()
+                            } else if let Some(max) = error.params.get("max") {
+                                format!("Maksimal {} karakter.", max).into()
+                            } else {
+                                "Panjang karakter tidak sesuai.".into()
+                            }
+                        },
                         "required" => "Field ini wajib diisi.".into(),
+                        "unique" => "Data ini sudah terdaftar.".into(),
+                        "must_match" => "Konfirmasi tidak cocok.".into(),
                         _ => format!("Field {} tidak valid.", field).into(),
                     }
                 });

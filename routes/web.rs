@@ -1,6 +1,4 @@
-use crate::app::controllers::upload_image_controller::UploadImageController;
 use crate::app::controllers::auth_controller::AuthController;
-use crate::app::controllers::contact_controller::ContactController;
 use crate::app::controllers::dashboard_controller::DashboardController;
 use crate::app::controllers::home_controller::HomeController;
 use crate::app::controllers::user_controller::UserController;
@@ -23,22 +21,13 @@ pub fn register(_config: &crate::core::config::ConfigManager) -> Router<AppState
         .get("/auth/register", AuthController::show_register)
         .post("/auth/login", AuthController::login)
         .post("/auth/register", AuthController::register)
-        // UploadImage CRUD Routes
-        .get("/upload_images", UploadImageController::index)
-        .get("/upload_images/create", UploadImageController::create)
-        .post("/upload_images", UploadImageController::store)
-        .get("/upload_images/:id/edit", UploadImageController::edit)
-        .post("/upload_images/:id", UploadImageController::update)
-        .get("/upload_images/:id/delete", UploadImageController::delete)
-        .post("/upload_images/:id/delete", UploadImageController::delete)
-                // Debug
+        // Debug
         .get("/debug/panic", HomeController::debug_panic)
         .get("/debug/dd", HomeController::debug_dd);
 
     // ─── Protected Routes (Hanya untuk User Login) ───
     let protected = Router::<AppState>::new()
         .get("/dashboard", DashboardController::index)
-        .get("/contact", ContactController::index)
         .get("/auth/logout", AuthController::logout)
         .layer(from_fn(web_auth_required));
 

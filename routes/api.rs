@@ -1,8 +1,7 @@
 use axum::{Router as AxumRouter, routing, middleware::from_fn, extract::State};
 use crate::core::router::Router;
-use crate::app::controllers::{
+use crate::app::controllers::api::{
     api_controller::ApiController,
-    product_controller::ProductController,
     storage_controller::StorageController,
 };
 use crate::http::middleware::auth_required;
@@ -12,10 +11,6 @@ use crate::core::application::AppState;
 pub fn register(config: &crate::core::config::ConfigManager) -> Router<AppState> {
     // ── Public routes — tidak perlu JWT ──────────────────────────────────────
     let public = AxumRouter::new()
-        // .route("/auth/login",    routing::post(AuthController::api_login))
-        // .route("/auth/register", routing::post(AuthController::api_register))
-        .route("/products",     routing::get(ProductController::index))
-        .route("/products/:id", routing::get(ProductController::show))
         .route("/storage/test-upload", routing::post(StorageController::test_upload))
         .route("/test-queue", routing::get(|State(state): State<AppState>| async move {
             let job = crate::app::jobs::test_job::TestJob::new("Halo dari Antrean!");
@@ -28,19 +23,14 @@ pub fn register(config: &crate::core::config::ConfigManager) -> Router<AppState>
         }))
         .route("/test-cache", routing::get(|State(state): State<AppState>| async move {
             let key = "test_key";
-            
-            // Coba ambil dari cache
             if let Some(val) = state.cache.get::<String>(key).await {
                 return crate::core::response::ApiResponse::success(serde_json::json!({
                     "status": "Cache Hit",
                     "data": val
                 }));
             }
-
-            // Jika Miss, simpan ke cache (TTL 10 detik)
             let new_data = "Lumina Cache Berhasil! 🧊".to_string();
             state.cache.put(key, new_data.clone(), 10).await;
-
             crate::core::response::ApiResponse::success(serde_json::json!({
                 "status": "Cache Miss (Data set for 10s)",
                 "data": new_data
@@ -48,9 +38,7 @@ pub fn register(config: &crate::core::config::ConfigManager) -> Router<AppState>
         }));
 
     // ── Protected routes — wajib Bearer token ───────────────────────────────
-    // .route_layer() menerapkan middleware hanya ke route-route di dalam group ini
     let protected = AxumRouter::new()
-        // .route("/auth/me",   routing::get(AuthController::me))
         .route("/users",     routing::get(ApiController::index))
         .route("/users/:id", routing::get(ApiController::show))
         .route("/users",     routing::post(ApiController::store))

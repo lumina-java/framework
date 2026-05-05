@@ -11,6 +11,7 @@ pub struct QueryBuilder<'a, T> {
     args: AnyArguments<'a>,
     limit: Option<usize>,
     order_by: Option<String>,
+    joins: Vec<String>,
     eager_with: Vec<String>,
     _marker: PhantomData<T>,
 }
@@ -28,6 +29,7 @@ where
             args: AnyArguments::default(),
             limit: None,
             order_by: None,
+            joins: Vec::new(),
             eager_with: Vec::new(),
             _marker: PhantomData,
         }
@@ -37,6 +39,13 @@ where
     /// Contoh: `.with("posts")`
     pub fn with(mut self, relation: &str) -> Self {
         self.eager_with.push(relation.to_string());
+        self
+    }
+
+    /// Tambahkan JOIN.
+    /// Contoh: `.join("JOIN posts p ON p.user_id = users.id")`
+    pub fn join(mut self, join_clause: &str) -> Self {
+        self.joins.push(join_clause.to_string());
         self
     }
 
@@ -182,6 +191,11 @@ where
     /// Bangun string SQL.
     fn build_sql(&self) -> String {
         let mut sql = format!("SELECT {} FROM {}", self.select, self.table);
+
+        if !self.joins.is_empty() {
+            sql.push_str(" ");
+            sql.push_str(&self.joins.join(" "));
+        }
 
         if !self.wheres.is_empty() {
             sql.push_str(" WHERE ");

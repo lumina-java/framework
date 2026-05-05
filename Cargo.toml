@@ -44,6 +44,8 @@ tower-sessions-sqlx-store = { version = "0.13", features = ["mysql", "sqlite", "
 time = "0.3.47"
 axum_csrf = { version = "0.10.0", features = ["layer"] }
 moka = { version = "0.12.15", features = ["future"] }
+uuid = { version = "1", features = ["v4"] }
+image = "0.25"
 
 [[bin]]
 name = "lumina"

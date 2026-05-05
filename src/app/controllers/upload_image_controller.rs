@@ -4,7 +4,7 @@ use crate::core::view::View;
 use crate::core::request::Request;
 use crate::app::models::upload_image::UploadImage;
 use crate::database::model::Model;
-use axum::extract::Multipart;
+use crate::core::upload::LuminaMultipart;
 
 pub struct UploadImageController;
 
@@ -28,45 +28,33 @@ impl UploadImageController {
     }
 
     /// POST /upload_images
-    pub async fn store(req: Request, mut multipart: Multipart) -> impl IntoResponse {
-        let mut nama = String::new();
-        let mut file_path = String::new();
+    pub async fn store(req: Request, multipart: LuminaMultipart) -> impl IntoResponse {
+        if let Some(file) = multipart.file("file") {
+            // Simpan file dengan nama unik otomatis
+            let path = match file.store(&req, "uploads").await {
+                Ok(p) => p,
+                Err(e) => return Redirect::to("/upload_images/create")
+                    .with_error(&format!("Gagal upload file: {}", e))
+                    .go(&req).await,
+            };
 
-        while let Some(field) = multipart.next_field().await.unwrap_or(None) {
-            let field_name = field.name().unwrap_or_default().to_string();
-            if field_name == "file" {
-                let original_file_name = field.file_name().unwrap_or("upload").to_string();
-                let data = field.bytes().await.unwrap_or_default();
-                if !data.is_empty() {
-                    let timestamp = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs();
-                    let new_filename = format!("{}_{}", timestamp, original_file_name);
-                    let path = format!("uploads/{}", new_filename);
-                    let _ = req.state.storage.disk.put(&path, &data).await;
-                    
-                    nama = original_file_name;
-                    file_path = format!("/storage/uploads/{}", new_filename);
-                }
+            let nama = file.original_name.clone();
+            let file_url = format!("/storage/{}", path);
+
+            let result = sqlx::query("INSERT INTO upload_images (nama, file, created_at, updated_at) VALUES (?, ?, NOW(), NOW())")
+                .bind(&nama)
+                .bind(&file_url)
+                .execute(&req.state.db().pool).await;
+
+            match result {
+                Ok(_) => Redirect::to("/upload_images").with_success("Data berhasil disimpan kawan!").go(&req).await,
+                Err(e) => Redirect::to("/upload_images/create")
+                    .with_error(&format!("Gagal menyimpan data ke DB: {}", e))
+                    .go(&req).await
             }
-        }
-
-        if file_path.is_empty() {
-            return Redirect::to("/upload_images/create")
+        } else {
+            Redirect::to("/upload_images/create")
                 .with_error("File gambar tidak boleh kosong kawan!")
-                .go(&req).await;
-        }
-
-        let result = sqlx::query("INSERT INTO upload_images (nama, file, created_at, updated_at) VALUES (?, ?, NOW(), NOW())")
-            .bind(&nama)
-            .bind(&file_path)
-            .execute(&req.state.db().pool).await;
-
-        match result {
-            Ok(_) => Redirect::to("/upload_images").with_success("Data berhasil disimpan kawan!").go(&req).await,
-            Err(e) => Redirect::to("/upload_images/create")
-                .with_error(&format!("Gagal menyimpan data: {}", e))
                 .go(&req).await
         }
     }
@@ -86,38 +74,26 @@ impl UploadImageController {
     pub async fn update(
         req: Request,
         axum::extract::Path(id): axum::extract::Path<i64>,
-        mut multipart: Multipart,
+        multipart: LuminaMultipart,
     ) -> impl IntoResponse {
-        let mut nama = String::new();
-        let mut file_path = String::new();
+        let result = if let Some(file) = multipart.file("file") {
+            let path = match file.store(&req, "uploads").await {
+                Ok(p) => p,
+                Err(e) => return Redirect::to(&format!("/upload_images/{}/edit", id))
+                    .with_error(&format!("Gagal upload file: {}", e))
+                    .go(&req).await,
+            };
+            
+            let nama = &file.original_name;
+            let file_url = format!("/storage/{}", path);
 
-        while let Some(field) = multipart.next_field().await.unwrap_or(None) {
-            let field_name = field.name().unwrap_or_default().to_string();
-            if field_name == "file" {
-                let original_file_name = field.file_name().unwrap_or("upload").to_string();
-                let data = field.bytes().await.unwrap_or_default();
-                if !data.is_empty() {
-                    let timestamp = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs();
-                    let new_filename = format!("{}_{}", timestamp, original_file_name);
-                    let path = format!("uploads/{}", new_filename);
-                    let _ = req.state.storage.disk.put(&path, &data).await;
-                    
-                    nama = original_file_name;
-                    file_path = format!("/storage/uploads/{}", new_filename);
-                }
-            }
-        }
-
-        let result = if !file_path.is_empty() {
             sqlx::query("UPDATE upload_images SET nama = ?, file = ?, updated_at = NOW() WHERE id = ?")
-                .bind(&nama)
-                .bind(&file_path)
+                .bind(nama)
+                .bind(&file_url)
                 .bind(id)
                 .execute(&req.state.db().pool).await
         } else {
+            // Jika tidak ada file baru, kita biarkan saja (hanya query dummy atau update nama jika ada)
             sqlx::query("SELECT 1").execute(&req.state.db().pool).await
         };
 

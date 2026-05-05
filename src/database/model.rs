@@ -36,8 +36,6 @@ pub trait Model: Sized + Send + Sync + for<'r> sqlx::FromRow<'r, sqlx::any::AnyR
         QueryBuilder::new(pool, Self::TABLE)
     }
 
-    /// Definisi relasi Has-Many.
-    /// Contoh: `user.has_many::<Post>(db, "user_id", user.id).await`
     async fn has_many<R>(pool: &DatabasePool, foreign_key: &str, local_id: i64) -> Result<Vec<R>, sqlx::Error> 
     where R: Model 
     {
@@ -47,12 +45,35 @@ pub trait Model: Sized + Send + Sync + for<'r> sqlx::FromRow<'r, sqlx::any::AnyR
             .await
     }
 
-    /// Definisi relasi Belongs-To.
-    /// Contoh: `post.belongs_to::<User>(db, post.user_id).await`
+    /// Definisi relasi Has-One.
+    /// Contoh: `user.has_one::<Profile>(db, "user_id", user.id).await`
+    async fn has_one<R>(pool: &DatabasePool, foreign_key: &str, local_id: i64) -> Result<R, sqlx::Error>
+    where R: Model
+    {
+        R::query(pool)
+            .filter(foreign_key, "=", local_id)
+            .first()
+            .await
+    }
+
     async fn belongs_to<R>(pool: &DatabasePool, foreign_key_id: i64) -> Result<R, sqlx::Error>
     where R: Model
     {
         R::find(pool, foreign_key_id).await
+    }
+
+    /// Definisi relasi Many-To-Many.
+    /// Contoh: `post.belongs_to_many::<Tag>(db, "post_tag", "post_id", "tag_id", post.id).await`
+    async fn belongs_to_many<R>(pool: &DatabasePool, pivot_table: &str, foreign_key: &str, related_key: &str, local_id: i64) -> Result<Vec<R>, sqlx::Error>
+    where R: Model
+    {
+        // SELECT tags.* FROM tags JOIN post_tag p ON tags.id = p.tag_id WHERE p.post_id = ?
+        R::query(pool)
+            .select(&format!("{}.*", R::TABLE))
+            .join(&format!("JOIN {} p ON {}.id = p.{}", pivot_table, R::TABLE, related_key))
+            .filter(&format!("p.{}", foreign_key), "=", local_id)
+            .get()
+            .await
     }
 
     /// Eager Load relasi untuk sekumpulan model (N+1 Solution).

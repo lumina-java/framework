@@ -16,7 +16,7 @@ Inspired by Laravel's clean and readable syntax.
 - 🗄️ **Database Layer** — SQLx dengan support SQLite, MySQL, PostgreSQL
 - ✅ **Auto Validation** — `ValidatedJson` & `ValidatedForm` dengan pesan error otomatis
 - 🔐 **JWT Auth** — Register, Login, Protected routes siap pakai
-- 🎭 **Template Engine** — Tera (Jinja2-like) untuk HTML rendering
+- 🎭 **Template Engine** — Tera (Jinja2-like) dengan ekstensi `.blade.rs` dan preprocessor Blade-style
 - 🛡️ **Middleware** — Logger & Auth middleware bawaan
 - 📁 **File Upload** — Penanganan multipart & manipulasi gambar (resize, thumb, gray)
 
@@ -57,7 +57,7 @@ lumina/
 ├── routes/
 │   ├── web.rs         ← HTML routes
 │   └── api.rs         ← API/JSON routes
-└── resources/views/   ← Template HTML (Tera)
+└── resources/views/   ← Template Views (.blade.rs)
 ```
 
 ---
@@ -80,7 +80,7 @@ Router::new()
 pub async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
     let mut ctx = Context::new();
     ctx.insert("title", "Selamat Datang");
-    Html(state.view.render("home/index.html", &ctx))
+    Html(state.view.render("home/index.blade.rs", &ctx))
 }
 ```
 

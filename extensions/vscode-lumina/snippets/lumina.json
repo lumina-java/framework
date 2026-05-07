@@ -1,0 +1,54 @@
+{
+  "Lumina If": {
+    "prefix": "@if",
+    "body": [
+      "@if(${1:condition})",
+      "\t$0",
+      "@endif"
+    ],
+    "description": "Lumina If directive"
+  },
+  "Lumina Foreach": {
+    "prefix": "@foreach",
+    "body": [
+      "@foreach(${1:items} as ${2:item})",
+      "\t$0",
+      "@endforeach"
+    ],
+    "description": "Lumina Foreach directive"
+  },
+  "Lumina Extends": {
+    "prefix": "@extends",
+    "body": "@extends('${1:layout}')",
+    "description": "Lumina Extends layout"
+  },
+  "Lumina Section": {
+    "prefix": "@section",
+    "body": [
+      "@section('${1:content}')",
+      "\t$0",
+      "@endsection"
+    ],
+    "description": "Lumina Section block"
+  },
+  "Lumina Yield": {
+    "prefix": "@yield",
+    "body": "@yield('${1:content}')",
+    "description": "Lumina Yield content"
+  },
+  "Lumina CSRF": {
+    "prefix": "@csrf",
+    "body": "@csrf",
+    "description": "Lumina CSRF hidden input"
+  },
+  "Tera Print": {
+    "prefix": "{{",
+    "body": "{{ ${1:variable} }}",
+    "description": "Tera print variable"
+  },
+  "Tera Tag": {
+    "prefix": "{%",
+    "body": "{% ${1:tag} %}",
+    "description": "Tera control tag"
+  }
+}

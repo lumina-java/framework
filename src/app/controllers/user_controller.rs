@@ -19,7 +19,7 @@ impl UserController {
         
         context.insert("users", &users);
         
-        let rendered = state.view.render("users/index.html", &context);
+        let rendered = state.view.render("users/index.blade.rs", &context);
         Html(rendered)
     }
 
@@ -38,7 +38,7 @@ impl UserController {
         context.insert("name", name);
         context.insert("email", email);
         
-        let rendered = state.view.render("users/show.html", &context);
+        let rendered = state.view.render("users/show.blade.rs", &context);
         Html(rendered)
     }
 

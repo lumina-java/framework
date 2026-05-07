@@ -43,7 +43,7 @@ impl ErrorController {
         ctx.insert("method", &method);
         ctx.insert("title", "Halaman Tidak Ditemukan");
 
-        let html = state.view.render("errors/404.html", &ctx);
+        let html = state.view.render("errors/404.blade.rs", &ctx);
         (StatusCode::NOT_FOUND, Html(html)).into_response()
     }
 
@@ -76,7 +76,7 @@ impl ErrorController {
         ctx.insert("timestamp", &timestamp);
         ctx.insert("error_code", "INTERNAL_SERVER_ERROR");
 
-        let html = state.view.render("errors/500.html", &ctx);
+        let html = state.view.render("errors/500.blade.rs", &ctx);
         (StatusCode::INTERNAL_SERVER_ERROR, Html(html)).into_response()
     }
 
@@ -118,7 +118,7 @@ impl ErrorController {
         let mut ctx = Context::new();
         ctx.insert("db_error", error_msg);
 
-        let html = state.view.render("errors/whoops.html", &ctx);
+        let html = state.view.render("errors/whoops.blade.rs", &ctx);
         (StatusCode::SERVICE_UNAVAILABLE, Html(html)).into_response()
     }
 }

@@ -21,7 +21,7 @@ pub fn register(_config: &crate::core::config::ConfigManager) -> Router<AppState
         .get("/auth/register", AuthController::show_register)
         .post("/auth/login", AuthController::login)
         .post("/auth/register", AuthController::register)
-        // Debug
+
         .get("/debug/panic", HomeController::debug_panic)
         .get("/debug/dd", HomeController::debug_dd);
 

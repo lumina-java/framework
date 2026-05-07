@@ -1,4 +1,4 @@
-{% extends "layout.html" %}
+{% extends "layout.blade.rs" %}
 
 {% block title %}Login - Lumina Framework{% endblock %}
 

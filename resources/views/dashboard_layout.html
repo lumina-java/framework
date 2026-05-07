@@ -83,7 +83,7 @@
 
         <!-- Dashboard Content -->
         <div id="dashboard-content" class="p-8 flex-1 overflow-y-auto">
-            {% block content %}{% endblock %}
+            @yield('content')
         </div>
     </main>
 
@@ -99,11 +99,11 @@
         };
 
         // Flash messages dari Session (Skill 3)
-        {% if flashes %}
-        {% for flash in flashes %}
-        toastr.{ { flash.kind } } ("{{ flash.message }}");
-        {% endfor %}
-        {% endif %}
+        @if(flashes)
+            @foreach(flashes as flash)
+                toastr.{{ flash.kind }}("{{ flash.message }}");
+            @endforeach
+        @endif
     </script>
 </body>
 

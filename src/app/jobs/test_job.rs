@@ -1,31 +1,25 @@
 use async_trait::async_trait;
-use crate::core::queue::Job;
-use crate::core::application::AppState;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use crate::core::application::AppState;
+use crate::core::queue::Job;
+use serde_json::Value;
 
 #[derive(Debug)]
-pub struct TestJob {
-    pub message: String,
-}
-
-impl TestJob {
-    pub fn new(message: &str) -> Self {
-        Self {
-            message: message.to_string(),
-        }
-    }
-}
+pub struct TestJob;
 
 #[async_trait]
 impl Job for TestJob {
-    async fn handle(&self, _state: Arc<AppState>) -> Result<(), String> {
-        tracing::info!("🕒 TestJob started: {}", self.message);
+    fn name(&self) -> &'static str {
+        "test_job"
+    }
+
+    async fn handle(&self, _state: Arc<AppState>, payload: Value) -> Result<(), String> {
+        tracing::info!("🏃 Memproses TestJob dengan data: {:?}", payload);
         
-        // Simulasi proses berat (5 detik)
-        sleep(Duration::from_secs(5)).await;
+        // Simulasi kerja berat
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         
-        tracing::info!("🎉 Job Selesai Dikerjakan!: {}", self.message);
+        println!("✅ TestJob Selesai!");
         Ok(())
     }
 }

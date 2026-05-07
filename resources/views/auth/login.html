@@ -1,8 +1,8 @@
-{% extends "layout.html" %}
+@extends('layout')
 
-{% block title %}Login - Lumina Framework{% endblock %}
+@section('title')Login - Lumina Framework@endsection
 
-{% block content %}
+@section('content')
 <div class="row justify-content-center">
     <div class="col-md-5">
         <div class="card shadow-lg border-0 mt-5">
@@ -12,32 +12,32 @@
                     <p class="text-muted">Please enter your credentials to login</p>
                 </div>
                 
-                {% if success_msg %}
+                @if(success_msg)
                 <div class="alert alert-success">{{ success_msg }}</div>
-                {% endif %}
-                {% if error_msg %}
+                @endif
+                @if(error_msg)
                 <div class="alert alert-danger">{{ error_msg }}</div>
-                {% endif %}
+                @endif
                 
                 <form action="/auth/login" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    @csrf
                     
                     <div class="mb-3">
                         <label class="form-label">Email Address</label>
-                        <input type="email" name="email" class="form-control form-control-lg {% if errors and errors.email %}is-invalid{% endif %}" 
+                        <input type="email" name="email" class="form-control form-control-lg @if(errors and errors.email) is-invalid @endif" 
                             placeholder="name@example.com" value="{{ old.email | default(value="") }}" required>
-                        {% if errors and errors.email %}
+                        @if(errors and errors.email)
                             <div class="invalid-feedback">{{ errors.email }}</div>
-                        {% endif %}
+                        @endif
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Password</label>
-                        <input type="password" name="password" class="form-control form-control-lg {% if errors and errors.password %}is-invalid{% endif %}" 
+                        <input type="password" name="password" class="form-control form-control-lg @if(errors and errors.password) is-invalid @endif" 
                             placeholder="Enter password" required>
-                        {% if errors and errors.password %}
+                        @if(errors and errors.password)
                             <div class="invalid-feedback">{{ errors.password }}</div>
-                        {% endif %}
+                        @endif
                     </div>
                     
                     <div class="d-grid gap-2 mt-4">
@@ -52,4 +52,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
+@endsection

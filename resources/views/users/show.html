@@ -1,8 +1,8 @@
-{% extends "layout.html" %}
+@extends('layout')
 
-{% block title %}User Profile - Lumina Framework{% endblock %}
+@section('title')User Profile - Lumina Framework@endsection
 
-{% block content %}
+@section('content')
 <div class="container py-5">
     <div class="row justify-content-center">
         <div class="col-md-6">
@@ -35,9 +35,9 @@
             </div>
 
             <div class="mt-4 text-center">
-                <p class="text-muted small">Data di atas dirender menggunakan <strong>Tera Template Engine</strong>.</p>
+                <p class="text-muted small">Data di atas dirender menggunakan <strong>Blade-style Preprocessor</strong>.</p>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
+@endsection

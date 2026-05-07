@@ -13,8 +13,8 @@ pub fn register(config: &crate::core::config::ConfigManager) -> Router<AppState>
     let public = AxumRouter::new()
         .route("/storage/test-upload", routing::post(StorageController::test_upload))
         .route("/test-queue", routing::get(|State(state): State<AppState>| async move {
-            let job = crate::app::jobs::test_job::TestJob::new("Halo dari Antrean!");
-            match state.queue.dispatch(job).await {
+            let data = serde_json::json!({ "message": "Halo dari Antrean!" });
+            match state.queue.dispatch("test_job", data).await {
                 Ok(_) => crate::core::response::ApiResponse::success(serde_json::json!({
                     "message": "Job dikirim ke antrean"
                 })),

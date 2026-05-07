@@ -35,6 +35,7 @@ pub struct AppState {
     pub config: crate::core::config::Config,
     pub queue: Arc<crate::core::queue::QueueManager>,
     pub cache: Arc<crate::core::cache::CacheManager>,
+    pub registry: Arc<crate::core::queue::JobRegistry>,
 }
 
 impl AppState {
@@ -99,10 +100,10 @@ impl Application {
         let view = ViewEngine::new();
         let cache = Arc::new(crate::core::cache::CacheManager::new());
 
-        // ── 2. Inisialisasi Queue System ──────────────────────────────────
-        let (tx, rx) = tokio::sync::mpsc::channel(100);
-        let queue_manager = Arc::new(crate::core::queue::QueueManager::new(tx));
-        let worker = crate::core::queue::QueueWorker::new(rx);
+        // ── 2. Inisialisasi Job Registry ──────────────────────────────────
+        let registry = crate::core::queue::JobRegistry::new();
+        // Daftarkan job global di sini jika ada
+        let registry = Arc::new(registry);
 
         // ── 3. Coba connect ke database ───────────────────────────────────
         let db_url = config.get_db_url();
@@ -142,6 +143,17 @@ impl Application {
         };
 
         // ── 4. Bangun AppState ─────────────────────────────────────────────
+        let queue_manager = match db_pool.as_ref() {
+            Some(pool) => Arc::new(crate::core::queue::QueueManager::new(pool.pool.clone())),
+            None => {
+                // Fallback jika DB tidak ada (tidak bisa persistent)
+                // Ini butuh penanganan lebih lanjut jika ingin benar-benar fallback ke memory
+                Arc::new(crate::core::queue::QueueManager::new(sqlx::AnyPool::connect("sqlite::memory:").await.unwrap()))
+            }
+        };
+
+        let worker = crate::core::queue::QueueWorker::new(registry.clone());
+
         let state = AppState {
             db: db_pool.clone(),
             view,
@@ -152,6 +164,7 @@ impl Application {
             config: config.clone(),
             queue: queue_manager,
             cache,
+            registry: registry.clone(),
         };
 
         let state_arc = Arc::new(state);

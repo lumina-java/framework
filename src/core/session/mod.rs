@@ -33,6 +33,16 @@ impl<'a> FlashManager<'a> {
         self.add("error", message).await;
     }
 
+    /// Menambahkan pesan info (info).
+    pub async fn info(&self, message: &str) {
+        self.add("info", message).await;
+    }
+
+    /// Menambahkan pesan peringatan (warning).
+    pub async fn warning(&self, message: &str) {
+        self.add("warning", message).await;
+    }
+
     /// Menambahkan pesan dengan kategori kustom.
     pub async fn add(&self, kind: &str, message: &str) {
         let mut messages = self.get_all().await;

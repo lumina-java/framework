@@ -4,7 +4,7 @@ use sqlx::FromRow;
 use crate::database::{connection::DatabasePool, model::Model};
 
 /// Model User — merepresentasikan satu baris dari tabel `users`.
-#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default)]
 pub struct User {
     pub id:       i64,
     pub name:     String,
@@ -93,14 +93,14 @@ impl Model for User {
 use crate::app::models::post::Post;
 
 impl User {
-    pub async fn find_by_email(pool: &DatabasePool, email: &str) -> Result<Self, sqlx::Error> {
+    pub async fn find_by_email(pool: &DatabasePool, email: &str) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as::<_, User>(
             "SELECT id, name, email, password, role
              FROM users
              WHERE email = ? AND deleted_at IS NULL"
         )
         .bind(email)
-        .fetch_one(&pool.pool)
+        .fetch_optional(&pool.pool)
         .await
     }
 

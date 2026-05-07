@@ -59,6 +59,19 @@ impl Request {
         self.headers.contains_key("HX-Request")
     }
 
+    /// Ambil target HTMX (HX-Target header).
+    pub fn hx_target(&self) -> Option<String> {
+        self.headers
+            .get("HX-Target")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string())
+    }
+
+    /// Cek apakah request adalah HTMX Boosted.
+    pub fn is_htmx_boosted(&self) -> bool {
+        self.headers.contains_key("HX-Boosted")
+    }
+
     /// Shortcut untuk mengambil instance DatabasePool.
     pub fn db(&self) -> &crate::database::connection::DatabasePool {
         self.state.db()
@@ -96,6 +109,25 @@ impl Request {
     /// Shortcut untuk menyimpan nilai ke dalam session.
     pub async fn session_set<T: serde::Serialize>(&self, key: &str, value: T) {
         let _ = self.session.insert(key, value).await;
+    }
+
+    /// Cek apakah user sudah login.
+    pub fn is_authenticated(&self) -> bool {
+        self.user.is_some()
+    }
+
+    /// Cek apakah user belum login (guest).
+    pub fn is_guest(&self) -> bool {
+        self.user.is_none()
+    }
+
+    /// Redirect jika user sudah login (misal: di halaman login/register).
+    pub async fn redirect_if_authenticated(&self, path: &str) -> Option<axum::response::Response> {
+        if self.is_authenticated() {
+            use axum::response::IntoResponse;
+            return Some(self.redirect(path).go(self).await.into_response());
+        }
+        None
     }
 
     /// Shortcut untuk mengembalikan JSON response secara instan.

@@ -26,10 +26,16 @@ async fn main() {
         println!("  \x1b[1mcp .env.example .env\x1b[0m\n");
     } else {
         dotenv::dotenv().ok();
-        if std::env::var("DATABASE_URL").unwrap_or_default().is_empty() {
-            println!("\x1b[1;31m⚠️  [WARNING] DATABASE_URL di .env kosong!\x1b[0m");
-            println!("\x1b[31mPastikan untuk mengisi DATABASE_URL di file .env Anda, contoh:\x1b[0m");
-            println!("  \x1b[1mDATABASE_URL=mysql://root:password@127.0.0.1:3306/db_name\x1b[0m\n");
+        let db_url = std::env::var("DATABASE_URL").unwrap_or_default();
+        let db_conn = std::env::var("DB_CONNECTION").unwrap_or_default();
+        
+        if db_url.is_empty() && db_conn.is_empty() {
+            println!("\x1b[1;31m⚠️  [WARNING] Konfigurasi Database di .env tidak ditemukan!\x1b[0m");
+            println!("\x1b[31mPastikan untuk mengisi DATABASE_URL atau DB_CONNECTION di file .env Anda, contoh:\x1b[0m");
+            println!("  \x1b[1mDATABASE_URL=mysql://root:password@127.0.0.1:3306/db_name\x1b[0m");
+            println!("  atau");
+            println!("  \x1b[1mDB_CONNECTION=mysql\x1b[0m");
+            println!("  \x1b[1mDB_HOST=127.0.0.1\x1b[0m\n");
         }
     }
     

@@ -15,6 +15,9 @@ pub mod web_routes;
 #[path = "../routes/api.rs"]
 pub mod api_routes;
 
+#[path = "../database/seeders/mod.rs"]
+pub mod seeders;
+
 pub mod prelude {
     pub use crate::core::application::Application;
     pub use crate::core::router::Router;

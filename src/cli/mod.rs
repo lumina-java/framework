@@ -154,9 +154,9 @@ pub async fn handle_make_crud(name: &str) {
     let _ = fs::create_dir_all(&view_dir);
 
     let view_stubs = [
-        ("index.html", include_str!("stubs/view_index.stub")),
-        ("create.html", include_str!("stubs/view_create.stub")),
-        ("edit.html", include_str!("stubs/view_edit.stub")),
+        ("index.blade.rs", include_str!("stubs/view_index.stub")),
+        ("create.blade.rs", include_str!("stubs/view_create.stub")),
+        ("edit.blade.rs", include_str!("stubs/view_edit.stub")),
     ];
 
     for (file, stub) in view_stubs {
@@ -227,7 +227,7 @@ pub async fn handle_make_crud(name: &str) {
     }
 
     // 8. Auto Registration: Sidebar / Menu in layout.html
-    let layout_file = "resources/views/layout.html";
+    let layout_file = "resources/views/layout.blade.rs";
     if let Ok(mut content) = fs::read_to_string(layout_file) {
         let menu_item = format!(
             "                    <li class=\"nav-item\"><a class=\"nav-link\" href=\"/{}\">{}</a></li>\n",
@@ -238,12 +238,12 @@ pub async fn handle_make_crud(name: &str) {
                 content.insert_str(pos + "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/about\">About</a></li>\n".len(), &menu_item);
             }
             let _ = fs::write(layout_file, content);
-            println!("✅ Menu item added in layout.html");
+            println!("✅ Menu item added in layout.blade.rs");
         }
     }
 
     // 9. Auto Registration: Sidebar in dashboard.html
-    let dashboard_file = "resources/views/dashboard.html";
+    let dashboard_file = "resources/views/dashboard.blade.rs";
     if let Ok(mut content) = fs::read_to_string(dashboard_file) {
         let sidebar_item = format!(
             "            <a href=\"/{books}\" class=\"flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors\">\n\
@@ -258,12 +258,12 @@ pub async fn handle_make_crud(name: &str) {
                 content.insert_str(pos + "</a>\n".len(), &sidebar_item);
             }
             let _ = fs::write(dashboard_file, content);
-            println!("✅ Sidebar item added in dashboard.html");
+            println!("✅ Sidebar item added in dashboard.blade.rs");
         }
     }
 
     // 10. Auto Registration: Sidebar in dashboard/index.html
-    let dashboard_idx_file = "resources/views/dashboard/index.html";
+    let dashboard_idx_file = "resources/views/dashboard/index.blade.rs";
     if let Ok(mut content) = fs::read_to_string(dashboard_idx_file) {
         let sidebar_item = format!(
             "            <a href=\"/{books}\"\n\
@@ -279,7 +279,7 @@ pub async fn handle_make_crud(name: &str) {
                 content.insert_str(pos + "</a>\n".len(), &sidebar_item);
             }
             let _ = fs::write(dashboard_idx_file, content);
-            println!("✅ Sidebar item added in dashboard/index.html");
+            println!("✅ Sidebar item added in dashboard/index.blade.rs");
         }
     }
 
@@ -305,8 +305,8 @@ pub async fn handle_make_auth() {
     let _ = fs::create_dir_all(&view_dir);
 
     let view_stubs = [
-        ("login.html", include_str!("stubs/view_login.stub")),
-        ("register.html", include_str!("stubs/view_register.stub")),
+        ("login.blade.rs", include_str!("stubs/view_login.stub")),
+        ("register.blade.rs", include_str!("stubs/view_register.stub")),
     ];
 
     for (file, stub) in view_stubs {

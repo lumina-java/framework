@@ -141,7 +141,7 @@ pub async fn index(req: Request) -> impl IntoResponse {
 ```
 
 ### Penggunaan di Template
-Lumina menggunakan pola kondisinal di `layout.html` untuk menangani partial render:
+Lumina menggunakan pola kondisinal di `layout.blade.rs` untuk menangani partial render:
 
 ```html
 {% if is_htmx %}
@@ -238,7 +238,7 @@ lumina/
 ├── routes/
 │   ├── web.rs         ← HTML routes
 │   └── api.rs         ← JSON/API routes
-└── resources/views/   ← Tera HTML templates
+└── resources/views/   ← Tera .blade.rs templates
 ```
 
 ---
@@ -387,7 +387,7 @@ impl ProductController {
         ctx.insert("title", "Daftar Produk");
         ctx.insert("products", &vec!["Produk A", "Produk B"]);
 
-        let html = state.view.render("products/index.html", &ctx);
+        let html = state.view.render("products/index.blade.rs", &ctx);
         Html(html)
     }
 }
@@ -693,7 +693,7 @@ pub async fn store(
 
 Lumina menggunakan **Tera** — template engine mirip Jinja2/Blade.
 
-Template disimpan di `resources/views/**/*.html`.
+Template disimpan di `resources/views/**/*.blade.rs`.
 
 ### Rendering View
 
@@ -705,14 +705,14 @@ pub async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
     ctx.insert("title", "Halaman Produk");
     ctx.insert("user_name", "Budi");
 
-    Html(state.view.render("products/index.html", &ctx))
+    Html(state.view.render("products/index.blade.rs", &ctx))
 }
 ```
 
-### Contoh Template (`resources/views/products/index.html`)
+### Contoh Template (`resources/views/products/index.blade.rs`)
 
 ```html
-{% extends "layout.html" %}
+{% extends "layout.blade.rs" %}
 
 {% block content %}
 <h1>{{ title }}</h1>
@@ -730,7 +730,7 @@ pub async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
 {% endblock %}
 ```
 
-### Layout (`resources/views/layout.html`)
+### Layout (`resources/views/layout.blade.rs`)
 
 ```html
 <!DOCTYPE html>
@@ -1083,7 +1083,7 @@ pub async fn store(req: Request, multipart: LuminaMultipart) -> impl IntoRespons
 | Masalah | Solusi |
 |---------|--------|
 | `❌ Gagal connect ke database` | Periksa `DATABASE_URL` di `.env` |
-| `❌ Parsing error(s)` saat startup | Periksa sintaks template HTML di `resources/views/` |
+| `❌ Parsing error(s)` saat startup | Periksa sintaks template .blade.rs di `resources/views/` |
 | JWT token invalid | Pastikan `JWT_SECRET` sama di semua environment |
 | `cargo run` gagal build | Jalankan `cargo check` untuk melihat error detail |
 

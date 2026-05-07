@@ -1,4 +1,4 @@
-{% extends "layout.html" %}
+{% extends "layout.blade.rs" %}
 
 {% block title %}Register - Lumina Framework{% endblock %}
 

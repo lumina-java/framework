@@ -49,7 +49,7 @@ impl ViewEngine {
             eprintln!("⚠️  Direktori 'resources/views' tidak ditemukan. Pastikan server dijalankan dari root project.");
         }
 
-        tera.autoescape_on(vec![".html", ".htm", ".xml"]);
+        tera.autoescape_on(vec![".blade.rs", ".html", ".htm", ".xml"]);
         
         // Register custom functions
         tera.register_function("dump", dump_fn);
@@ -85,7 +85,7 @@ impl ViewEngine {
                         format!("{}/{}", prefix, file_name)
                     };
                     Self::collect_templates(base_path, &new_prefix, out);
-                } else if file_name.ends_with(".html") {
+                } else if file_name.ends_with(".blade.rs") {
                     if let Ok(content) = std::fs::read_to_string(&file_path) {
                         let processed = Self::preprocess_blade(&content);
                         let template_name = if prefix.is_empty() {
@@ -105,7 +105,7 @@ impl ViewEngine {
         
         // 1. @extends('layout') -> {% extends "layout.html" %}
         let re_extends = Regex::new(r#"@extends\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
-        processed = re_extends.replace_all(&processed, "{% extends \"$1.html\" %}").to_string();
+        processed = re_extends.replace_all(&processed, "{% extends \"$1.blade.rs\" %}").to_string();
         
         // 2. @section('content') -> {% block content %}
         let re_section = Regex::new(r#"@section\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
@@ -149,7 +149,7 @@ impl ViewEngine {
 
         // 13. @include('path') -> {% include "path.html" %}
         let re_include = Regex::new(r#"@include\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
-        processed = re_include.replace_all(&processed, "{% include \"$1.html\" %}").to_string();
+        processed = re_include.replace_all(&processed, "{% include \"$1.blade.rs\" %}").to_string();
 
         // 14. @auth -> {% if email != "" %}
         processed = processed.replace("@auth", "{% if email != \"\" %}");
@@ -359,8 +359,8 @@ impl View {
 impl ViewBuilder {
     pub fn new(template: &str) -> Self {
         let mut template_name = template.replace(".", "/");
-        if !template_name.ends_with(".html") {
-            template_name.push_str(".html");
+        if !template_name.ends_with(".blade.rs") {
+            template_name.push_str(".blade.rs");
         }
         
         Self {

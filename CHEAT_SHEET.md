@@ -103,7 +103,7 @@ Jangan biarkan bug bersembunyi.
 crate::dd!(variabel_anda);
 
 // 🚀 HTMX (Zero-Mouse UI)
-// Lumina otomatis mendukung partial rendering di layout.html
+// Lumina otomatis mendukung partial rendering di layout.blade.rs
 // Cukup gunakan hx-boost="true" pada tag body.
 ```
 

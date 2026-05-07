@@ -323,6 +323,21 @@ pub async fn handle_make_auth() {
     println!("2. Daftarkan routes autentikasi di routes/web.rs");
 }
 
+pub async fn handle_migrate() {
+    let config = crate::core::config::ConfigManager::new();
+    let db_url = config.get_db_url();
+    println!("🔄 Menjalankan migrasi database...");
+    match crate::database::connection::DatabasePool::connect(&db_url).await {
+        Ok(pool) => {
+            match crate::database::migration::run_migrations(&pool.pool, pool.kind).await {
+                Ok(_) => println!("✅ Semua migrasi berhasil dijalankan."),
+                Err(e) => println!("❌ Gagal menjalankan migrasi: {}", e),
+            }
+        }
+        Err(e) => println!("❌ Gagal connect ke database: {}", e),
+    }
+}
+
 pub async fn handle_migrate_status() {
     let config = crate::core::config::ConfigManager::new();
     let db_url = config.get_db_url();
@@ -343,6 +358,40 @@ pub async fn handle_migrate_rollback() {
         Ok(pool) => {
             if let Err(e) = crate::database::migration::migrate_rollback(&pool.pool).await {
                 println!("❌ Gagal rollback migrasi: {}", e);
+            }
+        }
+        Err(e) => println!("❌ Gagal connect ke database: {}", e),
+    }
+}
+
+pub async fn handle_make_seeder(name: &str) {
+    let file_name = camel_to_snake(name);
+    let path_str = format!("database/seeders/{}.rs", file_name);
+    let path = Path::new(&path_str);
+
+    if path.exists() {
+        println!("❌ Seeder {} sudah ada!", path_str);
+        return;
+    }
+
+    let stub = include_str!("stubs/seeder.stub");
+    let content = stub.replace("{{name}}", name);
+
+    if let Err(e) = fs::write(path, content) {
+        println!("❌ Gagal membuat seeder: {}", e);
+    } else {
+        println!("✅ Seeder berhasil dibuat: {}", path_str);
+        println!("📌 Jangan lupa daftarkan di database/seeders/mod.rs");
+    }
+}
+
+pub async fn handle_db_seed() {
+    let config = crate::core::config::ConfigManager::new();
+    let db_url = config.get_db_url();
+    match crate::database::connection::DatabasePool::connect(&db_url).await {
+        Ok(pool) => {
+            if let Err(e) = crate::seeders::run(&pool).await {
+                println!("❌ Gagal menjalankan seeder: {}", e);
             }
         }
         Err(e) => println!("❌ Gagal connect ke database: {}", e),

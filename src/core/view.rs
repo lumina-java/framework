@@ -1,6 +1,7 @@
 use tera::{Tera, Context};
 use std::sync::Arc;
 use std::cell::RefCell;
+use regex::Regex;
 
 thread_local! {
     static CURRENT_ERRORS: RefCell<serde_json::Value> = RefCell::new(serde_json::json!({}));
@@ -16,14 +17,38 @@ pub struct ViewEngine {
 impl ViewEngine {
     /// Inisialisasi Tera engine dan load semua template dari resources/views
     pub fn new() -> Self {
-        let mut tera = match Tera::new("resources/views/**/*.html") {
-            Ok(t) => t,
-            Err(e) => {
-                println!("❌ Parsing error(s): {}", e);
-                std::process::exit(1);
-            }
-        };
+        let mut tera = Tera::default();
         
+        // Kumpulkan SEMUA template dahulu ke dalam Vec,
+        // baru daftarkan ke Tera sekaligus agar inheritance (@extends)
+        // tidak gagal akibat urutan loading yang tidak pasti.
+        let views_path = "resources/views";
+        if std::fs::metadata(views_path).is_ok() {
+            let mut templates: Vec<(String, String)> = Vec::new();
+            Self::collect_templates(views_path, "", &mut templates);
+            
+            // KRITIS: Sort agar parent templates (layout.html, dll)
+            // selalu terdaftar SEBELUM child yang meng-extend-nya.
+            // Root-level templates (tanpa '/') = parent → depth 0 → duluan.
+            templates.sort_by_key(|(name, _)| {
+                let depth = name.chars().filter(|&c| c == '/').count();
+                (depth, name.clone())
+            });
+            
+            let raw: Vec<(&str, &str)> = templates
+                .iter()
+                .map(|(name, content)| (name.as_str(), content.as_str()))
+                .collect();
+            
+            if let Err(e) = tera.add_raw_templates(raw) {
+                eprintln!("❌ Gagal mendaftarkan templates ke Tera: {}", e);
+            } else {
+                println!("✅ {} template(s) berhasil dimuat.", templates.len());
+            }
+        } else {
+            eprintln!("⚠️  Direktori 'resources/views' tidak ditemukan. Pastikan server dijalankan dari root project.");
+        }
+
         tera.autoescape_on(vec![".html", ".htm", ".xml"]);
         
         // Register custom functions
@@ -37,6 +62,106 @@ impl ViewEngine {
         Self {
             inner: Arc::new(tera),
         }
+    }
+
+    /// Kumpulkan semua template secara rekursif ke dalam Vec<(name, content)>.
+    /// Tidak langsung daftarkan ke Tera agar urutan tidak masalah.
+    fn collect_templates(base_path: &str, prefix: &str, out: &mut Vec<(String, String)>) {
+        let path = if prefix.is_empty() {
+            base_path.to_string()
+        } else {
+            format!("{}/{}", base_path, prefix)
+        };
+
+        if let Ok(entries) = std::fs::read_dir(&path) {
+            for entry in entries.flatten() {
+                let file_path = entry.path();
+                let file_name = entry.file_name().into_string().unwrap_or_default();
+                
+                if file_path.is_dir() {
+                    let new_prefix = if prefix.is_empty() {
+                        file_name
+                    } else {
+                        format!("{}/{}", prefix, file_name)
+                    };
+                    Self::collect_templates(base_path, &new_prefix, out);
+                } else if file_name.ends_with(".html") {
+                    if let Ok(content) = std::fs::read_to_string(&file_path) {
+                        let processed = Self::preprocess_blade(&content);
+                        let template_name = if prefix.is_empty() {
+                            file_name
+                        } else {
+                            format!("{}/{}", prefix, file_name)
+                        };
+                        out.push((template_name, processed));
+                    }
+                }
+            }
+        }
+    }
+
+    fn preprocess_blade(content: &str) -> String {
+        let mut processed = content.to_string();
+        
+        // 1. @extends('layout') -> {% extends "layout.html" %}
+        let re_extends = Regex::new(r#"@extends\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
+        processed = re_extends.replace_all(&processed, "{% extends \"$1.html\" %}").to_string();
+        
+        // 2. @section('content') -> {% block content %}
+        let re_section = Regex::new(r#"@section\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
+        processed = re_section.replace_all(&processed, "{% block $1 %}").to_string();
+        
+        // 3. @endsection -> {% endblock %}
+        processed = processed.replace("@endsection", "{% endblock %}");
+        
+        // 4. @yield('content') -> {% block content %}{% endblock %}
+        let re_yield = Regex::new(r#"@yield\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
+        processed = re_yield.replace_all(&processed, "{% block $1 %}{% endblock %}").to_string();
+        
+        // 5. @if(cond) -> {% if cond %}
+        let re_if = Regex::new(r"@if\s*\((.*?)\)").unwrap();
+        processed = re_if.replace_all(&processed, "{% if $1 %}").to_string();
+        
+        // 6. @elseif(cond) -> {% elif cond %}
+        let re_elif = Regex::new(r"@elseif\s*\((.*?)\)").unwrap();
+        processed = re_elif.replace_all(&processed, "{% elif $1 %}").to_string();
+        
+        // 7. @else -> {% else %}
+        processed = processed.replace("@else", "{% else %}");
+        
+        // 8. @endif -> {% endif %}
+        processed = processed.replace("@endif", "{% endif %}");
+        
+        // 9. @foreach(items as item) -> {% for item in items %}
+        // Mendukung @foreach(items as item) atau @foreach($items as $item)
+        let re_foreach = Regex::new(r"@foreach\s*\(\s*(\$)?(.*?)\s+as\s+(\$)?(.*?)\s*\)").unwrap();
+        processed = re_foreach.replace_all(&processed, "{% for $4 in $2 %}").to_string();
+        
+        // 10. @endforeach -> {% endfor %}
+        processed = processed.replace("@endforeach", "{% endfor %}");
+        
+        // 11. @csrf -> <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        processed = processed.replace("@csrf", "<input type=\"hidden\" name=\"csrf_token\" value=\"{{ csrf_token }}\">");
+        
+        // 12. {{ $var }} -> {{ var }} (Opsional, karena Tera sudah mendukung {{ var }})
+        let re_var = Regex::new(r"\{\{\s*\$(.*?)\s*\}\}").unwrap();
+        processed = re_var.replace_all(&processed, "{{ $1 }}").to_string();
+
+        // 13. @include('path') -> {% include "path.html" %}
+        let re_include = Regex::new(r#"@include\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
+        processed = re_include.replace_all(&processed, "{% include \"$1.html\" %}").to_string();
+
+        // 14. @auth -> {% if email != "" %}
+        processed = processed.replace("@auth", "{% if email != \"\" %}");
+        // 15. @endauth -> {% endif %}
+        processed = processed.replace("@endauth", "{% endif %}");
+        
+        // 16. @guest -> {% if email == "" %}
+        processed = processed.replace("@guest", "{% if email == \"\" %}");
+        // 17. @endguest -> {% endif %}
+        processed = processed.replace("@endguest", "{% endif %}");
+
+        processed
     }
 
     /// Render template dengan context data
@@ -251,29 +376,35 @@ impl ViewBuilder {
     }
 
     /// Mengeksekusi render dan mengembalikan ViewResponse.
-    /// Sekarang mendukung deteksi HTMX otomatis jika Request dilewatkan.
+    /// Sekarang mendukung deteksi HTMX otomatis dan Injeksi CSRF otomatis.
     pub async fn render(mut self, req: &crate::core::request::Request) -> ViewResponse {
         self.context.insert("is_htmx", &req.is_htmx());
+        self.context.insert("hx_target", &req.hx_target());
+        
+        // Auto-inject CSRF Token jika tersedia
+        if let Ok(token) = req.token.authenticity_token() {
+            self.context.insert("csrf_token", &token);
+        }
         
         let html = req.state.view.render_with_session(&self.template, self.context, &req.session).await;
-        ViewResponse { html }
+        ViewResponse { 
+            html,
+            token: Some(req.token.clone())
+        }
     }
 }
 
 pub struct ViewResponse {
     pub html: String,
-}
-
-impl ViewResponse {
-    /// Mengonversi hasil render ke Axum Response dengan sinkronisasi CsrfToken
-    pub fn into_response(self, token: axum_csrf::CsrfToken) -> axum::response::Response {
-        use axum::response::IntoResponse;
-        (token, axum::response::Html(self.html)).into_response()
-    }
+    pub token: Option<axum_csrf::CsrfToken>,
 }
 
 impl axum::response::IntoResponse for ViewResponse {
     fn into_response(self) -> axum::response::Response {
-        axum::response::Html(self.html).into_response()
+        if let Some(token) = self.token {
+            (token, axum::response::Html(self.html)).into_response()
+        } else {
+            axum::response::Html(self.html).into_response()
+        }
     }
 }

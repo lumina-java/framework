@@ -69,28 +69,72 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
         let mut sql = fs::read_to_string(entry.path())
             .expect(&format!("Gagal baca file: {}", name));
 
-        // Auto-fix syntax menggunakan Regex agar tidak sensitif terhadap spasi/tab
+        // Auto-fix syntax untuk multi-database compatibility
         match kind {
             DatabaseKind::MySql => {
                 sql = re_autoinc.replace_all(&sql, "INT AUTO_INCREMENT PRIMARY KEY").to_string();
                 sql = re_datetime.replace_all(&sql, "DATETIME DEFAULT CURRENT_TIMESTAMP").to_string();
-                // Ganti TEXT ke VARCHAR(255) hanya jika baris tersebut berisi UNIQUE (biasanya email/username)
-                // Ini pendekatan sederhana, untuk project besar disarankan migrasi terpisah.
-                if sql.contains("UNIQUE") {
-                    sql = sql.replace("TEXT", "VARCHAR(255)");
+                
+                // Fix MySQL TEXT default value limitation
+                // Jika ada TEXT yang punya DEFAULT, ubah ke VARCHAR(255)
+                if sql.contains("DEFAULT") {
+                    sql = sql.replace("TEXT NOT NULL DEFAULT", "VARCHAR(255) NOT NULL DEFAULT");
+                    sql = sql.replace("TEXT DEFAULT", "VARCHAR(255) DEFAULT");
                 }
-            },
+
+                // Hapus IF NOT EXISTS dari CREATE INDEX (tidak didukung MySQL)
+                sql = sql.replace("CREATE INDEX IF NOT EXISTS", "CREATE INDEX");
+                
+                // Konversi UNIQUE TEXT ke VARCHAR
+                if sql.contains("UNIQUE") {
+                    sql = sql.replace("TEXT NOT NULL", "VARCHAR(255) NOT NULL");
+                }
+            }
             DatabaseKind::Postgres => {
                 sql = re_autoinc.replace_all(&sql, "SERIAL PRIMARY KEY").to_string();
                 sql = re_datetime.replace_all(&sql, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP").to_string();
                 if sql.contains("UNIQUE") {
-                    sql = sql.replace("TEXT", "VARCHAR(255)");
+                    sql = sql.replace("TEXT NOT NULL", "VARCHAR(255) NOT NULL");
                 }
-            },
+            }
             _ => {}
         }
 
-        sqlx::query(&sql).execute(pool).await?;
+        // Eksekusi setiap statement SQL secara terpisah (MySQL tidak mendukung multi-statement)
+        let statements: Vec<&str> = sql
+            .split(';')
+            .map(|s| s.trim())
+            .filter(|s| {
+                // Cek apakah ada SQL nyata (bukan hanya baris komentar/kosong)
+                // Jangan drop seluruh statement hanya karena dimulai dengan '--'
+                let non_comment = s.lines()
+                    .filter(|l| !l.trim().starts_with("--"))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                !non_comment.trim().is_empty()
+            })
+            .collect();
+
+        let mut failed = false;
+        for stmt in &statements {
+            if let Err(e) = sqlx::query(stmt).execute(pool).await {
+                let err_str = e.to_string();
+                // Abaikan error duplikat index / tabel sudah ada
+                if err_str.contains("Duplicate key name") ||
+                   err_str.contains("already exists") ||
+                   err_str.contains("duplicate") {
+                    println!("  ⚠️  Skip (sudah ada): {}", &err_str[..err_str.len().min(80)]);
+                } else {
+                    eprintln!("  ❌ Migration error [{}]: {}", name, e);
+                    failed = true;
+                    break;
+                }
+            }
+        }
+
+        if failed {
+            continue; // Jangan tandai sebagai applied
+        }
 
         sqlx::query("INSERT INTO _migrations (name) VALUES (?)")
             .bind(&name)

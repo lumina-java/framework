@@ -1,8 +1,8 @@
-{% extends "layout.html" %}
+@extends('layout')
 
-{% block title %}Users List - Lumina Framework{% endblock %}
+@section('title')Users List - Lumina Framework@endsection
 
-{% block content %}
+@section('content')
 <div class="container py-5">
     <div class="row mb-4">
         <div class="col">
@@ -23,7 +23,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for user in users %}
+                    @foreach(users as user)
                     <tr>
                         <td class="ps-4 fw-bold">{{ user.id }}</td>
                         <td>{{ user.name }}</td>
@@ -32,10 +32,10 @@
                             <a href="/users/{{ user.id }}" class="btn btn-sm btn-outline-primary">View Profile</a>
                         </td>
                     </tr>
-                    {% endfor %}
+                    @endforeach
                 </tbody>
             </table>
         </div>
     </div>
 </div>
-{% endblock %}
+@endsection

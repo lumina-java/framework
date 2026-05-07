@@ -17,12 +17,11 @@ impl AuthService {
     pub async fn register(&self, name: String, email: String, password: String) -> Result<i64, String> {
         let hashed_password = hash::make(&password);
         let user = User {
-            id: 0,
             name,
             email,
             password: hashed_password,
             role: "user".to_string(),
-            posts: None,
+            ..Default::default()
         };
 
         user.save(&self.db).await
@@ -32,7 +31,8 @@ impl AuthService {
     /// Logika verifikasi login dan generate token
     pub async fn login(&self, email: &str, password: &str) -> Result<String, String> {
         let user = User::find_by_email(&self.db, email).await
-            .map_err(|_| "Email atau password salah".to_string())?;
+            .map_err(|_| "Email atau password salah".to_string())?
+            .ok_or("Email atau password salah".to_string())?;
 
         if !hash::check(password, &user.password) {
             return Err("Email atau password salah".to_string());

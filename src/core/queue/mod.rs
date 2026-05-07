@@ -1,60 +1,162 @@
 use async_trait::async_trait;
-use tokio::sync::mpsc;
 use std::sync::Arc;
 use crate::core::application::AppState;
+use sqlx::{Pool, Any};
+use serde_json::Value;
+use std::collections::HashMap;
+use tokio::time::{sleep, Duration};
 
 /// Trait yang harus diimplementasikan oleh setiap Background Job.
 #[async_trait]
-pub trait Job: Send + Sync + std::fmt::Debug {
-    /// Logika utama yang akan dijalankan di background.
-    async fn handle(&self, state: Arc<AppState>) -> Result<(), String>;
+pub trait Job: Send + Sync {
+    /// Nama unik job (digunakan untuk identifikasi di database).
+    fn name(&self) -> &'static str;
+    
+    /// Jalankan logika job.
+    async fn handle(&self, state: Arc<AppState>, payload: Value) -> Result<(), String>;
 }
 
-/// QueueManager mengelola pengiriman job ke worker melalui channel.
+/// Registry untuk mendaftarkan semua job yang tersedia.
+pub struct JobRegistry {
+    jobs: HashMap<String, Box<dyn Job>>,
+}
+
+impl JobRegistry {
+    pub fn new() -> Self {
+        Self { jobs: HashMap::new() }
+    }
+
+    pub fn register<J: Job + 'static>(&mut self, job: J) {
+        self.jobs.insert(job.name().to_string(), Box::new(job));
+    }
+
+    pub fn get(&self, name: &str) -> Option<&Box<dyn Job>> {
+        self.jobs.get(name)
+    }
+}
+
+/// QueueManager mengelola pengiriman job ke database.
 pub struct QueueManager {
-    sender: mpsc::Sender<Box<dyn Job>>,
+    db: Pool<Any>,
 }
 
 impl QueueManager {
-    /// Membuat instance baru QueueManager.
-    pub fn new(sender: mpsc::Sender<Box<dyn Job>>) -> Self {
-        Self { sender }
+    pub fn new(db: Pool<Any>) -> Self {
+        Self { db }
     }
 
-    /// Mengirim job ke antrean untuk diproses.
-    pub async fn dispatch<J: Job + 'static>(&self, job: J) -> Result<(), String> {
-        self.sender
-            .send(Box::new(job))
+    /// Mengirim job ke antrean database.
+    pub async fn dispatch(&self, name: &str, payload: Value) -> Result<(), String> {
+        let full_payload = serde_json::json!({
+            "job": name,
+            "data": payload
+        });
+
+        sqlx::query("INSERT INTO jobs (queue, payload) VALUES ('default', ?)")
+            .bind(full_payload.to_string())
+            .execute(&self.db)
             .await
-            .map_err(|e| format!("Gagal mengirim job ke antrean: {}", e))
+            .map_err(|e| format!("Gagal simpan job ke DB: {}", e))?;
+        
+        Ok(())
     }
 }
 
-/// Worker yang bertugas mendengarkan antrean dan mengeksekusi job.
+/// Worker yang memantau database dan mengeksekusi job.
 pub struct QueueWorker {
-    receiver: mpsc::Receiver<Box<dyn Job>>,
+    registry: Arc<JobRegistry>,
 }
 
 impl QueueWorker {
-    pub fn new(receiver: mpsc::Receiver<Box<dyn Job>>) -> Self {
-        Self { receiver }
+    pub fn new(registry: Arc<JobRegistry>) -> Self {
+        Self { registry }
     }
 
-    /// Menjalankan loop worker secara asinkron.
-    pub async fn run(mut self, state: Arc<AppState>) {
-        tracing::info!("🚀 Queue Worker started and listening for jobs...");
+    pub async fn run(self, state: Arc<AppState>) {
+        tracing::info!("🚀 Persistent Queue Worker started...");
         
-        while let Some(job) = self.receiver.recv().await {
-            let state_clone = state.clone();
-            tracing::info!("📦 Processing job: {:?}", job);
-            
-            // Eksekusi job
-            tokio::spawn(async move {
-                match job.handle(state_clone).await {
-                    Ok(_) => tracing::info!("✅ Job completed successfully: {:?}", job),
-                    Err(e) => tracing::error!("❌ Job failed: {:?}. Error: {}", job, e),
-                }
-            });
+        // Cek apakah tabel `jobs` ada sebelum mulai polling.
+        // Jika belum ada, log warning SEKALI dan hentikan worker.
+        let db = &state.db().pool;
+        let table_exists = sqlx::query("SELECT 1 FROM jobs LIMIT 1")
+            .execute(db)
+            .await;
+        
+        if let Err(e) = table_exists {
+            let err_str = e.to_string();
+            if err_str.contains("doesn't exist") || err_str.contains("no such table") {
+                tracing::warn!(
+                    "⚠️  Tabel 'jobs' belum ada. Queue worker dinonaktifkan. \
+                     Jalankan: ./lumina migrate untuk membuat tabel."
+                );
+                return; // Hentikan worker, tidak perlu loop
+            }
         }
+        
+        loop {
+            match self.process_next_job(state.clone()).await {
+                Ok(true) => { /* Ada job yang diproses, lanjut cek lagi */ }
+                Ok(false) => {
+                    sleep(Duration::from_secs(3)).await;
+                }
+                Err(e) => {
+                    tracing::error!("❌ Error saat polling queue: {}", e);
+                    sleep(Duration::from_secs(5)).await;
+                }
+            }
+        }
+    }
+
+    async fn process_next_job(&self, state: Arc<AppState>) -> Result<bool, String> {
+        let db = &state.db().pool;
+        
+        // 1. Ambil job yang tersedia
+        let row: Option<(i64, String)> = sqlx::query_as::<_, (i64, String)>(
+            "SELECT id, payload FROM jobs 
+             WHERE reserved_at IS NULL 
+             AND available_at <= CURRENT_TIMESTAMP 
+             ORDER BY available_at ASC LIMIT 1"
+        )
+        .fetch_optional(db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let (id, payload_str) = match row {
+            Some(r) => r,
+            None => return Ok(false),
+        };
+
+        // 2. Tandai sebagai reserved
+        sqlx::query("UPDATE jobs SET reserved_at = CURRENT_TIMESTAMP, attempts = attempts + 1 WHERE id = ?")
+            .bind(id)
+            .execute(db)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        // 3. Parse payload
+        let payload: Value = serde_json::from_str(&payload_str).map_err(|e| e.to_string())?;
+        let job_name = payload["job"].as_str().unwrap_or("unknown");
+        let job_data = payload["data"].clone();
+
+        tracing::info!("📦 Processing job [{}] ID: {}", job_name, id);
+
+        // 4. Cari handler
+        if let Some(handler) = self.registry.get(job_name) {
+            match handler.handle(state.clone(), job_data).await {
+                Ok(_) => {
+                    sqlx::query("DELETE FROM jobs WHERE id = ?").bind(id).execute(db).await.ok();
+                    tracing::info!("✅ Job [{}] ID: {} selesai.", job_name, id);
+                }
+                Err(e) => {
+                    sqlx::query("UPDATE jobs SET reserved_at = NULL WHERE id = ?").bind(id).execute(db).await.ok();
+                    tracing::error!("❌ Job [{}] ID: {} gagal: {}", job_name, id, e);
+                }
+            }
+        } else {
+            tracing::error!("⚠️  Tidak ada handler untuk job: {}", job_name);
+            sqlx::query("DELETE FROM jobs WHERE id = ?").bind(id).execute(db).await.ok();
+        }
+
+        Ok(true)
     }
 }

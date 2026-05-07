@@ -56,6 +56,8 @@ pub struct Redirect {
     path: String,
     flash_success: Option<String>,
     flash_error: Option<String>,
+    flash_info: Option<String>,
+    flash_warning: Option<String>,
     errors: Option<std::collections::HashMap<String, String>>,
     old_input: Option<serde_json::Value>,
 }
@@ -66,6 +68,8 @@ impl Redirect {
             path: path.to_string(),
             flash_success: None,
             flash_error: None,
+            flash_info: None,
+            flash_warning: None,
             errors: None,
             old_input: None,
         }
@@ -80,6 +84,18 @@ impl Redirect {
     /// Menambahkan pesan error
     pub fn with_error(mut self, message: &str) -> Self {
         self.flash_error = Some(message.to_string());
+        self
+    }
+
+    /// Menambahkan pesan info
+    pub fn with_info(mut self, message: &str) -> Self {
+        self.flash_info = Some(message.to_string());
+        self
+    }
+
+    /// Menambahkan pesan warning
+    pub fn with_warning(mut self, message: &str) -> Self {
+        self.flash_warning = Some(message.to_string());
         self
     }
 
@@ -114,6 +130,14 @@ impl Redirect {
         
         if let Some(msg) = self.flash_error {
             flash.error(&msg).await;
+        }
+
+        if let Some(msg) = self.flash_info {
+            flash.info(&msg).await;
+        }
+
+        if let Some(msg) = self.flash_warning {
+            flash.warning(&msg).await;
         }
         
         if let Some(errors) = self.errors {

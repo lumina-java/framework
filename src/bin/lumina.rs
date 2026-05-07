@@ -56,16 +56,29 @@ enum Commands {
     /// Generate a full Authentication scaffolding (Register, Login, Views)
     #[command(name = "make:auth")]
     MakeAuth,
+    /// Run all pending database migrations
+    #[command(name = "migrate")]
+    Migrate,
     /// Check the status of database migrations
     #[command(name = "migrate:status")]
     MigrateStatus,
     /// Rollback the last applied migration
     #[command(name = "migrate:rollback")]
     MigrateRollback,
+    /// Seed the database with records
+    #[command(name = "db:seed")]
+    DbSeed,
+    /// Generate a new seeder
+    #[command(name = "make:seeder")]
+    MakeSeeder {
+        /// Name of the seeder (e.g. UserSeeder)
+        name: String,
+    },
 }
 
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().ok();
     let cli = Cli::parse();
 
     match cli.command {
@@ -90,11 +103,20 @@ async fn main() {
         Commands::MakeAuth => {
             cli::handle_make_auth().await;
         }
+        Commands::Migrate => {
+            cli::handle_migrate().await;
+        }
         Commands::MigrateStatus => {
             cli::handle_migrate_status().await;
         }
         Commands::MigrateRollback => {
             cli::handle_migrate_rollback().await;
+        }
+        Commands::DbSeed => {
+            cli::handle_db_seed().await;
+        }
+        Commands::MakeSeeder { name } => {
+            cli::handle_make_seeder(&name).await;
         }
         Commands::Serve => {
             println!("🚀 Starting Lumina Server...");

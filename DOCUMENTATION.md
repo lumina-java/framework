@@ -21,7 +21,11 @@
 12. [Eager Loading (N+1 Solution)](#eager-loading-n1-solution)
 13. [HTMX Integration (Zero-Mouse UI)](#htmx-integration-zero-mouse-ui)
 14. [File Upload & Image Manipulation (Advanced)](#file-upload--image-manipulation-advanced)
-15. [**CHEAT SHEET (Quick Reference)**](./CHEAT_SHEET.md)
+15. [Persistent Queue System](#persistent-queue-system)
+16. [Blade Template Syntax](#blade-template-syntax)
+17. [Logging & Debugging](#logging--debugging)
+18. [Rate Limiting](#rate-limiting)
+19. [**CHEAT SHEET (Quick Reference)**](./CHEAT_SHEET.md)
 
 ---
 
@@ -1108,6 +1112,90 @@ Dalam template Tera, Anda bisa melihat isi variabel menggunakan filter `dump`:
 
 ```html
 {{ dump(var=products) }}
+```
+
+---
+
+## Persistent Queue System
+
+Lumina memiliki sistem antrean (Queue) berbasis database yang persisten. Pekerjaan (Job) disimpan di tabel `jobs` dan diproses di background oleh worker.
+
+### Membuat Job Baru
+Gunakan CLI untuk membuat class Job baru:
+```bash
+./lumina make:job SendEmailJob
+```
+
+### Menjalankan Job
+```rust
+use crate::app::jobs::SendEmailJob;
+
+// Dispatch job ke antrean
+state.queue.push(SendEmailJob::new(email, content)).await?;
+```
+
+### Queue Resilience
+Worker Lumina memiliki mekanisme *retry* otomatis. Jika tabel `jobs` belum tersedia (misal saat startup awal), worker akan menunggu dan mencoba kembali setiap 30 detik tanpa mematikan seluruh aplikasi.
+
+---
+
+## Blade Template Syntax
+
+Lumina menyediakan *preprocessor* yang memungkinkan Anda menulis template dengan sintaks bergaya Laravel Blade. Sintaks ini akan diterjemahkan secara otomatis ke engine `Tera`.
+
+### Direktif yang Tersedia
+- `@extends('layout')`: Mewarisi layout (otomatis mencari file `.blade.rs`).
+- `@section('name')` / `@endsection`: Mendefinisikan blok konten.
+- `@yield('name')`: Menampilkan isi dari sebuah section.
+- `@if(condition)` / `@elseif(condition)` / `@else` / `@endif`.
+- `@foreach(items as item)` / `@endforeach`.
+- `@auth` / `@endauth`: Menampilkan konten hanya jika user sudah login.
+- `@guest` / `@endguest`: Menampilkan konten hanya jika user belum login.
+- `@csrf`: Men-generate input hidden untuk token CSRF.
+- `@include('partial')`: Menyertakan file template lain.
+
+---
+
+## Logging & Debugging
+
+Lumina menggunakan sistem logging terstruktur yang mencetak ke console (development) dan ke file (production).
+
+### Konfigurasi Logging
+Atur level log di file `.env`:
+```env
+LOG_LEVEL=info  # debug, info, warn, error
+```
+
+### File Logging
+Semua log disimpan secara otomatis di folder `storage/logs/`. File log di-roll setiap hari (misal: `lumina.2026-05-10.log`).
+
+### Debugging Tools
+- `dd!($var)`: Dump and Die (merender UI debugger cantik di browser).
+- `dump!($var)`: Mencetak variabel ke terminal secara terstruktur tanpa menghentikan eksekusi.
+
+---
+
+## Rate Limiting
+
+Lumina menyertakan middleware Rate Limiter bawaan untuk melindungi aplikasi dari brute-force atau DDoS level aplikasi.
+
+### Konfigurasi
+Atur batas request di file `.env`:
+```env
+RATE_LIMIT_MAX=60     # Maksimal request per window
+RATE_LIMIT_WINDOW=60  # Durasi window dalam detik
+```
+
+### Penggunaan Per-Route
+Anda bisa menerapkan limit yang lebih ketat untuk route tertentu (misal login):
+```rust
+use crate::core::rate_limit::{RateLimitConfig, rate_limit_with_config};
+
+// Di route builder
+.route("/login", post(handler))
+.layer(from_fn_with_state(state, |state, req, next| async move {
+    rate_limit_with_config(state, RateLimitConfig::strict(), req, next).await
+}))
 ```
 
 ---

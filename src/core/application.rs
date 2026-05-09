@@ -44,6 +44,11 @@ impl AppState {
     pub fn db(&self) -> &DatabasePool {
         self.db.as_ref().expect("Database connection is not available")
     }
+
+    /// Akses cepat ke CacheManager (in-memory).
+    pub fn cache(&self) -> &crate::core::cache::CacheManager {
+        &self.cache
+    }
 }
 
 impl FromRef<AppState> for CsrfConfig {
@@ -83,6 +88,8 @@ impl Application {
             .fallback(ErrorController::not_found)
             .with_state(state.clone())
             // ── Middleware stack (urutan: dari luar ke dalam) ──────────────
+            // Rate Limiter — filter request berlebih berdasarkan IP (paling awal)
+            .layer(from_fn_with_state(state.clone(), crate::core::rate_limit::rate_limit_middleware))
             .layer(from_fn(logger))
             // Catch Panic Layer — menangkap panic dan mengembalikan 500 / Halaman DD
             .layer(CatchPanicLayer::custom(crate::support::debug::handle_panic))

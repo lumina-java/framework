@@ -15,3 +15,5 @@ pub mod config;
 pub mod queue;
 pub mod cache;
 pub mod upload;
+pub mod logging;
+pub mod rate_limit;

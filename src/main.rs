@@ -39,8 +39,9 @@ async fn main() {
         }
     }
     
-    // Inisialisasi tracing-subscriber agar tracing::info dsb tercetak di console
-    tracing_subscriber::fmt::init();
+    // Inisialisasi Lumina Logger: dual output ke stdout + file (storage/logs/)
+    // Guard HARUS di-hold agar background writer tidak berhenti
+    let _log_guard = lumina::core::logging::init();
 
     let app = Application::new();
     

@@ -8,6 +8,7 @@ pub enum DatabaseKind {
 }
 
 /// Lumina DatabasePool — wrapper di atas `sqlx::Pool<Any>`.
+#[derive(Clone)]
 pub struct DatabasePool {
     pub pool: Pool<Any>,
     pub kind: DatabaseKind,

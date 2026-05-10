@@ -1,4 +1,5 @@
 use crate::app::controllers::auth_controller::AuthController;
+use crate::app::controllers::social_auth_controller::SocialAuthController;
 use crate::app::controllers::dashboard_controller::DashboardController;
 use crate::app::controllers::home_controller::HomeController;
 use crate::app::controllers::user_controller::UserController;
@@ -21,6 +22,9 @@ pub fn register(_config: &crate::core::config::ConfigManager) -> Router<AppState
         .get("/auth/register", AuthController::show_register)
         .post("/auth/login", AuthController::login)
         .post("/auth/register", AuthController::register)
+        // Social Auth
+        .get("/auth/:provider/redirect", SocialAuthController::redirect)
+        .get("/auth/:provider/callback", SocialAuthController::callback)
 
         .get("/debug/panic", HomeController::debug_panic)
         .get("/debug/dd", HomeController::debug_dd);

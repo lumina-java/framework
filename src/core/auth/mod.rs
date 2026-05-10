@@ -7,20 +7,22 @@ use axum::{
 use crate::app::models::user::User;
 
 pub mod hash;
+pub mod socialite;
 
 /// AuthUser — Representasi pengguna yang terautentikasi.
 /// Berfungsi sebagai Model data JWT sekaligus Custom Extractor (Dependency Injection).
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AuthUser {
-    pub sub:   String,   // user_id
-    pub email: String,
-    pub role:  String,
-    pub exp:   usize,    // Unix timestamp — kapan token expire
-    pub iat:   usize,    // Unix timestamp — kapan token dibuat
+    pub sub:         String,   // user_id
+    pub email:       String,
+    pub role:        String,
+    pub permissions: Vec<String>,
+    pub exp:         usize,    // Unix timestamp — kapan token expire
+    pub iat:         usize,    // Unix timestamp — kapan token dibuat
 }
 
 impl AuthUser {
-    pub fn new(user_id: i64, email: String, role: String, hours: usize) -> Self {
+    pub fn new(user_id: i64, email: String, role: String, permissions: Vec<String>, hours: usize) -> Self {
         use std::time::{SystemTime, UNIX_EPOCH};
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -30,9 +32,18 @@ impl AuthUser {
             sub:   user_id.to_string(),
             email,
             role,
+            permissions,
             iat:   now,
             exp:   now + (hours * 3600),
         }
+    }
+
+    pub fn can(&self, permission: &str) -> bool {
+        self.permissions.iter().any(|p| p == permission)
+    }
+
+    pub fn has_role(&self, role: &str) -> bool {
+        self.role == role || self.role == "admin"
     }
 }
 
@@ -67,13 +78,15 @@ impl Auth {
     }
 
     /// Hasilkan AuthUser baru.
-    pub fn user(user_id: i64, email: String, role: String) -> AuthUser {
-        AuthUser::new(user_id, email, role, 24)
+    pub fn user(user_id: i64, email: String, role: String, permissions: Vec<String>) -> AuthUser {
+        AuthUser::new(user_id, email, role, permissions, 24)
     }
 
     /// Simpan user ke session (Login) menggunakan Request.
     pub async fn login(req: &crate::core::request::Request, user_model: User) {
-        let auth_user = Self::user(user_model.id, user_model.email, user_model.role);
+        let pool = req.db().clone();
+        let permissions = user_model.all_permissions(&pool).await.unwrap_or_default();
+        let auth_user = Self::user(user_model.id, user_model.email, user_model.role, permissions);
         
         // Simpan User object untuk akses cepat via req.user
         let _ = req.session.insert("user", auth_user.clone()).await;

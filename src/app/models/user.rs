@@ -13,7 +13,11 @@ pub struct User {
     pub role:     String,
     #[sqlx(skip)]
     pub posts:    Option<Vec<Post>>,
+    #[sqlx(skip)]
+    pub roles:    Option<Vec<Role>>,
 }
+
+use crate::app::models::role::Role;
 
 #[async_trait]
 impl Model for User {
@@ -107,5 +111,65 @@ impl User {
     /// Relasi: User has many Posts
     pub async fn posts(&self, pool: &DatabasePool) -> Result<Vec<Post>, sqlx::Error> {
         Self::has_many::<Post>(pool, "user_id", self.id).await
+    }
+
+    /// Relasi: User belongs to many Roles
+    pub async fn roles(&self, pool: &DatabasePool) -> Result<Vec<Role>, sqlx::Error> {
+        sqlx::query_as::<_, Role>(
+            "SELECT r.id, r.name, r.slug 
+             FROM roles r
+             JOIN user_role ur ON r.id = ur.role_id
+             WHERE ur.user_id = ? AND r.deleted_at IS NULL"
+        )
+        .bind(self.id)
+        .fetch_all(&pool.pool)
+        .await
+    }
+
+    /// Ambil semua slug permission dari semua role user
+    pub async fn all_permissions(&self, pool: &DatabasePool) -> Result<Vec<String>, sqlx::Error> {
+        let permissions = sqlx::query_scalar::<_, String>(
+            "SELECT DISTINCT p.slug 
+             FROM permissions p
+             JOIN role_permission rp ON p.id = rp.permission_id
+             JOIN user_role ur ON rp.role_id = ur.role_id
+             WHERE ur.user_id = ? AND p.deleted_at IS NULL"
+        )
+        .bind(self.id)
+        .fetch_all(&pool.pool)
+        .await?;
+        
+        Ok(permissions)
+    }
+
+    pub async fn has_role(&self, pool: &DatabasePool, role_slug: &str) -> bool {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM user_role ur 
+             JOIN roles r ON ur.role_id = r.id 
+             WHERE ur.user_id = ? AND r.slug = ?"
+        )
+        .bind(self.id)
+        .bind(role_slug)
+        .fetch_one(&pool.pool)
+        .await
+        .unwrap_or(0);
+        
+        count > 0
+    }
+
+    pub async fn has_permission(&self, pool: &DatabasePool, permission_slug: &str) -> bool {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM permissions p
+             JOIN role_permission rp ON p.id = rp.permission_id
+             JOIN user_role ur ON rp.role_id = ur.role_id
+             WHERE ur.user_id = ? AND p.slug = ?"
+        )
+        .bind(self.id)
+        .bind(permission_slug)
+        .fetch_one(&pool.pool)
+        .await
+        .unwrap_or(0);
+        
+        count > 0
     }
 }

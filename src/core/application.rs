@@ -208,6 +208,9 @@ impl Application {
         // ── 6. Jalankan Background Worker ──────────────────────────────────
         tokio::spawn(worker.run(state_arc.clone()));
 
+        // ── 6a. Jalankan Task Scheduler ────────────────────────────────────
+        crate::app::console::kernel::run(state_arc.clone()).await;
+
         // ── 7. Serve HTTP ──────────────────────────────────────────────────
         println!("🌐 Listening on http://{}", addr);
         let router = self.build_router((*state_arc).clone(), session_store);

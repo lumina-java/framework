@@ -2,6 +2,8 @@ use std::fs;
 use std::path::Path;
 use chrono::Local;
 
+pub mod tinker;
+
 pub async fn handle_make_controller(name: &str) {
     let file_name = camel_to_snake(name);
     let path_str = format!("src/app/controllers/{}.rs", file_name);
@@ -385,6 +387,33 @@ pub async fn handle_make_seeder(name: &str) {
     }
 }
 
+pub async fn handle_make_factory(name: &str) {
+    let file_name = camel_to_snake(name);
+    let path_str = format!("database/factories/{}.rs", file_name);
+    let path = Path::new(&path_str);
+
+    if path.exists() {
+        println!("❌ Factory {} sudah ada!", path_str);
+        return;
+    }
+
+    // Ekstrak nama model dari nama factory (misal: UserFactory -> User)
+    let model_camel = name.replace("Factory", "");
+    let model_snake = camel_to_snake(&model_camel);
+
+    let stub = include_str!("stubs/factory.stub");
+    let content = stub.replace("{{name}}", name)
+                      .replace("{{model_camel}}", &model_camel)
+                      .replace("{{model_snake}}", &model_snake);
+
+    if let Err(e) = fs::write(path, content) {
+        println!("❌ Gagal membuat factory: {}", e);
+    } else {
+        println!("✅ Factory berhasil dibuat: {}", path_str);
+        println!("📌 Jangan lupa daftarkan di database/factories/mod.rs");
+    }
+}
+
 pub async fn handle_db_seed() {
     let config = crate::core::config::ConfigManager::new();
     let db_url = config.get_db_url();
@@ -392,6 +421,19 @@ pub async fn handle_db_seed() {
         Ok(pool) => {
             if let Err(e) = crate::seeders::run(&pool).await {
                 println!("❌ Gagal menjalankan seeder: {}", e);
+            }
+        }
+        Err(e) => println!("❌ Gagal connect ke database: {}", e),
+    }
+}
+
+pub async fn handle_tinker() {
+    let config = crate::core::config::ConfigManager::new();
+    let db_url = config.get_db_url();
+    match crate::database::connection::DatabasePool::connect(&db_url).await {
+        Ok(pool) => {
+            if let Err(e) = tinker::run(&pool).await {
+                println!("❌ Tinker error: {}", e);
             }
         }
         Err(e) => println!("❌ Gagal connect ke database: {}", e),

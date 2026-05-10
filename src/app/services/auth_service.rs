@@ -38,7 +38,8 @@ impl AuthService {
             return Err("Email atau password salah".to_string());
         }
 
-        let auth_user = AuthUser::new(user.id, user.email, user.role, 24);
+        let permissions = user.all_permissions(&self.db).await.unwrap_or_default();
+        let auth_user = AuthUser::new(user.id, user.email, user.role, permissions, 24);
         crate::http::auth::generate_token(&auth_user)
             .map_err(|_| "Gagal generate token".to_string())
     }

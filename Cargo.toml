@@ -47,6 +47,14 @@ axum_csrf = { version = "0.10.0", features = ["layer"] }
 moka = { version = "0.12.15", features = ["future"] }
 uuid = { version = "1", features = ["v4"] }
 image = "0.25"
+oauth2 = "4.4"
+reqwest = { version = "0.12", features = ["json"] }
+rand = "0.8"
+fake = { version = "2.9", features = ["derive", "chrono"] }
+rustyline = "14.0"
+comfy-table = "7.1"
+tokio-cron-scheduler = "0.10"
+
 
 [[bin]]
 name = "lumina"

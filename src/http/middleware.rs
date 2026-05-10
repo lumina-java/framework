@@ -4,6 +4,7 @@ use axum::{
     response::{IntoResponse, Response, Redirect},
 };
 use std::time::Instant;
+use crate::core::auth::AuthUser;
 
 // ─── Request Logger ────────────────────────────────────────────────────────────
 
@@ -114,5 +115,48 @@ pub async fn web_auth_required(
             flash.error("Silakan login terlebih dahulu.").await;
             Redirect::to("/auth/login").into_response()
         },
+    }
+}
+
+// ─── RBAC Middleware ───────────────────────────────────────────────────────────
+
+/// Middleware untuk mengecek Role.
+pub async fn role_required(
+    req: Request,
+    next: Next,
+    role: &str,
+) -> Response {
+    let auth_user = req.extensions().get::<AuthUser>();
+    
+    match auth_user {
+        Some(user) if user.has_role(role) => next.run(req).await,
+        _ => {
+            if req.uri().path().starts_with("/api") {
+                unauthorized_json(&format!("Role '{}' diperlukan.", role))
+            } else {
+                // Sederhananya kita beri 403
+                axum::response::Html(format!("<h1>403 Forbidden</h1><p>Role '{}' diperlukan.</p>", role)).into_response()
+            }
+        }
+    }
+}
+
+/// Middleware untuk mengecek Permission.
+pub async fn permission_required(
+    req: Request,
+    next: Next,
+    permission: &str,
+) -> Response {
+    let auth_user = req.extensions().get::<AuthUser>();
+    
+    match auth_user {
+        Some(user) if user.can(permission) => next.run(req).await,
+        _ => {
+            if req.uri().path().starts_with("/api") {
+                unauthorized_json(&format!("Izin '{}' diperlukan.", permission))
+            } else {
+                axum::response::Html(format!("<h1>403 Forbidden</h1><p>Izin '{}' diperlukan.</p>", permission)).into_response()
+            }
+        }
     }
 }

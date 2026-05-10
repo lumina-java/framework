@@ -74,6 +74,15 @@ enum Commands {
         /// Name of the seeder (e.g. UserSeeder)
         name: String,
     },
+    /// Generate a new factory
+    #[command(name = "make:factory")]
+    MakeFactory {
+        /// Name of the factory (e.g. UserFactory)
+        name: String,
+    },
+    /// Start an interactive REPL session
+    #[command(name = "tinker")]
+    Tinker,
 }
 
 #[tokio::main]
@@ -117,6 +126,12 @@ async fn main() {
         }
         Commands::MakeSeeder { name } => {
             cli::handle_make_seeder(&name).await;
+        }
+        Commands::MakeFactory { name } => {
+            cli::handle_make_factory(&name).await;
+        }
+        Commands::Tinker => {
+            cli::handle_tinker().await;
         }
         Commands::Serve => {
             println!("🚀 Starting Lumina Server...");

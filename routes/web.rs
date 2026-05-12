@@ -10,31 +10,42 @@ use axum::middleware::from_fn;
 
 /// Registrasi semua Web Routes (HTML responses).
 pub fn register(_config: &crate::core::config::ConfigManager) -> Router<AppState> {
-    // ─── Public Routes ───
-    let public = Router::<AppState>::new()
+    Router::<AppState>::new()
+        // ─── Public Routes ───
         .get("/", HomeController::index)
         .get("/about", HomeController::about)
+        .get("/health", |axum::extract::State(state): axum::extract::State<AppState>| async move {
+            let db_status = if state.db.is_some() { "UP" } else { "DOWN" };
+            axum::response::Json(serde_json::json!({
+                "status": "UP",
+                "database": db_status,
+                "framework": "Lumina 1.0",
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            }))
+        })
         .get("/users", UserController::index)
         .get("/users/:id", UserController::show)
         .get("/test-orm", UserController::test_orm)
-        // Authentication
-        .get("/auth/login", AuthController::show_login)
-        .get("/auth/register", AuthController::show_register)
-        .post("/auth/login", AuthController::login)
-        .post("/auth/register", AuthController::register)
-        // Social Auth
-        .get("/auth/:provider/redirect", SocialAuthController::redirect)
-        .get("/auth/:provider/callback", SocialAuthController::callback)
+        
+        // Group Authentication
+        .group("/auth", |r| {
+            r.get("/login", AuthController::show_login)
+             .get("/register", AuthController::show_register)
+             .post("/login", AuthController::login)
+             .post("/register", AuthController::register)
+             .get("/logout", AuthController::logout)
+             
+             // Social Auth
+             .get("/:provider/redirect", SocialAuthController::redirect)
+             .get("/:provider/callback", SocialAuthController::callback)
+        })
+
+        // ─── Protected Routes (Hanya untuk User Login) ───
+        .group("/dashboard", |r| {
+            r.middleware(from_fn(web_auth_required))
+             .get("/", DashboardController::index)
+        })
 
         .get("/debug/panic", HomeController::debug_panic)
-        .get("/debug/dd", HomeController::debug_dd);
-
-    // ─── Protected Routes (Hanya untuk User Login) ───
-    let protected = Router::<AppState>::new()
-        .get("/dashboard", DashboardController::index)
-        .get("/auth/logout", AuthController::logout)
-        .layer(from_fn(web_auth_required));
-
-    // Gabungkan public dan protected
-    public.merge(protected)
+        .get("/debug/dd", HomeController::debug_dd)
 }

@@ -35,6 +35,7 @@ pub struct AppState {
     pub config: crate::core::config::Config,
     pub queue: Arc<crate::core::queue::QueueManager>,
     pub cache: Arc<crate::core::cache::CacheManager>,
+    pub mail: Arc<crate::core::mail::Mail>,
     pub registry: Arc<crate::core::queue::JobRegistry>,
 }
 
@@ -70,34 +71,37 @@ impl Application {
     }
 
     fn build_router(&self, state: AppState, session_store: LuminaSessionStore) -> AxumRouter {
+        let kernel = crate::http::kernel::HttpKernel::new();
+        
         let session_layer = SessionManagerLayer::new(session_store)
             .with_secure(false) // Set to true in production with HTTPS
             .with_expiry(Expiry::OnInactivity(Duration::minutes(5)));
 
         let csrf_layer = CsrfLayer::new(csrf::config());
 
-        let web = crate::web_routes::register(&state.config).into_axum();
-        let api = crate::api_routes::register(&state.config).into_axum();
+        let mut web = crate::web_routes::register(&state.config);
+        web = kernel.middleware_groups(web, "web");
 
-        AxumRouter::new()
+        let mut api = crate::api_routes::register(&state.config);
+        api = kernel.middleware_groups(api, "api");
+
+        let router = Router::new()
             .merge(web)
-            .nest("/api", api)
-            // ── Serve Storage public folder ─────────────────────────────────
+            .nest("/api", api);
+
+        // Terapkan Global Middleware dari Kernel
+        let mut router = kernel.global_middleware(router);
+
+        router.into_axum()
             .nest_service("/storage", tower_http::services::ServeDir::new("storage/app/public"))
-            // ── Fallback 404 ────────────────────────────────────────────────
             .fallback(ErrorController::not_found)
             .with_state(state.clone())
-            // ── Middleware stack (urutan: dari luar ke dalam) ──────────────
-            // Rate Limiter — filter request berlebih berdasarkan IP (paling awal)
+            // ── Middleware dasar (urutan: dari luar ke dalam) ──────────────
             .layer(from_fn_with_state(state.clone(), crate::core::rate_limit::rate_limit_middleware))
             .layer(from_fn(logger))
-            // Catch Panic Layer — menangkap panic dan mengembalikan 500 / Halaman DD
             .layer(CatchPanicLayer::custom(crate::support::debug::handle_panic))
-            // db_guard — intercept semua request jika DB tidak tersedia
             .layer(from_fn_with_state(state.clone(), db_guard))
-            // CSRF Layer
             .layer(csrf_layer)
-            // Session Layer
             .layer(session_layer)
     }
 
@@ -161,16 +165,45 @@ impl Application {
 
         let worker = crate::core::queue::QueueWorker::new(registry.clone());
 
+        // ── 4. Bangun Storage Manager ──────────────────────────────────────
+        let default_disk = std::env::var("STORAGE_DISK").unwrap_or_else(|_| "local".to_string());
+        let mut storage_manager = crate::core::storage::Storage::new(&default_disk);
+        
+        // Disk Lokal
+        storage_manager.add_disk("local", Arc::new(
+            crate::core::storage::LocalStorage::new("storage/app/public", "/storage")
+        ));
+
+        // Disk S3 (Placeholder config)
+        if let Ok(bucket) = std::env::var("S3_BUCKET") {
+            storage_manager.add_disk("s3", Arc::new(
+                crate::core::storage::S3Storage {
+                    bucket,
+                    region: std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
+                }
+            ));
+        }
+
+        // ── 5. Bangun Mailer ──────────────────────────────────────────────
+        let mail_driver_str = std::env::var("MAIL_DRIVER").unwrap_or_else(|_| "log".to_string());
+        let mail_driver: Arc<dyn crate::core::mail::MailDriver> = if mail_driver_str == "smtp" {
+            Arc::new(crate::core::mail::SmtpDriver)
+        } else {
+            Arc::new(crate::core::mail::LogDriver)
+        };
+        let mail_manager = Arc::new(crate::core::mail::Mail::new(mail_driver, view.clone()));
+
         let state = AppState {
             db: db_pool.clone(),
             view,
             auth_service,
             db_error,
             csrf_config: csrf::config(),
-            storage: Arc::new(crate::core::storage::Storage::new_local("storage/app/public", "/storage")),
+            storage: Arc::new(storage_manager),
             config: config.clone(),
             queue: queue_manager,
             cache,
+            mail: mail_manager,
             registry: registry.clone(),
         };
 

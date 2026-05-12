@@ -1,0 +1,13 @@
+use validator::Validate;
+use serde::Deserialize;
+use lumina_macros::lumina_form;
+
+#[lumina_form]
+pub struct {{name}}Request {
+    #[rule("required|min:3")]
+    pub name: String,
+    
+    // Tambahkan field lainnya dan aturan validasi di sini
+    
+    pub csrf_token: String,
+}

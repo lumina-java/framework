@@ -41,6 +41,12 @@ enum Commands {
         /// Name of the request (e.g. StoreUserRequest)
         name: String,
     },
+    /// Generate a new service class
+    #[command(name = "make:service")]
+    MakeService {
+        /// Name of the service (e.g. UserService)
+        name: String,
+    },
     /// Start the HTTP server
     #[command(name = "serve")]
     Serve,
@@ -83,6 +89,15 @@ enum Commands {
     /// Start an interactive REPL session
     #[command(name = "tinker")]
     Tinker,
+    /// Generate Dockerfile and docker-compose.yml
+    #[command(name = "make:docker")]
+    MakeDocker,
+    /// Generate Nginx configuration
+    #[command(name = "make:nginx")]
+    MakeNginx,
+    /// Generate Supervisor configuration
+    #[command(name = "make:supervisor")]
+    MakeSupervisor,
 }
 
 #[tokio::main]
@@ -105,6 +120,9 @@ async fn main() {
         }
         Commands::MakeRequest { name } => {
             cli::handle_make_request(&name).await;
+        }
+        Commands::MakeService { name } => {
+            cli::handle_make_service(&name).await;
         }
         Commands::MakeCrud { name } => {
             cli::handle_make_crud(&name).await;
@@ -132,6 +150,15 @@ async fn main() {
         }
         Commands::Tinker => {
             cli::handle_tinker().await;
+        }
+        Commands::MakeDocker => {
+            cli::handle_make_docker().await;
+        }
+        Commands::MakeNginx => {
+            cli::handle_make_nginx().await;
+        }
+        Commands::MakeSupervisor => {
+            cli::handle_make_supervisor().await;
         }
         Commands::Serve => {
             println!("🚀 Starting Lumina Server...");

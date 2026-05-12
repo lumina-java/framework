@@ -128,6 +128,43 @@ pub async fn handle_make_request(name: &str) {
     }
 }
 
+pub async fn handle_make_service(name: &str) {
+    let file_name = camel_to_snake(name);
+    let path_str = format!("src/app/services/{}.rs", file_name);
+    let path = Path::new(&path_str);
+
+    if path.exists() {
+        println!("❌ Service {} sudah ada!", path_str);
+        return;
+    }
+
+    // Ekstrak nama model dari nama service (misal: UserService -> User)
+    let model_camel = name.replace("Service", "");
+    let model_snake = camel_to_snake(&model_camel);
+    let table_name = format!("{}s", model_snake);
+
+    let stub = include_str!("stubs/service.stub");
+    let content = stub.replace("{{name}}", &model_camel)
+                      .replace("{{snake_name}}", &model_snake)
+                      .replace("{{table_name}}", &table_name);
+
+    if let Err(e) = fs::write(path, content) {
+        println!("❌ Gagal membuat service: {}", e);
+    } else {
+        println!("✅ Service berhasil dibuat: {}", path_str);
+        let mod_file = "src/app/services/mod.rs";
+        if let Ok(content) = fs::read_to_string(mod_file) {
+            let mod_line = format!("pub mod {};", file_name);
+            if !content.contains(&mod_line) {
+                let mut f = fs::OpenOptions::new().append(true).open(mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod {};", file_name);
+                println!("✅ Service auto-registered in services/mod.rs");
+            }
+        }
+    }
+}
+
 pub async fn handle_make_crud(name: &str) {
     let snake_name = camel_to_snake(name);
     let table_name = format!("{}s", snake_name);
@@ -139,7 +176,33 @@ pub async fn handle_make_crud(name: &str) {
     let migration_name = format!("create_{}_table", table_name);
     handle_make_migration(&migration_name).await;
 
-    // 3. Generate Controller (using specialized CRUD stub)
+    // 3. Generate Service
+    let service_name = format!("{}Service", name);
+    handle_make_service(&service_name).await;
+
+    // 4. Generate Request
+    let request_name = format!("{}Request", name);
+    let req_file_name = camel_to_snake(&request_name);
+    let req_path_str = format!("src/app/requests/{}.rs", req_file_name);
+    let req_path = Path::new(&req_path_str);
+    if !req_path.exists() {
+        let stub = include_str!("stubs/crud_request.stub");
+        let content = stub.replace("{{name}}", name);
+        let _ = fs::write(req_path, content);
+        println!("✅ CRUD Request berhasil dibuat: {}", req_path_str);
+        
+        let mod_file = "src/app/requests/mod.rs";
+        if let Ok(content) = fs::read_to_string(mod_file) {
+            let mod_line = format!("pub mod {};", req_file_name);
+            if !content.contains(&mod_line) {
+                let mut f = fs::OpenOptions::new().append(true).open(mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod {};", req_file_name);
+            }
+        }
+    }
+
+    // 5. Generate Controller (using specialized CRUD stub)
     let controller_path_str = format!("src/app/controllers/{}_controller.rs", snake_name);
     let controller_path = Path::new(&controller_path_str);
     if !controller_path.exists() {
@@ -151,7 +214,7 @@ pub async fn handle_make_crud(name: &str) {
         println!("✅ CRUD Controller berhasil dibuat: {}", controller_path_str);
     }
 
-    // 4. Generate Views
+    // 6. Generate Views
     let view_dir = format!("resources/views/{}", snake_name);
     let _ = fs::create_dir_all(&view_dir);
 
@@ -171,7 +234,10 @@ pub async fn handle_make_crud(name: &str) {
         }
     }
 
-    // 5. Auto Registration: Model
+    // 7. Auto Registration: Model, Controller, Routes, etc. (tetap sama)
+    // ... (logic registration di bawah ini tetap dipertahankan) ...
+    
+    // (Melanjutkan dari pendaftaran mod model)
     let mod_file = "src/app/models/mod.rs";
     if let Ok(content) = fs::read_to_string(mod_file) {
         let mod_line = format!("pub mod {};", snake_name);
@@ -183,7 +249,6 @@ pub async fn handle_make_crud(name: &str) {
         }
     }
 
-    // 6. Auto Registration: Controller
     let ctrl_mod_file = "src/app/controllers/mod.rs";
     if let Ok(content) = fs::read_to_string(ctrl_mod_file) {
         let mod_line = format!("pub mod {}_controller;", snake_name);
@@ -195,7 +260,6 @@ pub async fn handle_make_crud(name: &str) {
         }
     }
 
-    // 7. Auto Registration: Web Routes
     let web_routes_file = "routes/web.rs";
     if let Ok(mut content) = fs::read_to_string(web_routes_file) {
         let import_line = format!("use crate::app::controllers::{}_controller::{}Controller;\n", snake_name, name);
@@ -228,7 +292,7 @@ pub async fn handle_make_crud(name: &str) {
         println!("✅ Registered routes in routes/web.rs");
     }
 
-    // 8. Auto Registration: Sidebar / Menu in layout.html
+    // Menu registration ...
     let layout_file = "resources/views/layout.blade.rs";
     if let Ok(mut content) = fs::read_to_string(layout_file) {
         let menu_item = format!(
@@ -244,7 +308,7 @@ pub async fn handle_make_crud(name: &str) {
         }
     }
 
-    // 9. Auto Registration: Sidebar in dashboard.html
+    // Auto Registration: Sidebar in dashboard.html
     let dashboard_file = "resources/views/dashboard.blade.rs";
     if let Ok(mut content) = fs::read_to_string(dashboard_file) {
         let sidebar_item = format!(
@@ -264,7 +328,7 @@ pub async fn handle_make_crud(name: &str) {
         }
     }
 
-    // 10. Auto Registration: Sidebar in dashboard/index.html
+    // Auto Registration: Sidebar in dashboard/index.html
     let dashboard_idx_file = "resources/views/dashboard/index.blade.rs";
     if let Ok(mut content) = fs::read_to_string(dashboard_idx_file) {
         let sidebar_item = format!(
@@ -438,6 +502,53 @@ pub async fn handle_tinker() {
         }
         Err(e) => println!("❌ Gagal connect ke database: {}", e),
     }
+}
+
+pub async fn handle_make_docker() {
+    let dockerfile_path = "Dockerfile";
+    let docker_compose_path = "docker-compose.yml";
+
+    let dockerfile_content = include_str!("stubs/dockerfile.stub");
+    let docker_compose_content = include_str!("stubs/docker-compose.stub");
+
+    let _ = fs::write(dockerfile_path, dockerfile_content);
+    let _ = fs::write(docker_compose_path, docker_compose_content);
+
+    println!("✅ Dockerfile & docker-compose.yml berhasil dibuat.");
+    handle_make_deployment_guide().await;
+}
+
+pub async fn handle_make_nginx() {
+    let nginx_dir = "nginx";
+    let _ = fs::create_dir_all(nginx_dir);
+    let nginx_conf_path = format!("{}/nginx.conf", nginx_dir);
+
+    let content = include_str!("stubs/nginx.stub");
+    let _ = fs::write(nginx_conf_path, content);
+
+    println!("✅ Konfigurasi Nginx berhasil dibuat di: {}", nginx_conf_path);
+    handle_make_deployment_guide().await;
+}
+
+pub async fn handle_make_supervisor() {
+    let supervisor_dir = "supervisor";
+    let _ = fs::create_dir_all(supervisor_dir);
+    let supervisor_conf_path = format!("{}/lumina.conf", supervisor_dir);
+
+    let content = include_str!("stubs/supervisor.stub");
+    let _ = fs::write(supervisor_conf_path, content);
+
+    println!("✅ Konfigurasi Supervisor berhasil dibuat di: {}", supervisor_conf_path);
+    handle_make_deployment_guide().await;
+}
+
+async fn handle_make_deployment_guide() {
+    let guide_path = "docs/DEPLOYMENT.md";
+    if Path::new(guide_path).exists() { return; }
+    
+    let _ = fs::create_dir_all("docs");
+    let content = "# Deployment Guide\n\nPanduan langkah-demi-langkah untuk deploy Lumina Framework...\n\n(Isi panduan akan segera dilengkapi di modul dokumentasi)";
+    let _ = fs::write(guide_path, content);
 }
 
 fn camel_to_snake(s: &str) -> String {

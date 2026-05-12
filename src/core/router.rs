@@ -1,20 +1,13 @@
+use ax_router = axum::Router;
 use axum::{
-    Router as AxumRouter,
     handler::Handler,
     routing,
 };
 
 /// Lumina Router — fluent builder API yang membungkus axum::Router.
-///
-/// Desain terinspirasi oleh Laravel Router:
-/// ```
-/// Router::new()
-///     .get("/",          HomeController::index)
-///     .get("/users/:id", UserController::show)
-///     .post("/users",    UserController::store)
-/// ```
 pub struct Router<S = ()> {
-    inner: AxumRouter<S>,
+    inner: ax_router<S>,
+    prefix: String,
 }
 
 impl<S> Router<S>
@@ -24,8 +17,22 @@ where
     /// Buat router baru yang kosong.
     pub fn new() -> Self {
         Self {
-            inner: AxumRouter::new(),
+            inner: ax_router::new(),
+            prefix: String::new(),
         }
+    }
+
+    /// Tentukan prefix untuk semua route yang didaftarkan setelah ini.
+    pub fn prefix(mut self, prefix: &str) -> Self {
+        self.prefix = prefix.to_string();
+        self
+    }
+
+    fn normalize_path(&self, path: &str) -> String {
+        if self.prefix.is_empty() {
+            return path.to_string();
+        }
+        format!("{}/{}", self.prefix.trim_end_matches('/'), path.trim_start_matches('/'))
     }
 
     /// Daftarkan route GET.
@@ -34,7 +41,8 @@ where
         H: Handler<T, S>,
         T: 'static,
     {
-        self.inner = self.inner.route(path, routing::get(handler));
+        let full_path = self.normalize_path(path);
+        self.inner = self.inner.route(&full_path, routing::get(handler));
         self
     }
 
@@ -44,7 +52,8 @@ where
         H: Handler<T, S>,
         T: 'static,
     {
-        self.inner = self.inner.route(path, routing::post(handler));
+        let full_path = self.normalize_path(path);
+        self.inner = self.inner.route(&full_path, routing::post(handler));
         self
     }
 
@@ -54,7 +63,8 @@ where
         H: Handler<T, S>,
         T: 'static,
     {
-        self.inner = self.inner.route(path, routing::put(handler));
+        let full_path = self.normalize_path(path);
+        self.inner = self.inner.route(&full_path, routing::put(handler));
         self
     }
 
@@ -64,7 +74,8 @@ where
         H: Handler<T, S>,
         T: 'static,
     {
-        self.inner = self.inner.route(path, routing::delete(handler));
+        let full_path = self.normalize_path(path);
+        self.inner = self.inner.route(&full_path, routing::delete(handler));
         self
     }
 
@@ -74,7 +85,25 @@ where
         H: Handler<T, S>,
         T: 'static,
     {
-        self.inner = self.inner.route(path, routing::patch(handler));
+        let full_path = self.normalize_path(path);
+        self.inner = self.inner.route(&full_path, routing::patch(handler));
+        self
+    }
+
+    /// Grup route dengan prefix dan kustomisasi (seperti middleware).
+    /// Contoh:
+    /// ```
+    /// router.group("/admin", |r| {
+    ///     r.get("/dashboard", dashboard_handler)
+    /// })
+    /// ```
+    pub fn group<F>(mut self, prefix: &str, f: F) -> Self 
+    where
+        F: FnOnce(Router<S>) -> Router<S>,
+    {
+        let sub_router = Router::new();
+        let configured_sub = f(sub_router);
+        self.inner = self.inner.nest(prefix, configured_sub.inner);
         self
     }
 
@@ -90,11 +119,6 @@ where
         self
     }
 
-    /// Buat Lumina Router dari `axum::Router` yang sudah ada.
-    pub fn from_axum(router: AxumRouter<S>) -> Self {
-        Self { inner: router }
-    }
-
     /// Tambahkan middleware (layer) ke router.
     pub fn layer<L>(mut self, layer: L) -> Self
     where
@@ -108,8 +132,22 @@ where
         self
     }
 
+    /// Alias untuk layer agar lebih familiar bagi pengguna Laravel.
+    pub fn middleware<L>(self, layer: L) -> Self
+    where
+        L: tower::Layer<axum::routing::Route> + Clone + Send + 'static,
+        L::Service: tower::Service<ax_router<S>> + Clone + Send + 'static,
+        L: tower::Layer<axum::routing::Route> + Clone + Send + 'static,
+        L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Response: axum::response::IntoResponse + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Error: Into<std::convert::Infallible> + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
+    {
+        self.layer(layer)
+    }
+
     /// Konsumsi Router ini menjadi `axum::Router`.
-    pub fn into_axum(self) -> AxumRouter<S> {
+    pub fn into_axum(self) -> ax_router<S> {
         self.inner
     }
 }

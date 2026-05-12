@@ -160,3 +160,22 @@ pub async fn permission_required(
         }
     }
 }
+
+// ─── Production Hardening ──────────────────────────────────────────────────────
+
+/// Middleware untuk menambahkan Security Headers standar industri.
+pub async fn security_headers(req: Request, next: Next) -> Response {
+    let mut response = next.run(req).await;
+    let headers = response.headers_mut();
+
+    headers.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
+    headers.insert("X-Frame-Options", "SAMEORIGIN".parse().unwrap());
+    headers.insert("X-XSS-Protection", "1; mode=block".parse().unwrap());
+    headers.insert("Strict-Transport-Security", "max-age=31536000; includeSubDomains".parse().unwrap());
+    headers.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
+    
+    // Content-Security-Policy (Sangat dasar, silakan disesuaikan)
+    headers.insert("Content-Security-Policy", "default-src 'self'; script-src 'self' unpkg.com cdn.jsdelivr.net code.jquery.com cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; img-src 'self' data:;".parse().unwrap());
+
+    response
+}

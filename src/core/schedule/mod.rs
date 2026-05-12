@@ -16,9 +16,8 @@ impl Scheduler {
         Self { sched, state }
     }
 
-    /// Jadwalkan tugas menggunakan ekspresi cron.
-    /// Contoh: `* * * * * *` (setiap detik)
-    pub async fn call<F, Fut>(&self, cron_expr: &str, task_fn: F) -> Result<(), String>
+    /// Jadwalkan tugas menggunakan ekspresi cron secara langsung.
+    pub async fn cron<F, Fut>(&self, cron_expr: &str, task_fn: F) -> Result<(), String>
     where
         F: Fn() -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
@@ -34,6 +33,19 @@ impl Scheduler {
         Ok(())
     }
 
+    /// Entry point untuk membuat tugas dengan API yang fluent.
+    pub fn call<F, Fut>(&self, task_fn: F) -> ScheduledTask<'_, F, Fut> 
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        ScheduledTask {
+            scheduler: self,
+            task_fn,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
     /// Mulai menjalankan scheduler di background.
     pub async fn run(&self) {
         if let Err(e) = self.sched.start().await {
@@ -46,5 +58,56 @@ impl Scheduler {
     /// Akses ke AppState dari dalam job.
     pub fn state(&self) -> Arc<AppState> {
         self.state.clone()
+    }
+}
+
+/// Helper untuk API penjadwalan yang lebih manusiawi.
+pub struct ScheduledTask<'a, F, Fut> {
+    scheduler: &'a Scheduler,
+    task_fn: F,
+    _phantom: std::marker::PhantomData<Fut>,
+}
+
+impl<'a, F, Fut> ScheduledTask<'a, F, Fut>
+where
+    F: Fn() -> Fut + Send + Sync + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
+    pub async fn every_second(self) -> Result<(), String> {
+        self.scheduler.cron("* * * * * *", self.task_fn).await
+    }
+
+    pub async fn every_minute(self) -> Result<(), String> {
+        self.scheduler.cron("0 * * * * *", self.task_fn).await
+    }
+
+    pub async fn every_five_minutes(self) -> Result<(), String> {
+        self.scheduler.cron("0 */5 * * * *", self.task_fn).await
+    }
+
+    pub async fn hourly(self) -> Result<(), String> {
+        self.scheduler.cron("0 0 * * * *", self.task_fn).await
+    }
+
+    pub async fn daily(self) -> Result<(), String> {
+        self.scheduler.cron("0 0 0 * * *", self.task_fn).await
+    }
+
+    pub async fn daily_at(self, time: &str) -> Result<(), String> {
+        // time format: "HH:MM"
+        let parts: Vec<&str> = time.split(':').collect();
+        if parts.len() != 2 {
+            return Err("Format waktu harus HH:MM".to_string());
+        }
+        let cron = format!("0 {} {} * * *", parts[1], parts[0]);
+        self.scheduler.cron(&cron, self.task_fn).await
+    }
+
+    pub async fn weekly(self) -> Result<(), String> {
+        self.scheduler.cron("0 0 0 * * 0", self.task_fn).await
+    }
+
+    pub async fn monthly(self) -> Result<(), String> {
+        self.scheduler.cron("0 0 0 1 * *", self.task_fn).await
     }
 }

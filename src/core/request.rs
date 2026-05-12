@@ -77,6 +77,11 @@ impl Request {
         self.state.db()
     }
 
+    /// Shortcut untuk mengambil Arc<DatabasePool>.
+    pub fn db_arc(&self) -> std::sync::Arc<crate::database::connection::DatabasePool> {
+        self.state.db.as_ref().expect("Database connection is not available").clone()
+    }
+
     /// Shortcut untuk mengambil user yang sedang login.
     pub fn user(&self) -> Option<crate::core::auth::AuthUser> {
         self.user.clone()
@@ -109,6 +114,16 @@ impl Request {
     /// Shortcut untuk menyimpan nilai ke dalam session.
     pub async fn session_set<T: serde::Serialize>(&self, key: &str, value: T) {
         let _ = self.session.insert(key, value).await;
+    }
+
+    /// Shortcut untuk mengambil instance StorageManager.
+    pub fn storage(&self) -> &crate::core::storage::Storage {
+        &self.state.storage
+    }
+
+    /// Shortcut untuk mengambil instance Mailer.
+    pub fn mail(&self) -> &crate::core::mail::Mail {
+        &self.state.mail
     }
 
     /// Cek apakah user sudah login.

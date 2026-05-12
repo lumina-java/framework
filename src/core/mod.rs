@@ -18,3 +18,5 @@ pub mod cache;
 pub mod upload;
 pub mod logging;
 pub mod rate_limit;
+pub mod mail;
+pub mod notification;

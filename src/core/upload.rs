@@ -41,14 +41,14 @@ impl UploadedFile {
         let filename = format!("{}.{}", hash, self.extension());
         let path = format!("{}/{}", directory.trim_end_matches('/'), filename);
         
-        req.state.storage.disk.put(&path, &self.data).await?;
+        req.state.storage.put(&path, &self.data).await?;
         Ok(path)
     }
 
     /// Simpan file dengan nama spesifik.
     pub async fn store_as(&self, req: &crate::core::request::Request, directory: &str, name: &str) -> Result<String, String> {
         let path = format!("{}/{}", directory.trim_end_matches('/'), name);
-        req.state.storage.disk.put(&path, &self.data).await?;
+        req.state.storage.put(&path, &self.data).await?;
         Ok(path)
     }
 

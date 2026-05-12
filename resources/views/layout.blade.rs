@@ -68,7 +68,10 @@
 <body hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="innerHTML show:window:top">
     <nav class="navbar navbar-expand-lg">
         <div class="container">
-            <a class="navbar-brand fw-bold text-primary" href="/">✨ LUMINA</a>
+            <a class="navbar-brand d-flex align-items-center fw-bold text-primary" href="/">
+                <img src="/storage/assets/logo.png" alt="Lumina Logo" width="30" height="30" class="d-inline-block align-top me-2">
+                LUMINA
+            </a>
             <div class="collapse navbar-collapse">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="/">Home</a></li>

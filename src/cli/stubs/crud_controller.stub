@@ -3,24 +3,18 @@ use crate::core::response::Redirect;
 use crate::core::view::View;
 use serde_json::json;
 use crate::core::request::Request;
-use lumina_macros::lumina_form;
 use crate::app::models::{{snake_name}}::{{name}};
-use crate::database::model::Model;
-
-#[lumina_form]
-pub struct {{name}}Form {
-    #[rule("required|min:3")]
-    pub name: String,
-    // Tambahkan field lainnya di sini
-    pub csrf_token: String,
-}
+use crate::app::services::{{snake_name}}_service::{{name}}Service;
+use crate::app::requests::{{snake_name}}_request::{{name}}Request;
+use crate::core::validation::ValidatedForm;
 
 pub struct {{name}}Controller;
 
 impl {{name}}Controller {
-    /// GET /{{snake_name}}s
+    /// GET /{{snake_name}}s — Daftar data
     pub async fn index(req: Request) -> impl IntoResponse {
-        let items = {{name}}::query(req.db()).get().await.unwrap_or_default();
+        let service = {{name}}Service::new(req.db_arc());
+        let items = service.all().await.unwrap_or_default();
 
         req.view("{{snake_name}}.index")
             .with("items", &items)
@@ -28,7 +22,7 @@ impl {{name}}Controller {
             .await
     }
 
-    /// GET /{{snake_name}}s/create
+    /// GET /{{snake_name}}s/create — Form tambah
     pub async fn create(req: Request) -> impl IntoResponse {
         req.view("{{snake_name}}.create")
             .with("csrf_token", req.token.authenticity_token().unwrap())
@@ -36,21 +30,18 @@ impl {{name}}Controller {
             .await
     }
 
-    /// POST /{{snake_name}}s
+    /// POST /{{snake_name}}s — Simpan data baru
     pub async fn store(
         req: Request,
-        crate::core::validation::ValidatedForm(form): crate::core::validation::ValidatedForm<{{name}}Form>,
+        ValidatedForm(form): ValidatedForm<{{name}}Request>,
     ) -> impl IntoResponse {
         if req.token.verify(&form.csrf_token).is_err() {
             return req.redirect("/{{snake_name}}s/create").with_error("Invalid CSRF Token").go(&req).await
         }
 
-        let result = sqlx::query("INSERT INTO {{table_name}} (name) VALUES (?)")
-            .bind(&form.name)
-            .execute(&req.db().pool).await;
-
-        match result {
-            Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data berhasil disimpan!").go(&req).await,
+        let service = {{name}}Service::new(req.db_arc());
+        match service.create(form.name).await {
+            Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data {{name}} berhasil disimpan!").go(&req).await,
             Err(e) => req.redirect("/{{snake_name}}s/create")
                 .with_input(json!({"name": form.name}))
                 .with_error(&format!("Gagal menyimpan data: {}", e))
@@ -58,9 +49,10 @@ impl {{name}}Controller {
         }
     }
 
-    /// GET /{{snake_name}}s/:id/edit
+    /// GET /{{snake_name}}s/:id/edit — Form edit
     pub async fn edit(req: Request, axum::extract::Path(id): axum::extract::Path<i64>) -> impl IntoResponse {
-        let item = {{name}}::find(req.db(), id).await.expect("Data tidak ditemukan");
+        let service = {{name}}Service::new(req.db_arc());
+        let item = service.find(id).await.expect("Data tidak ditemukan");
 
         req.view("{{snake_name}}.edit")
             .with("item", &item)
@@ -69,23 +61,19 @@ impl {{name}}Controller {
             .await
     }
 
-    /// POST /{{snake_name}}s/:id/update
+    /// POST /{{snake_name}}s/:id — Update data
     pub async fn update(
         req: Request,
         axum::extract::Path(id): axum::extract::Path<i64>,
-        crate::core::validation::ValidatedForm(form): crate::core::validation::ValidatedForm<{{name}}Form>,
+        ValidatedForm(form): ValidatedForm<{{name}}Request>,
     ) -> impl IntoResponse {
         if req.token.verify(&form.csrf_token).is_err() {
             return req.redirect(&format!("/{{snake_name}}s/{}/edit", id)).with_error("Invalid CSRF Token").go(&req).await
         }
 
-        let result = sqlx::query("UPDATE {{table_name}} SET name = ? WHERE id = ?")
-            .bind(&form.name)
-            .bind(id)
-            .execute(&req.db().pool).await;
-
-        match result {
-            Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data berhasil diupdate!").go(&req).await,
+        let service = {{name}}Service::new(req.db_arc());
+        match service.update(id, form.name).await {
+            Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data {{name}} berhasil diupdate!").go(&req).await,
             Err(e) => req.redirect(&format!("/{{snake_name}}s/{}/edit", id))
                 .with_input(json!({"name": form.name}))
                 .with_error(&format!("Gagal update data: {}", e))
@@ -93,12 +81,11 @@ impl {{name}}Controller {
         }
     }
 
-    /// POST /{{snake_name}}s/:id/delete
+    /// GET /{{snake_name}}s/:id/delete — Hapus data
     pub async fn delete(req: Request, axum::extract::Path(id): axum::extract::Path<i64>) -> impl IntoResponse {
-        let _ = sqlx::query("DELETE FROM {{table_name}} WHERE id = ?")
-            .bind(id)
-            .execute(&req.db().pool).await;
+        let service = {{name}}Service::new(req.db_arc());
+        let _ = service.delete(id).await;
 
-        req.redirect("/{{snake_name}}s").with_success("Data berhasil dihapus!").go(&req).await
+        req.redirect("/{{snake_name}}s").with_success("Data {{name}} berhasil dihapus!").go(&req).await
     }
 }

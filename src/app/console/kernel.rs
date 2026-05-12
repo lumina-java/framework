@@ -7,23 +7,19 @@ use crate::core::schedule::Scheduler;
 pub async fn schedule(sched: &Scheduler) {
     let state = sched.state();
     
-    // CONTOH: Jalankan tugas setiap 30 detik
-    let _ = sched.call("1/30 * * * * *", move || {
-        let _s = state.clone();
+    // CONTOH: Jalankan tugas setiap menit menggunakan API Fluent
+    let _ = sched.call(|| {
         async move {
-            println!("🔔 [SCHEDULE] Periodic task running every 30 seconds...");
-            // Di sini Anda bisa memanggil Service, Job, atau query Database
-            // let count = User::all(&s.db()).await.unwrap_or_default().len();
-            // println!("📊 Current users in DB: {}", count);
+            println!("📅 [SCHEDULE] Minute task running via fluent API...");
         }
-    }).await;
+    }).every_minute().await;
 
-    // CONTOH: Jalankan tugas setiap menit
-    let _ = sched.call("0 * * * * *", || {
+    // CONTOH: Jalankan tugas setiap hari pada jam 12:00
+    let _ = sched.call(|| {
         async move {
-            println!("📅 [SCHEDULE] Minute task running...");
+            println!("🕛 [SCHEDULE] Running daily maintenance at 12:00...");
         }
-    }).await;
+    }).daily_at("12:00").await;
 }
 
 /// Entry point untuk menjalankan scheduler dari application bootstrap.

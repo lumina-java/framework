@@ -1,4 +1,10 @@
+pub mod event;
+pub mod telescope;
+pub mod i18n;
+pub mod echo;
+pub mod backup;
 pub mod application;
+
 pub mod router;
 pub mod request;
 pub mod response;

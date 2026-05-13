@@ -5,60 +5,131 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title | default(value="Dashboard — Lumina") }}</title>
-    <!-- Tailwind CSS -->
+    
+    <!-- Bootstrap 5 Fallback -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <!-- Tailwind CSS (Play CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- HTMX for Zero-Mouse UI -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <!-- Toastr for Notifications -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    
     <style>
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .sidebar-premium {
+            width: 260px;
+            background-color: #0f172a; /* slate-900 */
+            color: white;
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            z-index: 50;
+            box-shadow: 4px 0 10px rgba(0,0,0,0.1);
         }
 
-        /* Premium Sidebar Style */
-        .sidebar-active {
-            @apply bg-blue-600 text-white shadow-lg;
+        .main-content {
+            margin-left: 260px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .nav-link-premium {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            color: #94a3b8; /* slate-400 */
+            text-decoration: none;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-link-premium:hover {
+            background-color: #1e293b; /* slate-800 */
+            color: white;
+        }
+
+        .nav-link-premium.active {
+            background-color: #2563eb; /* blue-600 */
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+        }
+
+        .lumina-logo-text {
+            font-weight: 800;
+            font-size: 1.25rem;
+            padding: 1.5rem;
+            border-bottom: 1px solid #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        /* SVG Sizing Fallback */
+        svg {
+            width: 20px;
+            height: 20px;
         }
     </style>
 </head>
 
-<body hx-boost="true" class="antialiased min-h-screen flex">
+<body hx-boost="true">
 
     <!-- Sidebar -->
-    <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-xl">
-        <div class="h-16 flex items-center px-6 font-bold text-xl border-b border-slate-800">
-            <span class="text-blue-400 mr-2">⚡</span> Lumina
+    <aside class="sidebar-premium">
+        <div class="lumina-logo-text">
+            <span style="color: #60a5fa;">⚡</span> Lumina
         </div>
-        <nav class="flex-1 px-4 py-6 space-y-2">
-            <a href="/dashboard"
-                class="flex items-center px-4 py-3 bg-blue-600 rounded-lg text-white font-medium shadow-md">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
-                    </path>
+        
+        <nav class="flex-grow-1 px-3 py-4">
+            <a href="/dashboard" class="nav-link-premium active">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="me-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
                 </svg>
                 Dashboard
             </a>
-            <a href="/upload_images"
-                class="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-all duration-200">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01">
-                    </path>
+            
+            <a href="/lumina/telescope" class="nav-link-premium">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="me-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
-                UploadImages
+                Telescope
+            </a>
+            
+            <a href="/test-echo" class="nav-link-premium">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="me-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                </svg>
+                Echo Test
             </a>
         </nav>
-        <div class="p-4 border-t border-slate-800">
-            <a href="/auth/logout"
-                class="flex items-center px-4 py-2 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg transition-colors">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
-                    </path>
+
+        <div class="px-3 py-3">
+            <div style="background: rgba(37, 99, 235, 0.1); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: 0.75rem; padding: 0.75rem;">
+                <p style="font-size: 10px; text-transform: uppercase; font-weight: 800; color: #60a5fa; margin-bottom: 0.25rem;">System Health</p>
+                <div style="display: flex; align-items: center; font-size: 11px; color: #bfdbfe;">
+                    <span style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; margin-right: 0.5rem; display: inline-block;"></span>
+                    Database Connected
+                </div>
+            </div>
+        </div>
+
+        <div class="p-3 border-top border-secondary border-opacity-10">
+            <a href="/auth/logout" class="nav-link-premium text-danger">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="me-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
                 </svg>
                 Logout
             </a>
@@ -66,39 +137,28 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col">
+    <main class="main-content">
         <!-- Top Header -->
-        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm">
-            <h1 class="text-xl font-semibold text-slate-800">{{ title | default(value="Dashboard — Lumina") }}</h1>
-            <div class="flex items-center space-x-4">
-                <div class="flex items-center">
-                    <div
-                        class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold mr-2">
-                        {{ email | default(value="U") | truncate(length=1, end="") | upper }}
-                    </div>
-                    <span class="text-sm font-medium text-slate-700">{{ email }}</span>
+        <header class="navbar navbar-light bg-white border-bottom px-4 shadow-sm" style="height: 64px;">
+            <h1 class="h5 mb-0 fw-bold text-dark">{{ title | default(value="Dashboard — Lumina") }}</h1>
+            <div class="d-flex align-items-center">
+                <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold me-2" style="width: 32px; height: 32px; font-size: 14px;">
+                    {{ email | default(value="U") | truncate(length=1, end="") | upper }}
                 </div>
+                <span class="small fw-medium text-muted">{{ email }}</span>
             </div>
         </header>
 
         <!-- Dashboard Content -->
-        <div id="dashboard-content" class="p-8 flex-1 overflow-y-auto">
+        <div id="dashboard-content" class="p-4 overflow-auto">
             @yield('content')
         </div>
     </main>
 
-    <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script>
-        toastr.options = {
-            "closeButton": true,
-            "progressBar": true,
-            "positionClass": "toast-top-right",
-            "timeOut": "5000"
-        };
-
-        // Flash messages dari Session (Skill 3)
+        toastr.options = { "closeButton": true, "progressBar": true, "positionClass": "toast-top-right", "timeOut": "5000" };
         @if(flashes)
             @foreach(flashes as flash)
                 toastr.{{ flash.kind }}("{{ flash.message }}");

@@ -1200,6 +1200,28 @@ use crate::core::rate_limit::{RateLimitConfig, rate_limit_with_config};
 
 ---
 
+## 🌍 Lumina Localization (I18n)
+Lumina menyediakan sistem multi-bahasa yang terintegrasi dengan middleware dan view engine.
+- **Deteksi:** Mendukung deteksi bahasa via query param `?lang=id` atau header `Accept-Language`.
+- **Global Function:** Gunakan `{{ __("key") }}` di dalam template Tera/Blade.
+
+## 📡 Lumina Echo (WebSockets)
+Sistem real-time broadcasting untuk komunikasi dua arah.
+- **Event Broadcasting:** Cukup implementasikan trait `ShouldBroadcast` pada struct event Anda.
+- **Client Side:** Gunakan `resources/js/echo.js` untuk mendengarkan event di browser.
+
+## 🔐 Lumina Socialite (OAuth)
+Autentikasi modular untuk provider pihak ketiga.
+- **Modular Driver:** Mendukung penambahan provider baru dengan mudah.
+- **Auto Registration:** Secara otomatis mendaftarkan user baru yang login via sosial media.
+
+## 💾 Lumina Backup System
+Sistem perlindungan data otomatis.
+- **Full Backup:** Mencakup ekspor database (SQL/SQLite) dan pengarsipan folder storage.
+- **Automatic Schedule:** Berjalan otomatis setiap hari jam 02:00 pagi.
+
+---
+
 > **Lumina Framework** — Built with ❤️ and 🦀 Rust
 >
 > Lisensi: MIT | Penulis: Slamet Sugandi <packercyber@gmail.com>

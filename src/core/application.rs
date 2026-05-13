@@ -5,6 +5,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::services::ServeDir;
+use crate::core::router::Router;
 use crate::http::server::Server;
 use crate::http::middleware::logger;
 use crate::core::container::Container;
@@ -37,6 +39,11 @@ pub struct AppState {
     pub cache: Arc<crate::core::cache::CacheManager>,
     pub mail: Arc<crate::core::mail::Mail>,
     pub registry: Arc<crate::core::queue::JobRegistry>,
+    pub events: Arc<crate::core::event::EventDispatcher>,
+    pub telescope: Arc<crate::core::telescope::TelescopeManager>,
+    pub lang: Arc<crate::core::i18n::LangManager>,
+    pub echo: Arc<crate::core::echo::EchoManager>,
+    pub socialite: Arc<crate::core::auth::socialite::SocialiteManager>,
 }
 
 impl AppState {
@@ -90,14 +97,19 @@ impl Application {
             .nest("/api", api);
 
         // Terapkan Global Middleware dari Kernel
-        let mut router = kernel.global_middleware(router);
+        let router = kernel.global_middleware(router);
 
         router.into_axum()
+            .route("/lumina/echo", axum::routing::get(crate::core::echo::handler::echo_handler))
+            .nest_service("/js", ServeDir::new("resources/js"))
+            .nest_service("/images", ServeDir::new("resources/images"))
             .nest_service("/storage", tower_http::services::ServeDir::new("storage/app/public"))
             .fallback(ErrorController::not_found)
             .with_state(state.clone())
             // ── Middleware dasar (urutan: dari luar ke dalam) ──────────────
             .layer(from_fn_with_state(state.clone(), crate::core::rate_limit::rate_limit_middleware))
+            .layer(from_fn_with_state(state.clone(), crate::core::i18n::localization_middleware))
+            .layer(from_fn_with_state(state.clone(), crate::core::telescope::telescope_middleware))
             .layer(from_fn(logger))
             .layer(CatchPanicLayer::custom(crate::support::debug::handle_panic))
             .layer(from_fn_with_state(state.clone(), db_guard))
@@ -108,8 +120,23 @@ impl Application {
     pub async fn serve(self, addr: &str) {
         // ── 1. Inisialisasi Config & View Engine ───────────────────────────
         let config = Arc::new(crate::core::config::ConfigManager::new());
-        let view = ViewEngine::new();
+        let lang = Arc::new(crate::core::i18n::LangManager::new(config.get_or("APP_LOCALE", "en")));
+        let view = ViewEngine::new(Some(lang.clone()));
         let cache = Arc::new(crate::core::cache::CacheManager::new());
+        let events = Arc::new(crate::core::event::EventDispatcher::new());
+        crate::app::providers::event_service_provider::register_events(&events);
+        let telescope = Arc::new(crate::core::telescope::TelescopeManager::new());
+        let echo = Arc::new(crate::core::echo::EchoManager::new());
+        
+        let mut socialite = crate::core::auth::socialite::SocialiteManager::new();
+        if let (Some(id), Some(secret), Some(url)) = (
+            config.get("GOOGLE_CLIENT_ID"),
+            config.get("GOOGLE_CLIENT_SECRET"),
+            config.get("GOOGLE_REDIRECT_URL"),
+        ) {
+            socialite.register(Arc::new(crate::core::auth::socialite::GoogleProvider::new(id, secret, url)));
+        }
+        let socialite = Arc::new(socialite);
 
         // ── 2. Inisialisasi Job Registry ──────────────────────────────────
         let registry = crate::core::queue::JobRegistry::new();
@@ -205,6 +232,11 @@ impl Application {
             cache,
             mail: mail_manager,
             registry: registry.clone(),
+            events: events.clone(),
+            telescope,
+            lang,
+            echo,
+            socialite,
         };
 
         let state_arc = Arc::new(state);

@@ -13,6 +13,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Tailwind CSS (Play CDN for modern aesthetics) -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <!-- HTMX for Zero-Mouse UI -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
@@ -76,7 +78,6 @@
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
                     <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/upload_images">Upload</a></li>
 
                     @guest
                     <li class="nav-item"><a class="nav-link" href="/auth/login">Login</a></li>

@@ -1,291 +1,109 @@
-@if(is_htmx)
-    <div hx-swap-oob="true" id="dashboard-content">
-            <!-- Server-side alert fallback -->
-            @if(success_msg)
-            <div class="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center"
-                role="alert">
-                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                        clip-rule="evenodd"></path>
-                </svg>
-                <span class="block sm:inline">{{ success_msg }}</span>
-            </div>
-            @endif
+@extends('dashboard_layout')
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <!-- Status Card -->
-                <div
-                    class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-shadow">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-slate-500 text-sm font-medium">Status Akun</h3>
-                        <span
-                            class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">Aktif</span>
-                    </div>
-                    <div class="mt-4 flex items-baseline text-2xl font-semibold text-slate-800">
-                        {{ role | capitalize }}
-                    </div>
-                </div>
+@section('title')
+    Dashboard — Lumina Overview
+@endsection
 
-                <!-- User ID Card -->
-                <div
-                    class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-shadow">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-slate-500 text-sm font-medium">User ID</h3>
-                        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2">
-                            </path>
-                        </svg>
+@section('content')
+    <!-- Dashboard Stats Grid -->
+    <div class="row g-4 mb-4">
+        <!-- Card 1: Role -->
+        <div class="col-12 col-md-3">
+            <div class="card bg-white border-0 shadow-sm h-100" style="border-bottom: 4px solid #cbd5e1 !important; border-radius: 12px;">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size: 11px; letter-spacing: 1px;">Status Akun</h6>
+                        <span class="badge bg-success bg-opacity-25 text-success rounded-pill" style="font-size: 10px;">ACTIVE</span>
                     </div>
-                    <div class="mt-4 flex items-baseline text-2xl font-semibold text-slate-800">
-                        #{{ user_id }}
-                    </div>
-                </div>
-
-                <!-- Email Card -->
-                <div
-                    class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-shadow">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-slate-500 text-sm font-medium">Email Login</h3>
-                        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
-                            </path>
-                        </svg>
-                    </div>
-                    <div class="mt-4 flex items-baseline text-lg font-semibold text-slate-800 truncate">
-                        {{ email }}
-                    </div>
+                    <div class="fs-3 fw-bold text-dark">{{ role | capitalize }}</div>
+                    <div class="text-muted mt-2" style="font-size: 11px;">Level akses sistem saat ini</div>
                 </div>
             </div>
+        </div>
 
-            <div class="mt-8 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mb-8">
-                <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                    <h2 class="text-lg font-semibold text-slate-800">Eager Loading Demo (N+1 Solution)</h2>
-                    <span class="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">2 Queries Total</span>
-                </div>
-                <div class="p-6">
-                    <table class="w-full text-left text-sm text-slate-600">
-                        <thead class="bg-slate-50 text-slate-500 uppercase text-xs font-bold">
-                            <tr>
-                                <th class="px-4 py-3">Nama User</th>
-                                <th class="px-4 py-3">Email</th>
-                                <th class="px-4 py-3 text-center">Jumlah Post</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            @foreach(users as u)
-                            <tr class="hover:bg-slate-50 transition-colors">
-                                <td class="px-4 py-4 font-medium text-slate-800">{{ u.name }}</td>
-                                <td class="px-4 py-4">{{ u.email }}</td>
-                                <td class="px-4 py-4 text-center">
-                                    <span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">
-                                        {{ u.posts | length }} posts
-                                    </span>
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+        <!-- Card 2: User ID -->
+        <div class="col-12 col-md-3">
+            <div class="card bg-white border-0 shadow-sm h-100" style="border-bottom: 4px solid #3b82f6 !important; border-radius: 12px;">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size: 11px; letter-spacing: 1px;">User ID</h6>
+                        <div class="bg-primary bg-opacity-10 text-primary p-2 rounded">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
+                        </div>
+                    </div>
+                    <div class="fs-3 fw-bold text-dark">#{{ user_id }}</div>
+                    <div class="text-muted mt-2" style="font-size: 11px;">Identifier unik database</div>
                 </div>
             </div>
+        </div>
 
-            <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                    <h2 class="text-lg font-semibold text-slate-800">Informasi Sesi Anda</h2>
-                </div>
-                <div class="p-6">
-                    <p class="text-slate-600 mb-6">Selamat datang di panel kontrol Anda. Anda berhasil login menggunakan
-                        sistem **Session-based Authentication** terbaru Lumina.</p>
-
-                    <div class="bg-slate-900 p-6 rounded-xl font-mono text-sm text-blue-300 shadow-inner">
-                        <p class="mb-2"><span class="text-slate-500">// User Claims from Session</span></p>
-                        <p><span class="text-pink-400">sub:</span> {{ user_id }}</p>
-                        <p><span class="text-pink-400">email:</span> "{{ email }}"</p>
-                        <p><span class="text-pink-400">role:</span> "{{ role }}"</p>
+        <!-- Card 3: Framework -->
+        <div class="col-12 col-md-3">
+            <div class="card bg-white border-0 shadow-sm h-100" style="border-bottom: 4px solid #a855f7 !important; border-radius: 12px;">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size: 11px; letter-spacing: 1px;">Engine</h6>
+                        <div class="p-2 rounded" style="background-color: rgba(168, 85, 247, 0.1); color: #a855f7;">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        </div>
                     </div>
-
-                    <div class="mt-8 pt-6 border-t border-slate-100">
-                        <p class="text-slate-500 text-sm italic">Status: Fitur ini merupakan validasi flow pendaftaran
-                            dan login menggunakan <strong>tower-sessions</strong>.</p>
-                    </div>
+                    <div class="fs-3 fw-bold text-dark">Lumina 0.1</div>
+                    <div class="text-muted mt-2" style="font-size: 11px;">Rust Powered Framework</div>
                 </div>
             </div>
+        </div>
+
+        <!-- Card 4: Database -->
+        <div class="col-12 col-md-3">
+            <div class="card bg-white border-0 shadow-sm h-100" style="border-bottom: 4px solid #10b981 !important; border-radius: 12px;">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="text-muted text-uppercase fw-bold mb-0" style="font-size: 11px; letter-spacing: 1px;">Database</h6>
+                        <div class="bg-success bg-opacity-10 text-success p-2 rounded">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                        </div>
+                    </div>
+                    <div class="fs-3 fw-bold text-dark">Connected</div>
+                    <div class="text-muted mt-2" style="font-size: 11px;">SQLx Active Session</div>
+                </div>
+            </div>
+        </div>
     </div>
-@else
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- HTMX for Zero-Mouse UI -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <!-- Toastr for Notifications -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-        }
-
-        /* Premium Sidebar Style */
-        .sidebar-active {
-            @apply bg-blue-600 text-white shadow-lg;
-        }
-    </style>
-</head>
-
-<body hx-boost="true" class="antialiased min-h-screen flex">
-
-    <!-- Sidebar -->
-    <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-xl">
-        <div class="h-16 flex items-center px-6 font-bold text-xl border-b border-slate-800">
-            <span class="text-blue-400 mr-2">⚡</span> Lumina
-        </div>
-        <nav class="flex-1 px-4 py-6 space-y-2">
-            <a href="/dashboard"
-                class="flex items-center px-4 py-3 bg-blue-600 rounded-lg text-white font-medium shadow-md">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
-                    </path>
-                </svg>
-                Dashboard
-            </a>
-            <a href="/upload_images"
-                class="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-all duration-200">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
-                UploadImages
-            </a>
-            <a href="/"
-                class="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-all duration-200">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
-                    </path>
-                </svg>
-                Home Page
-            </a>
-        </nav>
-        <div class="p-4 border-t border-slate-800">
-            <a href="/auth/logout"
-                class="flex items-center px-4 py-2 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg transition-colors">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
-                    </path>
-                </svg>
-                Logout
-            </a>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col">
-        <!-- Top Header -->
-        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm">
-            <h1 class="text-xl font-semibold text-slate-800">Dashboard Overview</h1>
-            <div class="flex items-center space-x-4">
-                <div class="flex items-center">
-                    <div
-                        class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold mr-2">
-                        {{ email | truncate(length=1, end="") | upper }}
+    <div class="row g-4">
+        <!-- Eager Loading Table -->
+        <div class="col-12 col-lg-8">
+            <div class="card border-0 shadow-sm" style="border-radius: 12px; overflow: hidden;">
+                <div class="card-header bg-light border-bottom-0 d-flex justify-content-between align-items-center py-3 px-4">
+                    <div>
+                        <h5 class="mb-0 fw-bold text-dark">Eager Loading Demo</h5>
+                        <small class="text-muted">Solusi N+1 Query dalam ORM Lumina</small>
                     </div>
-                    <span class="text-sm font-medium text-slate-700">{{ email }}</span>
+                    <span class="badge bg-primary px-3 py-2 shadow-sm" style="font-size: 10px; letter-spacing: 0.5px;">2 QUERIES TOTAL</span>
                 </div>
-            </div>
-        </header>
-
-        <!-- Dashboard Content -->
-        <div id="dashboard-content" class="p-8 flex-1 overflow-y-auto">
-
-            <!-- Server-side alert fallback -->
-            @if(success_msg)
-            <div class="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center"
-                role="alert">
-                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                        clip-rule="evenodd"></path>
-                </svg>
-                <span class="block sm:inline">{{ success_msg }}</span>
-            </div>
-            @endif
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <!-- Status Card -->
-                <div
-                    class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-shadow">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-slate-500 text-sm font-medium">Status Akun</h3>
-                        <span
-                            class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">Aktif</span>
-                    </div>
-                    <div class="mt-4 flex items-baseline text-2xl font-semibold text-slate-800">
-                        {{ role | capitalize }}
-                    </div>
-                </div>
-
-                <!-- User ID Card -->
-                <div
-                    class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-shadow">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-slate-500 text-sm font-medium">User ID</h3>
-                        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2">
-                            </path>
-                        </svg>
-                    </div>
-                    <div class="mt-4 flex items-baseline text-2xl font-semibold text-slate-800">
-                        #{{ user_id }}
-                    </div>
-                </div>
-
-                <!-- Email Card -->
-                <div
-                    class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-shadow">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-slate-500 text-sm font-medium">Email Login</h3>
-                        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
-                            </path>
-                        </svg>
-                    </div>
-                    <div class="mt-4 flex items-baseline text-lg font-semibold text-slate-800 truncate">
-                        {{ email }}
-                    </div>
-                </div>
-            </div>
-
-            <div class="mt-8 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mb-8">
-                <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                    <h2 class="text-lg font-semibold text-slate-800">Eager Loading Demo (N+1 Solution)</h2>
-                    <span class="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">2 Queries Total</span>
-                </div>
-                <div class="p-6">
-                    <table class="w-full text-left text-sm text-slate-600">
-                        <thead class="bg-slate-50 text-slate-500 uppercase text-xs font-bold">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-secondary">
+                        <thead class="table-light text-uppercase text-muted" style="font-size: 11px; font-weight: bold;">
                             <tr>
-                                <th class="px-4 py-3">Nama User</th>
-                                <th class="px-4 py-3">Email</th>
-                                <th class="px-4 py-3 text-center">Jumlah Post</th>
+                                <th class="px-4 py-3 border-0">Nama User</th>
+                                <th class="px-4 py-3 border-0">Email</th>
+                                <th class="px-4 py-3 border-0 text-center">Jumlah Post</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100">
+                        <tbody style="border-top: none;">
                             @foreach(users as u)
-                            <tr class="hover:bg-slate-50 transition-colors">
-                                <td class="px-4 py-4 font-medium text-slate-800">{{ u.name }}</td>
-                                <td class="px-4 py-4">{{ u.email }}</td>
-                                <td class="px-4 py-4 text-center">
-                                    <span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">
+                            <tr style="cursor: pointer;">
+                                <td class="px-4 py-3 border-light">
+                                    <div class="d-flex align-items-center">
+                                        <div class="rounded-circle bg-light d-flex justify-content-center align-items-center text-muted fw-bold me-3" style="width: 35px; height: 35px; font-size: 12px;">
+                                            {{ u.name | truncate(length=1, end="") | upper }}
+                                        </div>
+                                        <span class="fw-bold text-dark">{{ u.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 border-light">{{ u.email }}</td>
+                                <td class="px-4 py-3 border-light text-center">
+                                    <span class="badge bg-light text-dark px-3 py-2 rounded-pill border">
                                         {{ u.posts | length }} posts
                                     </span>
                                 </td>
@@ -294,52 +112,67 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                    <h2 class="text-lg font-semibold text-slate-800">Informasi Sesi Anda</h2>
-                </div>
-                <div class="p-6">
-                    <p class="text-slate-600 mb-6">Selamat datang di panel kontrol Anda. Anda berhasil login menggunakan
-                        sistem **Session-based Authentication** terbaru Lumina.</p>
-
-                    <div class="bg-slate-900 p-6 rounded-xl font-mono text-sm text-blue-300 shadow-inner">
-                        <p class="mb-2"><span class="text-slate-500">// User Claims from Session</span></p>
-                        <p><span class="text-pink-400">sub:</span> {{ user_id }}</p>
-                        <p><span class="text-pink-400">email:</span> "{{ email }}"</p>
-                        <p><span class="text-pink-400">role:</span> "{{ role }}"</p>
-                    </div>
-
-                    <div class="mt-8 pt-6 border-t border-slate-100">
-                        <p class="text-slate-500 text-sm italic">Status: Fitur ini merupakan validasi flow pendaftaran
-                            dan login menggunakan <strong>tower-sessions</strong>.</p>
-                    </div>
+                <div class="card-footer bg-white border-top py-3 px-4">
+                    <small class="text-muted fst-italic" style="font-size: 11px;">Data di atas diambil menggunakan <code>User::query().with("posts").get()</code></small>
                 </div>
             </div>
-
         </div>
-    </main>
 
-    <!-- Scripts -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <script>
-        toastr.options = {
-            "closeButton": true,
-            "progressBar": true,
-            "positionClass": "toast-top-right",
-            "timeOut": "5000"
-        };
+        <!-- Right Side Panel -->
+        <div class="col-12 col-lg-4">
+            
+            <!-- JWT Debugger -->
+            <div class="card border-0 shadow-lg text-white mb-4" style="background-color: #0f172a; border-radius: 12px;">
+                <div class="card-header border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center py-3 px-4 bg-transparent">
+                    <h6 class="mb-0 text-uppercase tracking-widest fw-bold" style="font-size: 12px; letter-spacing: 1px;">Active Token</h6>
+                    <span class="rounded-circle bg-success" style="width: 8px; height: 8px; box-shadow: 0 0 8px rgba(34,197,94,0.8);"></span>
+                </div>
+                <div class="card-body p-4 font-monospace" style="font-size: 12px;">
+                    <div class="d-flex justify-content-between border-bottom border-secondary border-opacity-25 pb-2 mb-2">
+                        <span class="text-secondary">subject</span>
+                        <span style="color: #60a5fa;">{{ user_id }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between border-bottom border-secondary border-opacity-25 pb-2 mb-2">
+                        <span class="text-secondary">email</span>
+                        <span style="color: #34d399;">{{ email }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between border-bottom border-secondary border-opacity-25 pb-2 mb-2">
+                        <span class="text-secondary">role</span>
+                        <span style="color: #c084fc;">{{ role }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-secondary">issued_at</span>
+                        <span style="color: #fb923c;">{{ now() | date(format="%s") }}</span>
+                    </div>
+                    
+                    <div class="mt-4 p-3 rounded" style="background-color: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                        <small class="text-secondary" style="font-size: 10px;">Lumina menggunakan <strong>Secure JWT Cookies</strong> untuk otentikasi stateless yang aman dan cepat.</small>
+                    </div>
+                </div>
+            </div>
 
-        // Flash messages dari Session (Skill 3)
-        @if(flashes)
-            @foreach(flashes as flash)
-                toastr.{{ flash.kind }}("{{ flash.message }}");
-            @endforeach
-        @endif
-    </script>
-</body>
-
-</html>
-@endif
+            <!-- System Info -->
+            <div class="card bg-white border-0 shadow-sm" style="border-radius: 12px;">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold text-dark d-flex align-items-center mb-4">
+                        <span class="me-2" style="font-size: 1.2rem;">🚀</span> Info Sistem
+                    </h6>
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-3" style="font-size: 13px;">
+                        <span class="text-muted">OS</span>
+                        <span class="fw-bold text-dark">Windows (Dev)</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3" style="font-size: 13px;">
+                        <span class="text-muted">Rust Version</span>
+                        <span class="fw-bold text-dark">1.75+</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center" style="font-size: 13px;">
+                        <span class="text-muted">Environment</span>
+                        <span class="badge bg-primary bg-opacity-10 text-primary">DEVELOPMENT</span>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+@endsection

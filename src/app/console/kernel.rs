@@ -5,7 +5,7 @@ use crate::core::schedule::Scheduler;
 /// Console Kernel — tempat mendefinisikan jadwal tugas (Schedule).
 /// Anda bisa menambahkan tugas baru di fungsi `schedule`.
 pub async fn schedule(sched: &Scheduler) {
-    let state = sched.state();
+    let _state = sched.state();
     
     // CONTOH: Jalankan tugas setiap menit menggunakan API Fluent
     let _ = sched.call(|| {
@@ -20,6 +20,14 @@ pub async fn schedule(sched: &Scheduler) {
             println!("🕛 [SCHEDULE] Running daily maintenance at 12:00...");
         }
     }).daily_at("12:00").await;
+
+    // Jalankan full backup setiap hari jam 02:00 pagi
+    let _ = sched.call(|| {
+        async move {
+            println!("💾 [SCHEDULE] Menjalankan daily backup...");
+            crate::cli::handle_backup().await;
+        }
+    }).daily_at("02:00").await;
 }
 
 /// Entry point untuk menjalankan scheduler dari application bootstrap.

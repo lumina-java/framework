@@ -1,4 +1,4 @@
-use axum::{extract::{Path, State}, response::Html};
+use axum::{extract::{Path, State}, response::{Html, IntoResponse}};
 use crate::core::application::AppState;
 use tera::Context;
 use serde_json::json;
@@ -65,6 +65,56 @@ impl UserController {
             .await?;
 
         Ok(crate::core::response::ApiResponse::with_message(json!(user), "ORM query executed successfully"))
+    }
+
+    /// GET /test-event — Demonstrasi penggunaan Event Dispatcher
+    pub async fn test_event(State(state): State<AppState>) -> Result<crate::core::response::ApiResponse<serde_json::Value>, crate::core::error::AppError> {
+        use crate::app::events::user_registered::UserRegistered;
+        use std::sync::Arc;
+
+        let event = UserRegistered {
+            name: "Lumina User".to_string(),
+            email: "test@lumina.rs".to_string(),
+        };
+
+        // Dispatch event secara asinkron
+        state.events.dispatch(event, Arc::new(state.clone())).await;
+
+        Ok(crate::core::response::ApiResponse::with_message(
+            json!({"event": "UserRegistered", "status": "dispatched"}),
+            "Event dispatched! Cek log server untuk melihat listener bekerja."
+        ))
+    }
+
+    /// GET /test-i18n
+    pub async fn test_i18n(
+        req: crate::core::request::Request,
+    ) -> impl IntoResponse {
+        crate::core::view::View::make("test_i18n")
+            .with("name", "Lumina Developer")
+            .render(&req)
+            .await
+    }
+
+    /// GET /test-echo
+    pub async fn test_echo(
+        req: crate::core::request::Request,
+    ) -> impl IntoResponse {
+        crate::core::view::View::make("test_echo")
+            .render(&req)
+            .await
+    }
+
+    /// POST /test-broadcast
+    pub async fn test_broadcast(
+        State(state): State<AppState>,
+    ) -> impl IntoResponse {
+        state.echo.broadcast(
+            "notifications", 
+            "NewNotification", 
+            json!({"message": "Pesan real-time dari server! 🚀"})
+        );
+        axum::http::StatusCode::OK
     }
 }
 

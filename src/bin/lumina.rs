@@ -98,6 +98,9 @@ enum Commands {
     /// Generate Supervisor configuration
     #[command(name = "make:supervisor")]
     MakeSupervisor,
+    /// Run full backup (Database & Storage)
+    #[command(name = "backup:run")]
+    BackupRun,
 }
 
 #[tokio::main]
@@ -159,6 +162,9 @@ async fn main() {
         }
         Commands::MakeSupervisor => {
             cli::handle_make_supervisor().await;
+        }
+        Commands::BackupRun => {
+            cli::handle_backup().await;
         }
         Commands::Serve => {
             println!("🚀 Starting Lumina Server...");

@@ -42,10 +42,10 @@ impl StorageController {
                         let storage = &state.storage;
                         
                         // Simpan ke disk (default local)
-                        let result = storage.disk.put(&file_name, &data).await;
+                        let result = storage.put(&file_name, &data).await;
                         
                         if result.is_ok() {
-                            file_url = storage.disk.url(&file_name);
+                            file_url = storage.url(&file_name);
                         } else {
                             return ApiResponse::error(&format!("Gagal menyimpan file: {:?}", result.err())).into_response();
                         }

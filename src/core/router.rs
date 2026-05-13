@@ -1,4 +1,4 @@
-use ax_router = axum::Router;
+use axum::Router as ax_router;
 use axum::{
     handler::Handler,
     routing,
@@ -18,6 +18,14 @@ where
     pub fn new() -> Self {
         Self {
             inner: ax_router::new(),
+            prefix: String::new(),
+        }
+    }
+
+    /// Buat Lumina Router dari axum::Router yang sudah ada.
+    pub fn from_axum(inner: ax_router<S>) -> Self {
+        Self {
+            inner,
             prefix: String::new(),
         }
     }
@@ -135,8 +143,6 @@ where
     /// Alias untuk layer agar lebih familiar bagi pengguna Laravel.
     pub fn middleware<L>(self, layer: L) -> Self
     where
-        L: tower::Layer<axum::routing::Route> + Clone + Send + 'static,
-        L::Service: tower::Service<ax_router<S>> + Clone + Send + 'static,
         L: tower::Layer<axum::routing::Route> + Clone + Send + 'static,
         L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
         <L::Service as tower::Service<axum::extract::Request>>::Response: axum::response::IntoResponse + 'static,

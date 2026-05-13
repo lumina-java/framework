@@ -524,7 +524,7 @@ pub async fn handle_make_nginx() {
     let nginx_conf_path = format!("{}/nginx.conf", nginx_dir);
 
     let content = include_str!("stubs/nginx.stub");
-    let _ = fs::write(nginx_conf_path, content);
+    let _ = fs::write(&nginx_conf_path, content);
 
     println!("✅ Konfigurasi Nginx berhasil dibuat di: {}", nginx_conf_path);
     handle_make_deployment_guide().await;
@@ -536,7 +536,7 @@ pub async fn handle_make_supervisor() {
     let supervisor_conf_path = format!("{}/lumina.conf", supervisor_dir);
 
     let content = include_str!("stubs/supervisor.stub");
-    let _ = fs::write(supervisor_conf_path, content);
+    let _ = fs::write(&supervisor_conf_path, content);
 
     println!("✅ Konfigurasi Supervisor berhasil dibuat di: {}", supervisor_conf_path);
     handle_make_deployment_guide().await;
@@ -549,6 +549,19 @@ async fn handle_make_deployment_guide() {
     let _ = fs::create_dir_all("docs");
     let content = "# Deployment Guide\n\nPanduan langkah-demi-langkah untuk deploy Lumina Framework...\n\n(Isi panduan akan segera dilengkapi di modul dokumentasi)";
     let _ = fs::write(guide_path, content);
+}
+
+pub async fn handle_backup() {
+    println!("🔄 Memulai proses backup...");
+    let config = crate::core::config::ConfigManager::new();
+    let db_url = config.get_db_url();
+    let db_conn = std::env::var("DB_CONNECTION").unwrap_or_else(|_| "sqlite".to_string());
+
+    let manager = crate::core::backup::BackupManager::new();
+    match manager.run_full_backup(&db_conn, &db_url).await {
+        Ok(path) => println!("✅ Backup berhasil dibuat: {}", path),
+        Err(e) => println!("❌ Backup gagal: {}", e),
+    }
 }
 
 fn camel_to_snake(s: &str) -> String {

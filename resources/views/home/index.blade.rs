@@ -5,6 +5,7 @@
 @section('content')
 <header class="hero text-center">
     <div class="container">
+        <img src="/images/logo.png" alt="Lumina Logo" style="width: 120px; height: 120px; margin-bottom: 20px; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.2)); border-radius: 20px;">
         <h1 class="display-3 fw-bold mb-3">Selamat Datang di Lumina</h1>
         <p class="lead mb-4">Framework web Rust yang indah, cepat, dan elegan.</p>
         <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">

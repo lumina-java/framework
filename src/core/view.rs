@@ -7,16 +7,18 @@ thread_local! {
     static CURRENT_ERRORS: RefCell<serde_json::Value> = RefCell::new(serde_json::json!({}));
     static CURRENT_FLASHES: RefCell<serde_json::Value> = RefCell::new(serde_json::json!([]));
     static CURRENT_OLD: RefCell<serde_json::Value> = RefCell::new(serde_json::json!({}));
+    static CURRENT_LOCALE: RefCell<String> = RefCell::new("en".to_string());
 }
 
 #[derive(Clone)]
 pub struct ViewEngine {
     inner: Arc<Tera>,
+    pub lang: Option<Arc<crate::core::i18n::LangManager>>,
 }
 
 impl ViewEngine {
     /// Inisialisasi Tera engine dan load semua template dari resources/views
-    pub fn new() -> Self {
+    pub fn new(lang: Option<Arc<crate::core::i18n::LangManager>>) -> Self {
         let mut tera = Tera::default();
         
         // Kumpulkan SEMUA template dahulu ke dalam Vec,
@@ -59,8 +61,29 @@ impl ViewEngine {
         tera.register_function("error_class", error_class_fn);
         tera.register_function("has_error", has_error_fn);
 
+        if let Some(l) = lang.clone() {
+            tera.register_function("__", move |args: &std::collections::HashMap<String, tera::Value>| -> tera::Result<tera::Value> {
+                let key = args.get("key").and_then(|v| v.as_str()).unwrap_or("");
+                let locale = CURRENT_LOCALE.with(|loc| loc.borrow().clone());
+                
+                let mut params = std::collections::HashMap::new();
+                for (k, v) in args {
+                    if k != "key" {
+                        if let Some(s) = v.as_str() {
+                            params.insert(k.clone(), s.to_string());
+                        } else {
+                            params.insert(k.clone(), v.to_string());
+                        }
+                    }
+                }
+
+                Ok(tera::Value::String(l.get(&locale, key, params)))
+            });
+        }
+
         Self {
             inner: Arc::new(tera),
+            lang,
         }
     }
 
@@ -161,6 +184,10 @@ impl ViewEngine {
         // 17. @endguest -> {% endif %}
         processed = processed.replace("@endguest", "{% endif %}");
 
+        // 18. {{ __("key") }} -> {{ __(key="key") }}
+        let re_trans = Regex::new(r#"__\(\s*(['"][^'"]*['"])"#).unwrap();
+        processed = re_trans.replace_all(&processed, "__(key=$1").to_string();
+
         processed
     }
 
@@ -177,6 +204,7 @@ impl ViewEngine {
         CURRENT_ERRORS.with(|e| *e.borrow_mut() = serde_json::json!({}));
         CURRENT_FLASHES.with(|f| *f.borrow_mut() = serde_json::json!([]));
         CURRENT_OLD.with(|o| *o.borrow_mut() = serde_json::json!({}));
+        CURRENT_LOCALE.with(|l| *l.borrow_mut() = "en".to_string());
         res
     }
 
@@ -185,8 +213,14 @@ impl ViewEngine {
         &self,
         template_name: &str,
         mut context: Context,
-        session: &tower_sessions::Session
+        session: &tower_sessions::Session,
+        locale: Option<String>,
     ) -> String {
+        // 0. Inject Locale
+        let current_locale = locale.unwrap_or_else(|| "en".to_string());
+        context.insert("locale", &current_locale);
+        CURRENT_LOCALE.with(|l| *l.borrow_mut() = current_locale);
+
         // 0. Inject User Info if logged in
         if let Ok(Some(user)) = session.get::<crate::core::auth::AuthUser>("user").await {
             context.insert("email", &user.email);
@@ -386,7 +420,10 @@ impl ViewBuilder {
             self.context.insert("csrf_token", &token);
         }
         
-        let html = req.state.view.render_with_session(&self.template, self.context, &req.session).await;
+        // Ambil locale dari request extension (set oleh middleware)
+        let locale = req.extensions.get::<crate::core::i18n::Locale>().map(|l| l.0.clone());
+        
+        let html = req.state.view.render_with_session(&self.template, self.context, &req.session, locale).await;
         ViewResponse { 
             html,
             token: Some(req.token.clone())

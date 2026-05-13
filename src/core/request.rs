@@ -16,6 +16,7 @@ pub struct Request {
     pub token: CsrfToken,
     pub user: Option<AuthUser>,
     pub headers: axum::http::HeaderMap,
+    pub extensions: axum::http::Extensions,
 }
 
 #[async_trait]
@@ -47,6 +48,7 @@ where
             token,
             user,
             headers: parts.headers.clone(),
+            extensions: parts.extensions.clone(),
         })
     }
 }

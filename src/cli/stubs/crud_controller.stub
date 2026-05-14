@@ -1,0 +1,95 @@
+use axum::response::IntoResponse;
+use serde_json::json;
+use crate::core::request::Request;
+use crate::app::models::{{snake_name}}::{{name}};
+use crate::app::services::{{snake_name}}_service::{{name}}Service;
+use crate::app::requests::{{snake_name}}_request::{{name}}Request;
+use crate::core::validation::ValidatedForm;
+
+pub struct {{name}}Controller;
+
+impl {{name}}Controller {
+    /// GET /{{snake_name}}s — Daftar data
+    pub async fn index(req: Request) -> impl IntoResponse {
+        let service = {{name}}Service::new(req.db_arc());
+        let items = service.all().await.unwrap_or_default();
+
+        req.view("{{snake_name}}.index")
+            .with("items", &items)
+            .render(&req)
+            .await
+    }
+
+    /// GET /{{snake_name}}s/create — Form tambah
+    pub async fn create(req: Request) -> impl IntoResponse {
+        req.view("{{snake_name}}.create")
+            .with("csrf_token", req.token.authenticity_token().unwrap())
+            .render(&req)
+            .await
+    }
+
+    /// POST /{{snake_name}}s — Simpan data baru
+    pub async fn store(
+        req: Request,
+        ValidatedForm(form): ValidatedForm<{{name}}Request>,
+    ) -> impl IntoResponse {
+        if req.token.verify(&form.csrf_token).is_err() {
+            return req.redirect("/{{snake_name}}s/create").with_error("Invalid CSRF Token").go(&req).await
+        }
+
+        let mut item = {{name}}::new();
+        {{store_logic}}
+
+        let service = {{name}}Service::new(req.db_arc());
+        match service.create_model(item).await {
+            Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data {{name}} berhasil disimpan!").go(&req).await,
+            Err(e) => req.redirect("/{{snake_name}}s/create")
+                .with_input(json!({ {{input_map}} }))
+                .with_error(&format!("Gagal menyimpan data: {}", e))
+                .go(&req).await
+        }
+    }
+
+    /// GET /{{snake_name}}s/:id/edit — Form edit
+    pub async fn edit(req: Request, axum::extract::Path(id): axum::extract::Path<i64>) -> impl IntoResponse {
+        let service = {{name}}Service::new(req.db_arc());
+        let item = service.find(id).await.expect("Data tidak ditemukan");
+
+        req.view("{{snake_name}}.edit")
+            .with("item", &item)
+            .with("csrf_token", req.token.authenticity_token().unwrap())
+            .render(&req)
+            .await
+    }
+
+    /// POST /{{snake_name}}s/:id — Update data
+    pub async fn update(
+        req: Request,
+        axum::extract::Path(id): axum::extract::Path<i64>,
+        ValidatedForm(form): ValidatedForm<{{name}}Request>,
+    ) -> impl IntoResponse {
+        if req.token.verify(&form.csrf_token).is_err() {
+            return req.redirect(&format!("/{{snake_name}}s/{}/edit", id)).with_error("Invalid CSRF Token").go(&req).await
+        }
+
+        let mut item = {{name}}::new();
+        {{update_logic}}
+
+        let service = {{name}}Service::new(req.db_arc());
+        match service.update_model(id, item).await {
+            Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data {{name}} berhasil diupdate!").go(&req).await,
+            Err(e) => req.redirect(&format!("/{{snake_name}}s/{}/edit", id))
+                .with_input(json!({ {{input_map}} }))
+                .with_error(&format!("Gagal update data: {}", e))
+                .go(&req).await
+        }
+    }
+
+    /// GET /{{snake_name}}s/:id/delete — Hapus data
+    pub async fn delete(req: Request, axum::extract::Path(id): axum::extract::Path<i64>) -> impl IntoResponse {
+        let service = {{name}}Service::new(req.db_arc());
+        let _ = service.delete(id).await;
+
+        req.redirect("/{{snake_name}}s").with_success("Data {{name}} berhasil dihapus!").go(&req).await
+    }
+}

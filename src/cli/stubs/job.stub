@@ -1,0 +1,27 @@
+use async_trait::async_trait;
+use crate::core::queue::Job;
+use crate::core::application::AppState;
+use std::sync::Arc;
+
+#[derive(Debug)]
+pub struct {{name}} {
+    // Tambahkan field data di sini
+}
+
+impl {{name}} {
+    pub fn new() -> Self {
+        Self {
+            // Inisialisasi data
+        }
+    }
+}
+
+#[async_trait]
+impl Job for {{name}} {
+    async fn handle(&self, _state: Arc<AppState>) -> Result<(), String> {
+        // Logika pekerjaan latar belakang Anda di sini
+        tracing::info!("🏃 Running job: {{name}}");
+        
+        Ok(())
+    }
+}

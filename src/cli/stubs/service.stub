@@ -1,0 +1,36 @@
+use std::sync::Arc;
+use crate::database::connection::DatabasePool;
+use crate::app::models::{{snake_name}}::{{name}};
+use crate::database::model::Model;
+
+pub struct {{name}}Service {
+    db: Arc<DatabasePool>,
+}
+
+impl {{name}}Service {
+    pub fn new(db: Arc<DatabasePool>) -> Self {
+        Self { db }
+    }
+
+    pub async fn all(&self) -> Result<Vec<{{name}}>, sqlx::Error> {
+        {{name}}::all(&self.db).await
+    }
+
+    pub async fn find(&self, id: i64) -> Result<{{name}}, sqlx::Error> {
+        {{name}}::find(&self.db, id).await
+    }
+
+    pub async fn create_model(&self, item: {{name}}) -> Result<i64, sqlx::Error> {
+        item.save(&self.db).await
+    }
+
+    pub async fn update_model(&self, id: i64, mut item: {{name}}) -> Result<bool, sqlx::Error> {
+        item.id = id;
+        item.save(&self.db).await?;
+        Ok(true)
+    }
+
+    pub async fn delete(&self, id: i64) -> Result<bool, sqlx::Error> {
+        {{name}}::delete(&self.db, id).await
+    }
+}

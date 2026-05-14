@@ -1,0 +1,17 @@
+[program:lumina]
+command=/app/lumina-server
+directory=/app
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/lumina.err.log
+stdout_logfile=/var/log/lumina.out.log
+environment=APP_ENV="production"
+
+[program:lumina-worker]
+command=/app/lumina queue:work
+directory=/app
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/lumina-worker.err.log
+stdout_logfile=/var/log/lumina-worker.out.log
+environment=APP_ENV="production"

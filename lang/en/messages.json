@@ -1,0 +1,9 @@
+{
+    "welcome": "Welcome to Lumina Framework",
+    "hello": "Hello, :name!",
+    "auth": {
+        "login": "Login",
+        "register": "Register",
+        "failed": "These credentials do not match our records."
+    }
+}

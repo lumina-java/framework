@@ -1,0 +1,34 @@
+use async_trait::async_trait;
+use fake::Fake;
+use fake::faker::name::raw::*;
+use fake::faker::internet::raw::*;
+use fake::locales::*;
+use crate::database::{connection::DatabasePool, factory::Factory, model::Model};
+use crate::app::models::{{model_snake}}::{{model_camel}};
+
+pub struct {{name}};
+
+#[async_trait]
+impl Factory for {{name}} {
+    type Model = {{model_camel}};
+
+    fn definition(&self) -> Self::Model {
+        {{model_camel}} {
+            // Definisikan data dummy di sini
+            // name: Name(EN).fake(),
+            // email: SafeEmail(EN).fake(),
+            ..Default::default()
+        }
+    }
+
+    async fn create(&self, db: &DatabasePool) -> Result<Self::Model, String> {
+        let mut model = self.definition();
+        match model.save(db).await {
+            Ok(id) => {
+                model.id = id;
+                Ok(model)
+            },
+            Err(e) => Err(format!("Gagal menyimpan model ke database: {}", e)),
+        }
+    }
+}

@@ -1,0 +1,9 @@
+{
+    "welcome": "Selamat Datang di Lumina Framework",
+    "hello": "Halo, :name!",
+    "auth": {
+        "login": "Masuk",
+        "register": "Daftar",
+        "failed": "Kredensial ini tidak cocok dengan data kami."
+    }
+}

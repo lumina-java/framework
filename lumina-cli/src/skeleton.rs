@@ -41,7 +41,7 @@ edition = "2021"
 default-run = "{}-server"
 
 [dependencies]
-lumina = {{ git = "https://github.com/lumina-java/framework.git" }}
+lumina = {{ package = "lumina-framework", git = "https://github.com/lumina-java/framework.git" }}
 tokio = {{ version = "1", features = ["full"] }}
 axum = {{ version = "0.7", features = ["macros", "multipart"] }}
 serde = {{ version = "1", features = ["derive"] }}

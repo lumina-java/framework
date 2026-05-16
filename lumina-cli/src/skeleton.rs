@@ -32,7 +32,9 @@ pub fn create_full_skeleton(base: &Path, name: &str) {
 
     // 2. Cargo.toml
     let cargo_toml = format!(
-        r#"[package]
+        r#"[workspace]
+
+[package]
 name = "{}"
 version = "0.1.0"
 edition = "2021"

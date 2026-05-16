@@ -1,13 +1,13 @@
+use crate::core::application::AppState;
 use axum::{
     async_trait,
+    body::Body,
     extract::{FromRequest, Multipart},
     http::Request,
-    body::Body,
 };
+use image::ImageFormat;
 use std::collections::HashMap;
 use std::io::Cursor;
-use image::ImageFormat;
-use crate::core::application::AppState;
 
 /// UploadedFile — Membungkus data file hasil upload dengan helper methods.
 #[derive(Clone)]
@@ -36,19 +36,28 @@ impl UploadedFile {
     }
 
     /// Simpan file ke storage dengan nama unik otomatis.
-    pub async fn store(&self, req: &crate::core::request::Request, directory: &str) -> Result<String, String> {
+    pub async fn store(
+        &self,
+        req: &crate::core::request::Request,
+        directory: &str,
+    ) -> Result<String, String> {
         let hash = uuid::Uuid::new_v4().to_string(); // Menggunakan UUID agar unik
         let filename = format!("{}.{}", hash, self.extension());
         let path = format!("{}/{}", directory.trim_end_matches('/'), filename);
-        
-        req.state.storage.disk.put(&path, &self.data).await?;
+
+        req.state.storage.put(&path, &self.data).await?;
         Ok(path)
     }
 
     /// Simpan file dengan nama spesifik.
-    pub async fn store_as(&self, req: &crate::core::request::Request, directory: &str, name: &str) -> Result<String, String> {
+    pub async fn store_as(
+        &self,
+        req: &crate::core::request::Request,
+        directory: &str,
+        name: &str,
+    ) -> Result<String, String> {
         let path = format!("{}/{}", directory.trim_end_matches('/'), name);
-        req.state.storage.disk.put(&path, &self.data).await?;
+        req.state.storage.put(&path, &self.data).await?;
         Ok(path)
     }
 
@@ -107,8 +116,9 @@ where
     type Rejection = crate::core::error::AppError;
 
     async fn from_request(req: Request<Body>, state: &S) -> Result<Self, Self::Rejection> {
-        let mut multipart = Multipart::from_request(req, state).await
-            .map_err(|_| crate::core::error::AppError::BadRequest("Format multipart tidak valid".into()))?;
+        let mut multipart = Multipart::from_request(req, state).await.map_err(|_| {
+            crate::core::error::AppError::BadRequest("Format multipart tidak valid".into())
+        })?;
 
         let mut fields = HashMap::new();
         let mut files: HashMap<String, Vec<UploadedFile>> = HashMap::new();
@@ -118,12 +128,22 @@ where
         })? {
             let name = field.name().unwrap_or_default().to_string();
             let file_name = field.file_name().map(|s| s.to_string());
-            let content_type = field.content_type().map(|s| s.to_string()).unwrap_or_default();
+            let content_type = field
+                .content_type()
+                .map(|s| s.to_string())
+                .unwrap_or_default();
 
             if let Some(orig_name) = file_name {
-                let data = field.bytes().await.map_err(|e| {
-                    crate::core::error::AppError::BadRequest(format!("Gagal membaca data file: {}", e))
-                })?.to_vec();
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| {
+                        crate::core::error::AppError::BadRequest(format!(
+                            "Gagal membaca data file: {}",
+                            e
+                        ))
+                    })?
+                    .to_vec();
 
                 if !data.is_empty() {
                     let uploaded = UploadedFile {
@@ -136,7 +156,10 @@ where
                 }
             } else {
                 let value = field.text().await.map_err(|e| {
-                    crate::core::error::AppError::BadRequest(format!("Gagal membaca text field: {}", e))
+                    crate::core::error::AppError::BadRequest(format!(
+                        "Gagal membaca text field: {}",
+                        e
+                    ))
                 })?;
                 fields.insert(name, value);
             }
@@ -154,7 +177,10 @@ impl LuminaMultipart {
 
     /// Ambil banyak file (array) berdasarkan nama field.
     pub fn files(&self, name: &str) -> Vec<&UploadedFile> {
-        self.files.get(name).map(|v| v.iter().collect()).unwrap_or_default()
+        self.files
+            .get(name)
+            .map(|v| v.iter().collect())
+            .unwrap_or_default()
     }
 
     /// Ambil nilai text field.

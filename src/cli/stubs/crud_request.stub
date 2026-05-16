@@ -1,0 +1,8 @@
+use lumina_macros::lumina_form;
+
+#[lumina_form]
+pub struct {{name}}Request {
+    {{fields}}
+    
+    pub csrf_token: String,
+}

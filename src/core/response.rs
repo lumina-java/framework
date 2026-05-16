@@ -113,7 +113,8 @@ impl Redirect {
 
     /// Redirect kembali ke halaman sebelumnya (Referer)
     pub fn back(req: &axum::http::Request<axum::body::Body>) -> Self {
-        let referer = req.headers()
+        let referer = req
+            .headers()
             .get(axum::http::header::REFERER)
             .and_then(|h| h.to_str().ok())
             .unwrap_or("/");
@@ -123,11 +124,11 @@ impl Redirect {
     /// Eksekusi semua perubahan ke session dan kembalikan axum Redirect
     pub async fn send(self, session: &tower_sessions::Session) -> axum::response::Redirect {
         let flash = crate::core::session::FlashManager::new(session);
-        
+
         if let Some(msg) = self.flash_success {
             flash.success(&msg).await;
         }
-        
+
         if let Some(msg) = self.flash_error {
             flash.error(&msg).await;
         }
@@ -139,11 +140,11 @@ impl Redirect {
         if let Some(msg) = self.flash_warning {
             flash.warning(&msg).await;
         }
-        
+
         if let Some(errors) = self.errors {
             let _ = session.insert("_errors", errors).await;
         }
-        
+
         if let Some(old) = self.old_input {
             let _ = session.insert("_old", old).await;
         }
@@ -153,21 +154,15 @@ impl Redirect {
 
     /// Helper paling sakti: Kirim redirect sekaligus sinkronisasi token CSRF.
     /// Otomatis mendeteksi HTMX dan mengirim header HX-Redirect jika diperlukan.
-    pub async fn go(
-        self, 
-        req: &crate::core::request::Request
-    ) -> axum::response::Response {
+    pub async fn go(self, req: &crate::core::request::Request) -> axum::response::Response {
         let session = &req.session;
         let token = req.token.clone();
         let path = self.path.clone(); // Clone path dulu sebelum self di-move
-        
+
         let _ = self.send(session).await;
 
         if req.is_htmx() {
-            (
-                token,
-                [("HX-Redirect", path)],
-            ).into_response()
+            (token, [("HX-Redirect", path)]).into_response()
         } else {
             let redirect = axum::response::Redirect::to(&path);
             (token, redirect).into_response()

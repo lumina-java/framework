@@ -1,4 +1,4 @@
-use sqlx::{Pool, Any, any::AnyPoolOptions};
+use sqlx::{any::AnyPoolOptions, Any, Pool};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DatabaseKind {
@@ -8,6 +8,7 @@ pub enum DatabaseKind {
 }
 
 /// Lumina DatabasePool — wrapper di atas `sqlx::Pool<Any>`.
+#[derive(Clone)]
 pub struct DatabasePool {
     pub pool: Pool<Any>,
     pub kind: DatabaseKind,

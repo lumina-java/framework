@@ -18,13 +18,15 @@ desktop.ini
 
 # --- Editor / IDE ---
 # .vscode/ (Shared settings are allowed)
+.vscode/*   
 .idea/
 *.swp
 *.swo
 *~
 
 # --- Logs ---
-storage/logs/*.log
+storage/logs/
+.lumina_tinker_history
 *.log
 
 # --- Temporary Files ---
@@ -42,3 +44,10 @@ storage/cache/*
 
 # --- Temporary Artifacts ---
 .github/*.md
+
+skill_for_creates/*
+docs/*
+DOCUMENTATION.md
+CEAT_SHEET.md
+skill_for_create*.md
+

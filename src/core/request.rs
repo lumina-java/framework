@@ -1,12 +1,8 @@
-use axum::{
-    async_trait,
-    extract::FromRequestParts,
-    http::request::Parts,
-};
-use tower_sessions::Session;
-use axum_csrf::CsrfToken;
 use crate::core::application::AppState;
 use crate::core::auth::AuthUser;
+use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
+use axum_csrf::CsrfToken;
+use tower_sessions::Session;
 
 /// Request — Bundle Extractor untuk menyederhanakan Dependency Injection.
 /// Menyediakan akses cepat ke State, Session, dan CsrfToken dalam satu parameter.
@@ -16,6 +12,7 @@ pub struct Request {
     pub token: CsrfToken,
     pub user: Option<AuthUser>,
     pub headers: axum::http::HeaderMap,
+    pub extensions: axum::http::Extensions,
 }
 
 #[async_trait]
@@ -28,17 +25,22 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
-        
-        let session = parts.extensions
+
+        let session = parts
+            .extensions
             .get::<Session>()
             .cloned()
             .ok_or(crate::core::error::AppError::InternalServerError)?;
 
-        let token = CsrfToken::from_request_parts(parts, state).await
+        let token = CsrfToken::from_request_parts(parts, state)
+            .await
             .map_err(|_| crate::core::error::AppError::InternalServerError)?;
 
         // Cek user dari extension (Middleware) atau Session
-        let user = parts.extensions.get::<AuthUser>().cloned()
+        let user = parts
+            .extensions
+            .get::<AuthUser>()
+            .cloned()
             .or(session.get::<AuthUser>("user").await.unwrap_or_default());
 
         Ok(Self {
@@ -47,6 +49,7 @@ where
             token,
             user,
             headers: parts.headers.clone(),
+            extensions: parts.extensions.clone(),
         })
     }
 }
@@ -77,6 +80,15 @@ impl Request {
         self.state.db()
     }
 
+    /// Shortcut untuk mengambil Arc<DatabasePool>.
+    pub fn db_arc(&self) -> std::sync::Arc<crate::database::connection::DatabasePool> {
+        self.state
+            .db
+            .as_ref()
+            .expect("Database connection is not available")
+            .clone()
+    }
+
     /// Shortcut untuk mengambil user yang sedang login.
     pub fn user(&self) -> Option<crate::core::auth::AuthUser> {
         self.user.clone()
@@ -94,7 +106,8 @@ impl Request {
 
     /// Shortcut untuk redirect kembali ke halaman asal (Referer).
     pub fn back(&self) -> crate::core::response::Redirect {
-        let referer = self.headers
+        let referer = self
+            .headers
             .get(axum::http::header::REFERER)
             .and_then(|h| h.to_str().ok())
             .unwrap_or("/");
@@ -109,6 +122,16 @@ impl Request {
     /// Shortcut untuk menyimpan nilai ke dalam session.
     pub async fn session_set<T: serde::Serialize>(&self, key: &str, value: T) {
         let _ = self.session.insert(key, value).await;
+    }
+
+    /// Shortcut untuk mengambil instance StorageManager.
+    pub fn storage(&self) -> &crate::core::storage::Storage {
+        &self.state.storage
+    }
+
+    /// Shortcut untuk mengambil instance Mailer.
+    pub fn mail(&self) -> &crate::core::mail::Mail {
+        &self.state.mail
     }
 
     /// Cek apakah user sudah login.

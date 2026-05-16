@@ -3,13 +3,19 @@ use serde::{Serialize, Deserialize};
 use sqlx::FromRow;
 use crate::database::{connection::DatabasePool, model::Model};
 
-#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default)]
 pub struct {{name}} {
     pub id: i64,
-    pub name: String,
+    {{fields}}
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
     pub deleted_at: Option<String>,
+}
+
+impl {{name}} {
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 #[async_trait]
@@ -25,14 +31,23 @@ impl Model for {{name}} {
     }
 
     async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {
-        let result = sqlx::query(
-            "INSERT INTO {{table_name}} (name) VALUES (?)"
-        )
-        .bind(&self.name)
-        .execute(&pool.pool)
-        .await?;
+        if self.id > 0 {
+            sqlx::query("UPDATE {{table_name}} SET {{sql_update}} WHERE id = ?")
+                {{bind_fields}}
+                .bind(self.id)
+                .execute(&pool.pool)
+                .await?;
+            Ok(self.id)
+        } else {
+            let result = sqlx::query(
+                "INSERT INTO {{table_name}} ({{sql_fields}}) VALUES ({{sql_placeholders}})"
+            )
+            {{bind_fields}}
+            .execute(&pool.pool)
+            .await?;
 
-        Ok(result.last_insert_id().unwrap_or(0))
+            Ok(result.last_insert_id().unwrap_or(0))
+        }
     }
 
     async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {

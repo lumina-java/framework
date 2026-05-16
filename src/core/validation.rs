@@ -1,5 +1,5 @@
-use validator::{Validate, ValidationErrors};
 use std::collections::HashMap;
+use validator::{Validate, ValidationErrors};
 
 /// Trait untuk mempermudah ekstraksi error dari validator ke format yang ramah UI/API.
 pub trait Validatable {
@@ -23,7 +23,7 @@ impl Validatable for ValidationErrors {
                             } else {
                                 "Panjang karakter tidak sesuai.".into()
                             }
-                        },
+                        }
                         "required" => "Field ini wajib diisi.".into(),
                         "unique" => "Data ini sudah terdaftar.".into(),
                         "must_match" => "Konfirmasi tidak cocok.".into(),
@@ -45,8 +45,8 @@ pub fn flash_errors(_session: &tower_sessions::Session, _errors: HashMap<String,
 use axum::{
     async_trait,
     extract::{FromRequest, FromRequestParts, Request},
-    Json,
     response::IntoResponse,
+    Json,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -63,14 +63,17 @@ where
     type Rejection = crate::core::error::AppError;
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let value = Json::<T>::from_request(req, state).await.map_err(|_e| {
-             crate::core::error::AppError::BadRequest("Format JSON tidak valid".to_string())
-        })?.0;
-        
-        value.validate().map_err(|e| {
-             crate::core::error::AppError::ValidationError(format!("{}", e))
-        })?;
-        
+        let value = Json::<T>::from_request(req, state)
+            .await
+            .map_err(|_e| {
+                crate::core::error::AppError::BadRequest("Format JSON tidak valid".to_string())
+            })?
+            .0;
+
+        value
+            .validate()
+            .map_err(|e| crate::core::error::AppError::ValidationError(format!("{}", e)))?;
+
         Ok(ValidatedJson(value))
     }
 }
@@ -102,7 +105,8 @@ where
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         // Ambil Session dan Referer sebelum request dikonsumsi
         let session = req.extensions().get::<tower_sessions::Session>().cloned();
-        let referer = req.headers()
+        let referer = req
+            .headers()
             .get(axum::http::header::REFERER)
             .and_then(|h| h.to_str().ok())
             .unwrap_or("/")
@@ -110,7 +114,9 @@ where
 
         // Ekstrak CsrfToken untuk memastikan sinkronisasi saat redirect
         let (mut parts, body) = req.into_parts();
-        let token = axum_csrf::CsrfToken::from_request_parts(&mut parts, state).await.ok();
+        let token = axum_csrf::CsrfToken::from_request_parts(&mut parts, state)
+            .await
+            .ok();
         let req = Request::from_parts(parts, body);
 
         let form_res = axum::Form::<T>::from_request(req, state).await;
@@ -120,10 +126,14 @@ where
             if let Err(e) = value.validate() {
                 if let Some(session) = session {
                     let _ = session.insert("_errors", e.to_map()).await;
-                    let _ = session.insert("_old", serde_json::to_value(&value).unwrap_or_default()).await;
-                    
+                    let _ = session
+                        .insert("_old", serde_json::to_value(&value).unwrap_or_default())
+                        .await;
+
                     let flash = crate::core::session::FlashManager::new(&session);
-                    flash.error("Validasi gagal. Mohon periksa kembali form Anda.").await;
+                    flash
+                        .error("Validasi gagal. Mohon periksa kembali form Anda.")
+                        .await;
                 }
 
                 let redirect = axum::response::Redirect::to(&referer);
@@ -132,7 +142,7 @@ where
                 } else {
                     redirect.into_response()
                 };
-                
+
                 return Err(FormValidationRejection(res));
             }
             Ok(ValidatedForm(value))
@@ -141,7 +151,7 @@ where
                 let flash = crate::core::session::FlashManager::new(&session);
                 flash.error("Format data tidak valid.").await;
             }
-            
+
             let redirect = axum::response::Redirect::to(&referer);
             let res = if let Some(t) = token {
                 (t, redirect).into_response()

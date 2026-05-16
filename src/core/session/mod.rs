@@ -56,7 +56,10 @@ impl<'a> FlashManager<'a> {
     /// Mengambil semua pesan dan menghapusnya dari session (consume).
     pub async fn consume(&self) -> Vec<FlashMessage> {
         let messages = self.get_all().await;
-        let _ = self.session.remove::<Vec<FlashMessage>>(FLASH_SESSION_KEY).await;
+        let _ = self
+            .session
+            .remove::<Vec<FlashMessage>>(FLASH_SESSION_KEY)
+            .await;
         messages
     }
 

@@ -37,13 +37,25 @@ impl IntoResponse for AppError {
             AppError::DatabaseError(e) => {
                 // Sembunyikan detail teknis di log, tampilkan pesan umum di response
                 tracing::error!("Database Error: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "500", "Masalah koneksi database".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "500",
+                    "Masalah koneksi database".to_string(),
+                )
             }
             AppError::ValidationError(msg) => (StatusCode::BAD_REQUEST, "422", msg.clone()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "400", msg.clone()),
             AppError::Generic(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "500", msg.clone()),
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "401", "Anda harus login terlebih dahulu".to_string()),
-            AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "500", "Kesalahan internal server".to_string()),
+            AppError::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                "401",
+                "Anda harus login terlebih dahulu".to_string(),
+            ),
+            AppError::InternalServerError => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "500",
+                "Kesalahan internal server".to_string(),
+            ),
         };
 
         let body = Json(json!({

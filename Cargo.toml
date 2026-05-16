@@ -1,8 +1,8 @@
 [package]
-name = "lumina"
+name = "lumina-framework"
 version = "0.1.0"
 edition = "2021"
-authors = ["Slamet Sugandi <packercyber@gmail.com>"]
+authors = ["Lumina Java <admin@lumina-java.com>"]
 description = "A beautiful, fast, and elegant web framework for Rust"
 license = "MIT"
 
@@ -10,23 +10,22 @@ license = "MIT"
 name = "lumina"
 path = "src/lib.rs"
 
-[[bin]]
-name = "lumina-server"
-path = "src/main.rs"
 
 [workspace]
-members = ["lumina_macros"]
+members = ["lumina_macros", "lumina-cli"]
 
 [dependencies]
 lumina_macros = { path = "lumina_macros" }
 tokio = { version = "1", features = ["full"] }
-axum = { version = "0.7", features = ["macros", "multipart"] }
+axum = { version = "0.7", features = ["macros", "multipart", "ws"] }
+futures = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dotenv = "0.15"
 async-trait = "0.1"
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "mysql", "macros", "any", "chrono"] }
 jsonwebtoken = "9"
 clap = { version = "4", features = ["derive"] }
@@ -37,15 +36,25 @@ validator = { version = "0.18", features = ["derive"] }
 bcrypt = "0.15"
 tower-http = { version = "0.5", features = ["catch-panic", "cors", "trace", "fs"] }
 axum-extra = { version = "0.9", features = ["cookie", "cookie-private"] }
-tower = "0.4"
+tower = { version = "0.4", features = ["util"] }
 thiserror = "2.0.18"
 tower-sessions = "0.12"
 tower-sessions-sqlx-store = { version = "0.13", features = ["mysql", "sqlite", "postgres"] }
 time = "0.3.47"
 axum_csrf = { version = "0.10.0", features = ["layer"] }
 moka = { version = "0.12.15", features = ["future"] }
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 image = "0.25"
+oauth2 = "4.4"
+reqwest = { version = "0.12", features = ["json"] }
+rand = "0.8"
+fake = { version = "2.9", features = ["derive", "chrono"] }
+rustyline = "14.0"
+comfy-table = "7.1"
+tokio-cron-scheduler = "0.10"
+zip = "2.2"
+walkdir = "2"
+
 
 [[bin]]
 name = "lumina"

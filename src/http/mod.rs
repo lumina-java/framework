@@ -1,4 +1,4 @@
-pub mod server;
+pub mod auth;
 pub mod kernel;
 pub mod middleware;
-pub mod auth;
+pub mod server;

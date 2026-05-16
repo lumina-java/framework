@@ -1,24 +1,26 @@
-use tera::{Tera, Context};
-use std::sync::Arc;
-use std::cell::RefCell;
 use regex::Regex;
+use std::cell::RefCell;
+use std::sync::Arc;
+use tera::{Context, Tera};
 
 thread_local! {
     static CURRENT_ERRORS: RefCell<serde_json::Value> = RefCell::new(serde_json::json!({}));
     static CURRENT_FLASHES: RefCell<serde_json::Value> = RefCell::new(serde_json::json!([]));
     static CURRENT_OLD: RefCell<serde_json::Value> = RefCell::new(serde_json::json!({}));
+    static CURRENT_LOCALE: RefCell<String> = RefCell::new("en".to_string());
 }
 
 #[derive(Clone)]
 pub struct ViewEngine {
     inner: Arc<Tera>,
+    pub lang: Option<Arc<crate::core::i18n::LangManager>>,
 }
 
 impl ViewEngine {
     /// Inisialisasi Tera engine dan load semua template dari resources/views
-    pub fn new() -> Self {
+    pub fn new(lang: Option<Arc<crate::core::i18n::LangManager>>) -> Self {
         let mut tera = Tera::default();
-        
+
         // Kumpulkan SEMUA template dahulu ke dalam Vec,
         // baru daftarkan ke Tera sekaligus agar inheritance (@extends)
         // tidak gagal akibat urutan loading yang tidak pasti.
@@ -26,7 +28,7 @@ impl ViewEngine {
         if std::fs::metadata(views_path).is_ok() {
             let mut templates: Vec<(String, String)> = Vec::new();
             Self::collect_templates(views_path, "", &mut templates);
-            
+
             // KRITIS: Sort agar parent templates (layout.html, dll)
             // selalu terdaftar SEBELUM child yang meng-extend-nya.
             // Root-level templates (tanpa '/') = parent → depth 0 → duluan.
@@ -34,12 +36,12 @@ impl ViewEngine {
                 let depth = name.chars().filter(|&c| c == '/').count();
                 (depth, name.clone())
             });
-            
+
             let raw: Vec<(&str, &str)> = templates
                 .iter()
                 .map(|(name, content)| (name.as_str(), content.as_str()))
                 .collect();
-            
+
             if let Err(e) = tera.add_raw_templates(raw) {
                 eprintln!("❌ Gagal mendaftarkan templates ke Tera: {}", e);
             } else {
@@ -50,7 +52,7 @@ impl ViewEngine {
         }
 
         tera.autoescape_on(vec![".blade.rs", ".html", ".htm", ".xml"]);
-        
+
         // Register custom functions
         tera.register_function("dump", dump_fn);
         tera.register_function("form_error", form_error_fn);
@@ -59,8 +61,29 @@ impl ViewEngine {
         tera.register_function("error_class", error_class_fn);
         tera.register_function("has_error", has_error_fn);
 
+        if let Some(l) = lang.clone() {
+            tera.register_function("__", move |args: &std::collections::HashMap<String, tera::Value>| -> tera::Result<tera::Value> {
+                let key = args.get("key").and_then(|v| v.as_str()).unwrap_or("");
+                let locale = CURRENT_LOCALE.with(|loc| loc.borrow().clone());
+
+                let mut params = std::collections::HashMap::new();
+                for (k, v) in args {
+                    if k != "key" {
+                        if let Some(s) = v.as_str() {
+                            params.insert(k.clone(), s.to_string());
+                        } else {
+                            params.insert(k.clone(), v.to_string());
+                        }
+                    }
+                }
+
+                Ok(tera::Value::String(l.get(&locale, key, params)))
+            });
+        }
+
         Self {
             inner: Arc::new(tera),
+            lang,
         }
     }
 
@@ -77,7 +100,7 @@ impl ViewEngine {
             for entry in entries.flatten() {
                 let file_path = entry.path();
                 let file_name = entry.file_name().into_string().unwrap_or_default();
-                
+
                 if file_path.is_dir() {
                     let new_prefix = if prefix.is_empty() {
                         file_name
@@ -102,64 +125,81 @@ impl ViewEngine {
 
     fn preprocess_blade(content: &str) -> String {
         let mut processed = content.to_string();
-        
+
         // 1. @extends('layout') -> {% extends "layout.html" %}
         let re_extends = Regex::new(r#"@extends\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
-        processed = re_extends.replace_all(&processed, "{% extends \"$1.blade.rs\" %}").to_string();
-        
+        processed = re_extends
+            .replace_all(&processed, "{% extends \"$1.blade.rs\" %}")
+            .to_string();
+
         // 2. @section('content') -> {% block content %}
         let re_section = Regex::new(r#"@section\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
-        processed = re_section.replace_all(&processed, "{% block $1 %}").to_string();
-        
+        processed = re_section
+            .replace_all(&processed, "{% block $1 %}")
+            .to_string();
+
         // 3. @endsection -> {% endblock %}
         processed = processed.replace("@endsection", "{% endblock %}");
-        
+
         // 4. @yield('content') -> {% block content %}{% endblock %}
         let re_yield = Regex::new(r#"@yield\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
-        processed = re_yield.replace_all(&processed, "{% block $1 %}{% endblock %}").to_string();
-        
+        processed = re_yield
+            .replace_all(&processed, "{% block $1 %}{% endblock %}")
+            .to_string();
+
         // 5. @if(cond) -> {% if cond %}
         let re_if = Regex::new(r"@if\s*\((.*?)\)").unwrap();
         processed = re_if.replace_all(&processed, "{% if $1 %}").to_string();
-        
+
         // 6. @elseif(cond) -> {% elif cond %}
         let re_elif = Regex::new(r"@elseif\s*\((.*?)\)").unwrap();
         processed = re_elif.replace_all(&processed, "{% elif $1 %}").to_string();
-        
+
         // 7. @else -> {% else %}
         processed = processed.replace("@else", "{% else %}");
-        
+
         // 8. @endif -> {% endif %}
         processed = processed.replace("@endif", "{% endif %}");
-        
+
         // 9. @foreach(items as item) -> {% for item in items %}
         // Mendukung @foreach(items as item) atau @foreach($items as $item)
         let re_foreach = Regex::new(r"@foreach\s*\(\s*(\$)?(.*?)\s+as\s+(\$)?(.*?)\s*\)").unwrap();
-        processed = re_foreach.replace_all(&processed, "{% for $4 in $2 %}").to_string();
-        
+        processed = re_foreach
+            .replace_all(&processed, "{% for $4 in $2 %}")
+            .to_string();
+
         // 10. @endforeach -> {% endfor %}
         processed = processed.replace("@endforeach", "{% endfor %}");
-        
+
         // 11. @csrf -> <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        processed = processed.replace("@csrf", "<input type=\"hidden\" name=\"csrf_token\" value=\"{{ csrf_token }}\">");
-        
+        processed = processed.replace(
+            "@csrf",
+            "<input type=\"hidden\" name=\"csrf_token\" value=\"{{ csrf_token }}\">",
+        );
+
         // 12. {{ $var }} -> {{ var }} (Opsional, karena Tera sudah mendukung {{ var }})
         let re_var = Regex::new(r"\{\{\s*\$(.*?)\s*\}\}").unwrap();
         processed = re_var.replace_all(&processed, "{{ $1 }}").to_string();
 
         // 13. @include('path') -> {% include "path.html" %}
         let re_include = Regex::new(r#"@include\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
-        processed = re_include.replace_all(&processed, "{% include \"$1.blade.rs\" %}").to_string();
+        processed = re_include
+            .replace_all(&processed, "{% include \"$1.blade.rs\" %}")
+            .to_string();
 
         // 14. @auth -> {% if email != "" %}
         processed = processed.replace("@auth", "{% if email != \"\" %}");
         // 15. @endauth -> {% endif %}
         processed = processed.replace("@endauth", "{% endif %}");
-        
+
         // 16. @guest -> {% if email == "" %}
         processed = processed.replace("@guest", "{% if email == \"\" %}");
         // 17. @endguest -> {% endif %}
         processed = processed.replace("@endguest", "{% endif %}");
+
+        // 18. {{ __("key") }} -> {{ __(key="key") }}
+        let re_trans = Regex::new(r#"__\(\s*(['"][^'"]*['"])"#).unwrap();
+        processed = re_trans.replace_all(&processed, "__(key=$1").to_string();
 
         processed
     }
@@ -177,6 +217,7 @@ impl ViewEngine {
         CURRENT_ERRORS.with(|e| *e.borrow_mut() = serde_json::json!({}));
         CURRENT_FLASHES.with(|f| *f.borrow_mut() = serde_json::json!([]));
         CURRENT_OLD.with(|o| *o.borrow_mut() = serde_json::json!({}));
+        CURRENT_LOCALE.with(|l| *l.borrow_mut() = "en".to_string());
         res
     }
 
@@ -185,8 +226,14 @@ impl ViewEngine {
         &self,
         template_name: &str,
         mut context: Context,
-        session: &tower_sessions::Session
+        session: &tower_sessions::Session,
+        locale: Option<String>,
     ) -> String {
+        // 0. Inject Locale
+        let current_locale = locale.unwrap_or_else(|| "en".to_string());
+        context.insert("locale", &current_locale);
+        CURRENT_LOCALE.with(|l| *l.borrow_mut() = current_locale);
+
         // 0. Inject User Info if logged in
         if let Ok(Some(user)) = session.get::<crate::core::auth::AuthUser>("user").await {
             context.insert("email", &user.email);
@@ -202,12 +249,15 @@ impl ViewEngine {
         let flash_manager = crate::core::session::FlashManager::new(session);
         let flashes = flash_manager.consume().await;
         context.insert("flashes", &flashes);
-        
+
         let flashes_val = serde_json::to_value(&flashes).unwrap_or_default();
         CURRENT_FLASHES.with(|f| *f.borrow_mut() = flashes_val);
 
         // 2. Validation Errors (Single use)
-        let errors = session.get::<serde_json::Value>("_errors").await.unwrap_or_default()
+        let errors = session
+            .get::<serde_json::Value>("_errors")
+            .await
+            .unwrap_or_default()
             .unwrap_or_else(|| serde_json::json!({}));
         let mut errors_with_defaults = serde_json::json!({
             "name": ""
@@ -220,14 +270,24 @@ impl ViewEngine {
             }
         }
         context.insert("errors", &errors_with_defaults);
-        
+
         CURRENT_ERRORS.with(|e| *e.borrow_mut() = errors.clone());
-        if !errors.as_object().unwrap_or(&serde_json::Map::new()).is_empty() {
-             session.remove::<serde_json::Value>("_errors").await.unwrap();
+        if !errors
+            .as_object()
+            .unwrap_or(&serde_json::Map::new())
+            .is_empty()
+        {
+            session
+                .remove::<serde_json::Value>("_errors")
+                .await
+                .unwrap();
         }
 
         // 3. Old Input (Single use)
-        let old = session.get::<serde_json::Value>("_old").await.unwrap_or_default()
+        let old = session
+            .get::<serde_json::Value>("_old")
+            .await
+            .unwrap_or_default()
             .unwrap_or_else(|| serde_json::json!({}));
         let mut old_with_defaults = serde_json::json!({
             "name": ""
@@ -240,12 +300,16 @@ impl ViewEngine {
             }
         }
         context.insert("old", &old_with_defaults);
-        
+
         CURRENT_OLD.with(|o| *o.borrow_mut() = old.clone());
-        if !old.as_object().unwrap_or(&serde_json::Map::new()).is_empty() {
-             session.remove::<serde_json::Value>("_old").await.unwrap();
+        if !old
+            .as_object()
+            .unwrap_or(&serde_json::Map::new())
+            .is_empty()
+        {
+            session.remove::<serde_json::Value>("_old").await.unwrap();
         }
-        
+
         self.render(template_name, &context)
     }
 }
@@ -253,12 +317,13 @@ impl ViewEngine {
 /// Custom function untuk mencetak variabel JSON di Tera.
 fn dump_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
     if let Some(val) = args.get("var") {
-        let pretty = serde_json::to_string_pretty(val).unwrap_or_else(|_| "Error serializing".to_string());
+        let pretty =
+            serde_json::to_string_pretty(val).unwrap_or_else(|_| "Error serializing".to_string());
         let html = format!(
             r#"<div style="background: #1e293b; color: #7dd3fc; font-family: 'Fira Code', monospace; padding: 20px; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 4px 6px rgba(0,0,0,0.3); margin: 20px 0; position: relative;">
                 <div style="position: absolute; top: 0; right: 0; background: rgba(56, 189, 248, 0.1); color: #38bdf8; padding: 2px 10px; border-radius: 0 12px 0 12px; font-size: 10px; font-weight: 600; text-transform: uppercase;">Tera Dump</div>
                 <pre style="margin: 0; font-size: 13px; white-space: pre-wrap; word-wrap: break-word;">{}</pre>
-            </div>"#, 
+            </div>"#,
             pretty
         );
         Ok(tera::Value::String(html))
@@ -267,7 +332,9 @@ fn dump_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Resul
     }
 }
 
-fn form_error_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+fn form_error_fn(
+    args: &std::collections::HashMap<String, tera::Value>,
+) -> tera::Result<tera::Value> {
     if let Some(tera::Value::String(field)) = args.get("field") {
         let errors = CURRENT_ERRORS.with(|e| e.borrow().clone());
         if let Some(err_msg) = errors.get(field).and_then(|v| v.as_str()) {
@@ -280,10 +347,12 @@ fn form_error_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera:
     Ok(tera::Value::String("".to_string()))
 }
 
-fn alert_flash_fn(_args: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+fn alert_flash_fn(
+    _args: &std::collections::HashMap<String, tera::Value>,
+) -> tera::Result<tera::Value> {
     let flashes = CURRENT_FLASHES.with(|f| f.borrow().clone());
     let mut html = String::new();
-    
+
     if let Some(arr) = flashes.as_array() {
         for item in arr {
             if let (Some(level), Some(message)) = (
@@ -305,39 +374,49 @@ fn alert_flash_fn(_args: &std::collections::HashMap<String, tera::Value>) -> ter
             }
         }
     }
-    
+
     Ok(tera::Value::String(html))
 }
 
 fn old_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
     let field = args.get("field").and_then(|v| v.as_str()).unwrap_or("");
-    let default = args.get("default").unwrap_or(&tera::Value::String("".to_string())).clone();
-    
+    let default = args
+        .get("default")
+        .unwrap_or(&tera::Value::String("".to_string()))
+        .clone();
+
     let old_data = CURRENT_OLD.with(|o| o.borrow().clone());
     if let Some(val) = old_data.get(field) {
         // Convert serde_json::Value to tera::Value
         return Ok(tera::to_value(val).unwrap_or(default));
     }
-    
+
     Ok(default)
 }
 
-fn error_class_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+fn error_class_fn(
+    args: &std::collections::HashMap<String, tera::Value>,
+) -> tera::Result<tera::Value> {
     let field = args.get("field").and_then(|v| v.as_str()).unwrap_or("");
-    let class = args.get("class").and_then(|v| v.as_str()).unwrap_or("is-invalid");
-    
+    let class = args
+        .get("class")
+        .and_then(|v| v.as_str())
+        .unwrap_or("is-invalid");
+
     let errors = CURRENT_ERRORS.with(|e| e.borrow().clone());
     if errors.get(field).is_some() {
         return Ok(tera::Value::String(class.to_string()));
     }
-    
+
     Ok(tera::Value::String("".to_string()))
 }
 
-fn has_error_fn(args: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+fn has_error_fn(
+    args: &std::collections::HashMap<String, tera::Value>,
+) -> tera::Result<tera::Value> {
     let field = args.get("field").and_then(|v| v.as_str()).unwrap_or("");
     let errors = CURRENT_ERRORS.with(|e| e.borrow().clone());
-    
+
     Ok(tera::Value::Bool(errors.get(field).is_some()))
 }
 
@@ -362,7 +441,7 @@ impl ViewBuilder {
         if !template_name.ends_with(".blade.rs") {
             template_name.push_str(".blade.rs");
         }
-        
+
         Self {
             template: template_name,
             context: Context::new(),
@@ -380,16 +459,26 @@ impl ViewBuilder {
     pub async fn render(mut self, req: &crate::core::request::Request) -> ViewResponse {
         self.context.insert("is_htmx", &req.is_htmx());
         self.context.insert("hx_target", &req.hx_target());
-        
+
         // Auto-inject CSRF Token jika tersedia
         if let Ok(token) = req.token.authenticity_token() {
             self.context.insert("csrf_token", &token);
         }
-        
-        let html = req.state.view.render_with_session(&self.template, self.context, &req.session).await;
-        ViewResponse { 
+
+        // Ambil locale dari request extension (set oleh middleware)
+        let locale = req
+            .extensions
+            .get::<crate::core::i18n::Locale>()
+            .map(|l| l.0.clone());
+
+        let html = req
+            .state
+            .view
+            .render_with_session(&self.template, self.context, &req.session, locale)
+            .await;
+        ViewResponse {
             html,
-            token: Some(req.token.clone())
+            token: Some(req.token.clone()),
         }
     }
 }

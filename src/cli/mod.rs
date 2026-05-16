@@ -1,6 +1,8 @@
+use chrono::Local;
 use std::fs;
 use std::path::Path;
-use chrono::Local;
+
+pub mod tinker;
 
 pub async fn handle_make_controller(name: &str) {
     let file_name = camel_to_snake(name);
@@ -43,8 +45,9 @@ pub async fn handle_make_model(name: &str) {
     }
 
     let stub = include_str!("stubs/model.stub");
-    let content = stub.replace("{{name}}", name)
-                      .replace("{{table_name}}", &format!("{}s", file_name));
+    let content = stub
+        .replace("{{name}}", name)
+        .replace("{{table_name}}", &format!("{}s", file_name));
 
     if let Err(e) = fs::write(path, content) {
         println!("❌ Gagal membuat model: {}", e);
@@ -126,50 +129,272 @@ pub async fn handle_make_request(name: &str) {
     }
 }
 
-pub async fn handle_make_crud(name: &str) {
+pub async fn handle_new(name: &str) {
+    println!("✨ Memulai pembuatan project Lumina baru: {}...", name);
+
+    let path = Path::new(name);
+    if path.exists() {
+        println!("❌ Error: Direktori {} sudah ada!", name);
+        return;
+    }
+
+    println!("🚀 Cloning Lumina Skeleton...");
+    let status = std::process::Command::new("git")
+        .arg("clone")
+        .arg("--depth")
+        .arg("1")
+        .arg("https://github.com/lumina-java/framework.git")
+        .arg(name)
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            println!("✅ Project berhasil di-clone.");
+
+            // Cleanup .git folder to make it a fresh project
+            let git_dir = path.join(".git");
+            if git_dir.exists() {
+                let _ = fs::remove_dir_all(git_dir);
+            }
+
+            // Setup .env
+            let env_example = path.join(".env.example");
+            let env_file = path.join(".env");
+            if env_example.exists() && !env_file.exists() {
+                let _ = fs::copy(env_example, env_file);
+                println!("✅ Setup .env selesai.");
+            }
+
+            // Initialize fresh git repository
+            let _ = std::process::Command::new("git")
+                .arg("init")
+                .current_dir(path)
+                .status();
+            println!("✅ Initialize fresh git repository.");
+
+            println!("\n🎉 Project {} siap digunakan!", name);
+            println!("👉 Jalankan perintah berikut:");
+            println!("   cd {}", name);
+            println!("   cargo run --bin lumina-server\n");
+        }
+        _ => {
+            println!("❌ Gagal melakukan cloning. Pastikan 'git' sudah terinstall.");
+        }
+    }
+}
+
+pub async fn handle_make_service(name: &str) {
+    let file_name = camel_to_snake(name);
+    let path_str = format!("src/app/services/{}.rs", file_name);
+    let path = Path::new(&path_str);
+
+    if path.exists() {
+        println!("❌ Service {} sudah ada!", path_str);
+        return;
+    }
+
+    // Ekstrak nama model dari nama service (misal: UserService -> User)
+    let model_camel = name.replace("Service", "");
+    let model_snake = camel_to_snake(&model_camel);
+    let table_name = format!("{}s", model_snake);
+
+    let stub = include_str!("stubs/service.stub");
+    let content = stub
+        .replace("{{name}}", &model_camel)
+        .replace("{{snake_name}}", &model_snake)
+        .replace("{{table_name}}", &table_name);
+
+    if let Err(e) = fs::write(path, content) {
+        println!("❌ Gagal membuat service: {}", e);
+    } else {
+        println!("✅ Service berhasil dibuat: {}", path_str);
+        let mod_file = "src/app/services/mod.rs";
+        if let Ok(content) = fs::read_to_string(mod_file) {
+            let mod_line = format!("pub mod {};", file_name);
+            if !content.contains(&mod_line) {
+                let mut f = fs::OpenOptions::new().append(true).open(mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod {};", file_name);
+                println!("✅ Service auto-registered in services/mod.rs");
+            }
+        }
+    }
+}
+
+pub async fn handle_make_crud(name: &str, field_args: Vec<String>) {
     let snake_name = camel_to_snake(name);
     let table_name = format!("{}s", snake_name);
 
+    // Parse fields
+    let fields = parse_fields(field_args);
+
     // 1. Generate Model
-    handle_make_model(name).await;
+    handle_make_model_with_fields(name, &fields).await;
 
     // 2. Generate Migration
     let migration_name = format!("create_{}_table", table_name);
-    handle_make_migration(&migration_name).await;
+    handle_make_migration_with_fields(&migration_name, &table_name, &fields).await;
 
-    // 3. Generate Controller (using specialized CRUD stub)
+    // 3. Generate Service
+    let service_name = format!("{}Service", name);
+    handle_make_service_with_fields(&service_name, &fields).await;
+
+    // 4. Generate Request
+    let request_name = format!("{}Request", name);
+    let req_file_name = camel_to_snake(&request_name);
+    let req_path_str = format!("src/app/requests/{}.rs", req_file_name);
+    let req_path = Path::new(&req_path_str);
+    if !req_path.exists() {
+        let stub = include_str!("stubs/crud_request.stub");
+
+        let mut field_code = String::new();
+        for field in &fields {
+            let rules = if field.rules.is_empty() {
+                ""
+            } else {
+                &format!("#[rule(\"{}\")]\n    ", field.rules)
+            };
+            field_code.push_str(&format!(
+                "{}pub {}: {},\n    ",
+                rules,
+                field.name,
+                field.rust_type()
+            ));
+        }
+
+        let content = stub
+            .replace("{{name}}", name)
+            .replace("{{fields}}", &field_code);
+        let _ = fs::write(req_path, content);
+        println!("✅ CRUD Request berhasil dibuat: {}", req_path_str);
+
+        let mod_file = "src/app/requests/mod.rs";
+        if let Ok(content) = fs::read_to_string(mod_file) {
+            let mod_line = format!("pub mod {};", req_file_name);
+            if !content.contains(&mod_line) {
+                let mut f = fs::OpenOptions::new().append(true).open(mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod {};", req_file_name);
+            }
+        }
+    }
+
+    // 5. Generate Controller (using specialized CRUD stub)
     let controller_path_str = format!("src/app/controllers/{}_controller.rs", snake_name);
     let controller_path = Path::new(&controller_path_str);
     if !controller_path.exists() {
         let stub = include_str!("stubs/crud_controller.stub");
-        let content = stub.replace("{{name}}", name)
-                          .replace("{{snake_name}}", &snake_name)
-                          .replace("{{table_name}}", &table_name);
+
+        let mut store_logic = String::new();
+        let mut update_logic = String::new();
+        let mut input_map = String::new();
+
+        for field in &fields {
+            store_logic.push_str(&format!(
+                "item.{} = form.{}.clone();\n        ",
+                field.name, field.name
+            ));
+            update_logic.push_str(&format!(
+                "item.{} = form.{}.clone();\n        ",
+                field.name, field.name
+            ));
+            input_map.push_str(&format!("\"{}\": form.{}, ", field.name, field.name));
+        }
+
+        let content = stub
+            .replace("{{name}}", name)
+            .replace("{{snake_name}}", &snake_name)
+            .replace("{{table_name}}", &table_name)
+            .replace("{{store_logic}}", &store_logic)
+            .replace("{{update_logic}}", &update_logic)
+            .replace("{{input_map}}", &input_map);
+
         let _ = fs::write(controller_path, content);
-        println!("✅ CRUD Controller berhasil dibuat: {}", controller_path_str);
+        println!(
+            "✅ CRUD Controller berhasil dibuat: {}",
+            controller_path_str
+        );
     }
 
-    // 4. Generate Views
+    // 6. Generate Views
     let view_dir = format!("resources/views/{}", snake_name);
     let _ = fs::create_dir_all(&view_dir);
 
+    // Index View
+    let mut th_cols = String::new();
+    let mut td_cols = String::new();
+    for field in &fields {
+        th_cols.push_str(&format!(
+            "<th class=\"px-6 py-4\">{}</th>\n                    ",
+            field.name.to_uppercase()
+        ));
+        td_cols.push_str(&format!(
+            "<td class=\"px-6 py-4\">{{{{ item.{} }}}}</td>\n                    ",
+            field.name
+        ));
+    }
+
+    // Create/Edit Form Fields
+    let mut form_fields = String::new();
+    for field in &fields {
+        let input_type = match field.field_type.as_str() {
+            "integer" => "number",
+            "boolean" => "checkbox",
+            _ => "text",
+        };
+
+        if field.field_type == "text" {
+            form_fields.push_str(&format!(
+                "<div>\n\
+                 \x20   <label class=\"block text-sm font-medium text-slate-700 mb-1\">{}</label>\n\
+                 \x20   <textarea name=\"{}\" class=\"w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all\" rows=\"4\">{{{{ item.{} | default(\"\") }}}}</textarea>\n\
+                 </div>\n",
+                field.name.to_uppercase(), field.name, field.name
+            ));
+        } else {
+            form_fields.push_str(&format!(
+                "<div>\n\
+                 \x20   <label class=\"block text-sm font-medium text-slate-700 mb-1\">{}</label>\n\
+                 \x20   <input type=\"{}\" name=\"{}\" value=\"{{{{ item.{} | default(\"\") }}}}\" class=\"w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all\">\n\
+                 </div>\n",
+                field.name.to_uppercase(), input_type, field.name, field.name
+            ));
+        }
+    }
+
     let view_stubs = [
-        ("index.blade.rs", include_str!("stubs/view_index.stub")),
-        ("create.blade.rs", include_str!("stubs/view_create.stub")),
-        ("edit.blade.rs", include_str!("stubs/view_edit.stub")),
+        (
+            "index.blade.rs",
+            include_str!("stubs/view_index.stub"),
+            vec![("{{th_cols}}", th_cols), ("{{td_cols}}", td_cols)],
+        ),
+        (
+            "create.blade.rs",
+            include_str!("stubs/view_create.stub"),
+            vec![("{{form_fields}}", form_fields.clone())],
+        ),
+        (
+            "edit.blade.rs",
+            include_str!("stubs/view_edit.stub"),
+            vec![("{{form_fields}}", form_fields)],
+        ),
     ];
 
-    for (file, stub) in view_stubs {
+    for (file, stub, replacements) in view_stubs {
         let view_path = format!("{}/{}", view_dir, file);
         if !Path::new(&view_path).exists() {
-            let content = stub.replace("{{ name }}", name)
-                              .replace("{{ snake_name }}", &snake_name);
+            let mut content = stub
+                .replace("{{ name }}", name)
+                .replace("{{ snake_name }}", &snake_name);
+            for (from, to) in replacements {
+                content = content.replace(from, &to);
+            }
             let _ = fs::write(&view_path, content);
             println!("✅ View berhasil dibuat: {}", view_path);
         }
     }
 
-    // 5. Auto Registration: Model
+    // 7. Auto Registration: Model, Controller, Routes, etc.
     let mod_file = "src/app/models/mod.rs";
     if let Ok(content) = fs::read_to_string(mod_file) {
         let mod_line = format!("pub mod {};", snake_name);
@@ -181,26 +406,30 @@ pub async fn handle_make_crud(name: &str) {
         }
     }
 
-    // 6. Auto Registration: Controller
     let ctrl_mod_file = "src/app/controllers/mod.rs";
     if let Ok(content) = fs::read_to_string(ctrl_mod_file) {
         let mod_line = format!("pub mod {}_controller;", snake_name);
         if !content.contains(&mod_line) {
-            let mut f = fs::OpenOptions::new().append(true).open(ctrl_mod_file).unwrap();
+            let mut f = fs::OpenOptions::new()
+                .append(true)
+                .open(ctrl_mod_file)
+                .unwrap();
             use std::io::Write;
             let _ = writeln!(f, "pub mod {}_controller;", snake_name);
             println!("✅ Controller registered in controllers/mod.rs");
         }
     }
 
-    // 7. Auto Registration: Web Routes
     let web_routes_file = "routes/web.rs";
     if let Ok(mut content) = fs::read_to_string(web_routes_file) {
-        let import_line = format!("use crate::app::controllers::{}_controller::{}Controller;\n", snake_name, name);
+        let import_line = format!(
+            "use crate::app::controllers::{}_controller::{}Controller;\n",
+            snake_name, name
+        );
         if !content.contains(&import_line) {
             content.insert_str(0, &import_line);
         }
-        
+
         let routes = format!(
             "        // {} CRUD Routes\n\
              \x20       .get(\"/{books}\", {name}Controller::index)\n\
@@ -226,7 +455,7 @@ pub async fn handle_make_crud(name: &str) {
         println!("✅ Registered routes in routes/web.rs");
     }
 
-    // 8. Auto Registration: Sidebar / Menu in layout.html
+    // Menu registration ...
     let layout_file = "resources/views/layout.blade.rs";
     if let Ok(mut content) = fs::read_to_string(layout_file) {
         let menu_item = format!(
@@ -234,7 +463,9 @@ pub async fn handle_make_crud(name: &str) {
             table_name, name
         );
         if !content.contains(&format!("href=\"/{}\"", table_name)) {
-            if let Some(pos) = content.find("<li class=\"nav-item\"><a class=\"nav-link\" href=\"/about\">About</a></li>") {
+            if let Some(pos) = content
+                .find("<li class=\"nav-item\"><a class=\"nav-link\" href=\"/about\">About</a></li>")
+            {
                 content.insert_str(pos + "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/about\">About</a></li>\n".len(), &menu_item);
             }
             let _ = fs::write(layout_file, content);
@@ -242,7 +473,7 @@ pub async fn handle_make_crud(name: &str) {
         }
     }
 
-    // 9. Auto Registration: Sidebar in dashboard.html
+    // Auto Registration: Sidebar in dashboard.html
     let dashboard_file = "resources/views/dashboard.blade.rs";
     if let Ok(mut content) = fs::read_to_string(dashboard_file) {
         let sidebar_item = format!(
@@ -262,7 +493,7 @@ pub async fn handle_make_crud(name: &str) {
         }
     }
 
-    // 10. Auto Registration: Sidebar in dashboard/index.html
+    // Auto Registration: Sidebar in dashboard/index.html
     let dashboard_idx_file = "resources/views/dashboard/index.blade.rs";
     if let Ok(mut content) = fs::read_to_string(dashboard_idx_file) {
         let sidebar_item = format!(
@@ -306,7 +537,10 @@ pub async fn handle_make_auth() {
 
     let view_stubs = [
         ("login.blade.rs", include_str!("stubs/view_login.stub")),
-        ("register.blade.rs", include_str!("stubs/view_register.stub")),
+        (
+            "register.blade.rs",
+            include_str!("stubs/view_register.stub"),
+        ),
     ];
 
     for (file, stub) in view_stubs {
@@ -328,12 +562,10 @@ pub async fn handle_migrate() {
     let db_url = config.get_db_url();
     println!("🔄 Menjalankan migrasi database...");
     match crate::database::connection::DatabasePool::connect(&db_url).await {
-        Ok(pool) => {
-            match crate::database::migration::run_migrations(&pool.pool, pool.kind).await {
-                Ok(_) => println!("✅ Semua migrasi berhasil dijalankan."),
-                Err(e) => println!("❌ Gagal menjalankan migrasi: {}", e),
-            }
-        }
+        Ok(pool) => match crate::database::migration::run_migrations(&pool.pool, pool.kind).await {
+            Ok(_) => println!("✅ Semua migrasi berhasil dijalankan."),
+            Err(e) => println!("❌ Gagal menjalankan migrasi: {}", e),
+        },
         Err(e) => println!("❌ Gagal connect ke database: {}", e),
     }
 }
@@ -385,16 +617,214 @@ pub async fn handle_make_seeder(name: &str) {
     }
 }
 
+pub async fn handle_make_factory(name: &str) {
+    let file_name = camel_to_snake(name);
+    let path_str = format!("database/factories/{}.rs", file_name);
+    let path = Path::new(&path_str);
+
+    if path.exists() {
+        println!("❌ Factory {} sudah ada!", path_str);
+        return;
+    }
+
+    // Ekstrak nama model dari nama factory (misal: UserFactory -> User)
+    let model_camel = name.replace("Factory", "");
+    let model_snake = camel_to_snake(&model_camel);
+
+    let stub = include_str!("stubs/factory.stub");
+    let content = stub
+        .replace("{{name}}", name)
+        .replace("{{model_camel}}", &model_camel)
+        .replace("{{model_snake}}", &model_snake);
+
+    if let Err(e) = fs::write(path, content) {
+        println!("❌ Gagal membuat factory: {}", e);
+    } else {
+        println!("✅ Factory berhasil dibuat: {}", path_str);
+        println!("📌 Jangan lupa daftarkan di database/factories/mod.rs");
+    }
+}
+
 pub async fn handle_db_seed() {
     let config = crate::core::config::ConfigManager::new();
     let db_url = config.get_db_url();
     match crate::database::connection::DatabasePool::connect(&db_url).await {
+        Ok(_) => {
+            println!("🌱 Please run seeding from your application main entry.");
+        }
+        Err(e) => println!("❌ Gagal connect ke database: {}", e),
+    }
+}
+
+pub async fn handle_tinker() {
+    let config = crate::core::config::ConfigManager::new();
+    let db_url = config.get_db_url();
+    match crate::database::connection::DatabasePool::connect(&db_url).await {
         Ok(pool) => {
-            if let Err(e) = crate::seeders::run(&pool).await {
-                println!("❌ Gagal menjalankan seeder: {}", e);
+            if let Err(e) = tinker::run(&pool).await {
+                println!("❌ Tinker error: {}", e);
             }
         }
         Err(e) => println!("❌ Gagal connect ke database: {}", e),
+    }
+}
+
+pub async fn handle_make_docker() {
+    let dockerfile_path = "Dockerfile";
+    let docker_compose_path = "docker-compose.yml";
+
+    let dockerfile_content = include_str!("stubs/dockerfile.stub");
+    let docker_compose_content = include_str!("stubs/docker-compose.stub");
+
+    let _ = fs::write(dockerfile_path, dockerfile_content);
+    let _ = fs::write(docker_compose_path, docker_compose_content);
+
+    println!("✅ Dockerfile & docker-compose.yml berhasil dibuat.");
+    handle_make_deployment_guide().await;
+}
+
+pub async fn handle_make_nginx() {
+    let nginx_dir = "nginx";
+    let _ = fs::create_dir_all(nginx_dir);
+    let nginx_conf_path = format!("{}/nginx.conf", nginx_dir);
+
+    let content = include_str!("stubs/nginx.stub");
+    let _ = fs::write(&nginx_conf_path, content);
+
+    println!(
+        "✅ Konfigurasi Nginx berhasil dibuat di: {}",
+        nginx_conf_path
+    );
+    handle_make_deployment_guide().await;
+}
+
+pub async fn handle_make_supervisor() {
+    let supervisor_dir = "supervisor";
+    let _ = fs::create_dir_all(supervisor_dir);
+    let supervisor_conf_path = format!("{}/lumina.conf", supervisor_dir);
+
+    let content = include_str!("stubs/supervisor.stub");
+    let _ = fs::write(&supervisor_conf_path, content);
+
+    println!(
+        "✅ Konfigurasi Supervisor berhasil dibuat di: {}",
+        supervisor_conf_path
+    );
+    handle_make_deployment_guide().await;
+}
+
+async fn handle_make_deployment_guide() {
+    let guide_path = "docs/DEPLOYMENT.md";
+    let _ = fs::create_dir_all("docs");
+
+    let content = r#"# 🚀 Lumina Framework Deployment Guide
+
+Panduan ini menjelaskan langkah-langkah untuk mendeploy aplikasi Lumina Framework ke lingkungan produksi dengan standar industri.
+
+---
+
+## 1. 🐳 Deployment dengan Docker (Direkomendasikan)
+
+Lumina dilengkapi dengan konfigurasi Docker yang siap pakai (production-ready).
+
+### Persiapan
+1. Pastikan Docker dan Docker Compose terinstall di server.
+2. Jalankan perintah scaffolding docker:
+   ```bash
+   ./lumina make:docker
+   ```
+
+### Menjalankan Aplikasi
+Cukup jalankan satu perintah:
+```bash
+docker-compose up -d --build
+```
+Aplikasi akan berjalan di port `8000`, Nginx di port `80/443`, PostgreSQL di port `5432`, dan Redis di port `6379`.
+
+---
+
+## 2. 🛠️ Deployment Manual (Ubuntu/Debian)
+
+Jika Anda ingin mengontrol setiap komponen secara manual di VPS.
+
+### A. Install Dependencies
+```bash
+sudo apt update && sudo apt install -y pkg-config libssl-dev build-essential postgresql redis-server nginx supervisor
+```
+
+### B. Build Aplikasi
+1. Clone repository ke server.
+2. Build binary release:
+   ```bash
+   cargo build --release
+   ```
+3. Binary akan berada di `target/release/lumina-server`.
+
+### C. Konfigurasi Database & Environment
+1. Salin `.env.example` menjadi `.env`.
+2. Update `DATABASE_URL` dan `APP_ENV=production`.
+3. Jalankan migrasi:
+   ```bash
+   ./target/release/lumina migrate
+   ```
+
+---
+
+## 3. 🛡️ Konfigurasi Nginx (Reverse Proxy)
+
+Gunakan Nginx untuk menangani traffic HTTP/HTTPS dan static files.
+
+1. Jalankan `./lumina make:nginx`.
+2. Salin isi `nginx/nginx.conf` ke `/etc/nginx/sites-available/lumina`.
+3. Aktifkan site dan restart Nginx:
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/lumina /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl restart nginx
+   ```
+
+---
+
+## 4. 🔄 Process Management (Supervisor)
+
+Gunakan Supervisor untuk memastikan aplikasi tetap berjalan (auto-restart) jika terjadi crash.
+
+1. Jalankan `./lumina make:supervisor`.
+2. Salin konfigurasi ke folder Supervisor:
+   ```bash
+   sudo cp supervisor/lumina.conf /etc/supervisor/conf.d/
+   sudo supervisorctl reread
+   sudo supervisorctl update
+   sudo supervisorctl start all
+   ```
+
+---
+
+## 5. 📝 Production Checklist
+
+- [ ] **Security**: Ganti `APP_KEY` dan pastikan password database kuat.
+- [ ] **SSL**: Gunakan Certbot untuk mendapatkan sertifikat SSL gratis.
+- [ ] **Logging**: Cek log di `storage/logs/` secara berkala.
+- [ ] **Backups**: Jalankan `./lumina backup:run` secara terjadwal menggunakan Cron.
+
+---
+
+Lumina Framework - *Advanced Agentic Coding*
+"#;
+
+    let _ = fs::write(guide_path, content);
+}
+
+pub async fn handle_backup() {
+    println!("🔄 Memulai proses backup...");
+    let config = crate::core::config::ConfigManager::new();
+    let db_url = config.get_db_url();
+    let db_conn = std::env::var("DB_CONNECTION").unwrap_or_else(|_| "sqlite".to_string());
+
+    let manager = crate::core::backup::BackupManager::new();
+    match manager.run_full_backup(&db_conn, &db_url).await {
+        Ok(path) => println!("✅ Backup berhasil dibuat: {}", path),
+        Err(e) => println!("❌ Backup gagal: {}", e),
     }
 }
 
@@ -407,4 +837,173 @@ fn camel_to_snake(s: &str) -> String {
         snake.push(c.to_lowercase().next().unwrap());
     }
     snake
+}
+
+struct Field {
+    name: String,
+    field_type: String,
+    rules: String,
+}
+
+impl Field {
+    fn rust_type(&self) -> &str {
+        match self.field_type.as_str() {
+            "integer" => "i64",
+            "boolean" => "bool",
+            "date" => "chrono::NaiveDate",
+            _ => "String",
+        }
+    }
+
+    fn sql_type(&self) -> &str {
+        match self.field_type.as_str() {
+            "integer" => "INTEGER",
+            "boolean" => "BOOLEAN",
+            "date" => "DATE",
+            "text" => "TEXT",
+            _ => "VARCHAR(255)",
+        }
+    }
+}
+
+fn parse_fields(args: Vec<String>) -> Vec<Field> {
+    let mut fields = Vec::new();
+    for arg in args {
+        let parts: Vec<&str> = arg.split(':').collect();
+        if parts.len() >= 2 {
+            fields.push(Field {
+                name: parts[0].to_string(),
+                field_type: parts[1].to_string(),
+                rules: if parts.len() >= 3 {
+                    parts[2..].join("|")
+                } else {
+                    String::new()
+                },
+            });
+        }
+    }
+
+    // Add default name if no fields provided
+    if fields.is_empty() {
+        fields.push(Field {
+            name: "name".to_string(),
+            field_type: "string".to_string(),
+            rules: "required|min:3".to_string(),
+        });
+    }
+
+    fields
+}
+
+async fn handle_make_model_with_fields(name: &str, fields: &[Field]) {
+    let file_name = camel_to_snake(name);
+    let path_str = format!("src/app/models/{}.rs", file_name);
+    let path = Path::new(&path_str);
+
+    if path.exists() {
+        println!("❌ Model {} sudah ada!", path_str);
+        return;
+    }
+
+    let stub = include_str!("stubs/model.stub");
+
+    let mut field_code = String::new();
+    let mut sql_fields = String::new();
+    let mut sql_placeholders = String::new();
+    let mut sql_update = String::new();
+    let mut bind_fields = String::new();
+
+    for field in fields {
+        field_code.push_str(&format!("pub {}: {},\n    ", field.name, field.rust_type()));
+        sql_fields.push_str(&format!("{}, ", field.name));
+        sql_placeholders.push_str("?, ");
+        sql_update.push_str(&format!("{} = ?, ", field.name));
+        bind_fields.push_str(&format!(".bind(&self.{})", field.name));
+    }
+
+    let content = stub
+        .replace("{{name}}", name)
+        .replace("{{table_name}}", &format!("{}s", file_name))
+        .replace("{{fields}}", &field_code)
+        .replace("{{sql_fields}}", sql_fields.trim_end_matches(", "))
+        .replace(
+            "{{sql_placeholders}}",
+            sql_placeholders.trim_end_matches(", "),
+        )
+        .replace("{{sql_update}}", sql_update.trim_end_matches(", "))
+        .replace("{{bind_fields}}", &bind_fields);
+
+    if let Err(e) = fs::write(path, content) {
+        println!("❌ Gagal membuat model: {}", e);
+    } else {
+        println!("✅ Model berhasil dibuat: {}", path_str);
+        let mod_file = "src/app/models/mod.rs";
+        if let Ok(content) = fs::read_to_string(mod_file) {
+            let mod_line = format!("pub mod {};", file_name);
+            if !content.contains(&mod_line) {
+                let mut f = fs::OpenOptions::new().append(true).open(mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod {};", file_name);
+            }
+        }
+    }
+}
+
+async fn handle_make_migration_with_fields(name: &str, table_name: &str, fields: &[Field]) {
+    let timestamp = Local::now().format("%Y%m%d%H%M%S");
+    let path_str = format!("database/migrations/{}_{}.sql", timestamp, name);
+    let path = Path::new(&path_str);
+
+    let mut sql = format!(
+        "CREATE TABLE {} (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n",
+        table_name
+    );
+    for field in fields {
+        sql.push_str(&format!("    {} {},\n", field.name, field.sql_type()));
+    }
+    sql.push_str("    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n");
+    sql.push_str("    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n);");
+
+    if let Err(e) = fs::write(path, sql) {
+        println!("❌ Gagal membuat migration: {}", e);
+    } else {
+        println!("✅ Migration berhasil dibuat: {}", path_str);
+    }
+}
+
+async fn handle_make_service_with_fields(name: &str, _fields: &[Field]) {
+    let file_name = camel_to_snake(name);
+    let path_str = format!("src/app/services/{}.rs", file_name);
+    let path = Path::new(&path_str);
+
+    if path.exists() {
+        println!("❌ Service {} sudah ada!", path_str);
+        return;
+    }
+
+    let model_camel = name.replace("Service", "");
+    let model_snake = camel_to_snake(&model_camel);
+    let table_name = format!("{}s", model_snake);
+
+    let stub = include_str!("stubs/service.stub");
+
+    let content = stub
+        .replace("{{name}}", &model_camel)
+        .replace("{{snake_name}}", &model_snake)
+        .replace("{{table_name}}", &table_name);
+
+    if let Err(e) = fs::write(path, content) {
+        println!("❌ Gagal membuat service: {}", e);
+    } else {
+        println!("✅ Service berhasil dibuat: {}", path_str);
+        let mod_file = "src/app/services/mod.rs";
+        if let Ok(content) = fs::read_to_string(mod_file) {
+            let mod_line = format!("pub mod {};", file_name);
+            if !content.contains(&mod_line) {
+                let mut f = fs::OpenOptions::new().append(true).open(mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod {};", file_name);
+            }
+        }
+    }
 }

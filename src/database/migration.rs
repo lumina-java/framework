@@ -1,7 +1,7 @@
-use sqlx::{Pool, Any};
 use crate::database::connection::DatabaseKind;
-use std::{fs, path::Path};
 use regex::Regex;
+use sqlx::{Any, Pool};
+use std::{fs, path::Path};
 
 /// Jalankan semua file migrasi dari direktori `database/migrations/`
 /// secara berurutan. Mendukung multi-database (SQLite, MySQL, Postgres).
@@ -31,9 +31,7 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
         }
     };
 
-    sqlx::query(create_table_sql)
-        .execute(pool)
-        .await?;
+    sqlx::query(create_table_sql).execute(pool).await?;
 
     let migration_dir = Path::new("database/migrations");
     if !migration_dir.exists() {
@@ -66,15 +64,19 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
             continue;
         }
 
-        let mut sql = fs::read_to_string(entry.path())
-            .expect(&format!("Gagal baca file: {}", name));
+        let mut sql =
+            fs::read_to_string(entry.path()).expect(&format!("Gagal baca file: {}", name));
 
         // Auto-fix syntax untuk multi-database compatibility
         match kind {
             DatabaseKind::MySql => {
-                sql = re_autoinc.replace_all(&sql, "INT AUTO_INCREMENT PRIMARY KEY").to_string();
-                sql = re_datetime.replace_all(&sql, "DATETIME DEFAULT CURRENT_TIMESTAMP").to_string();
-                
+                sql = re_autoinc
+                    .replace_all(&sql, "INT AUTO_INCREMENT PRIMARY KEY")
+                    .to_string();
+                sql = re_datetime
+                    .replace_all(&sql, "DATETIME DEFAULT CURRENT_TIMESTAMP")
+                    .to_string();
+
                 // Fix MySQL TEXT default value limitation
                 // Jika ada TEXT yang punya DEFAULT, ubah ke VARCHAR(255)
                 if sql.contains("DEFAULT") {
@@ -84,15 +86,19 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
 
                 // Hapus IF NOT EXISTS dari CREATE INDEX (tidak didukung MySQL)
                 sql = sql.replace("CREATE INDEX IF NOT EXISTS", "CREATE INDEX");
-                
+
                 // Konversi UNIQUE TEXT ke VARCHAR
                 if sql.contains("UNIQUE") {
                     sql = sql.replace("TEXT NOT NULL", "VARCHAR(255) NOT NULL");
                 }
             }
             DatabaseKind::Postgres => {
-                sql = re_autoinc.replace_all(&sql, "SERIAL PRIMARY KEY").to_string();
-                sql = re_datetime.replace_all(&sql, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP").to_string();
+                sql = re_autoinc
+                    .replace_all(&sql, "SERIAL PRIMARY KEY")
+                    .to_string();
+                sql = re_datetime
+                    .replace_all(&sql, "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+                    .to_string();
                 if sql.contains("UNIQUE") {
                     sql = sql.replace("TEXT NOT NULL", "VARCHAR(255) NOT NULL");
                 }
@@ -107,7 +113,8 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
             .filter(|s| {
                 // Cek apakah ada SQL nyata (bukan hanya baris komentar/kosong)
                 // Jangan drop seluruh statement hanya karena dimulai dengan '--'
-                let non_comment = s.lines()
+                let non_comment = s
+                    .lines()
                     .filter(|l| !l.trim().starts_with("--"))
                     .collect::<Vec<_>>()
                     .join(" ");
@@ -120,10 +127,14 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
             if let Err(e) = sqlx::query(stmt).execute(pool).await {
                 let err_str = e.to_string();
                 // Abaikan error duplikat index / tabel sudah ada
-                if err_str.contains("Duplicate key name") ||
-                   err_str.contains("already exists") ||
-                   err_str.contains("duplicate") {
-                    println!("  ⚠️  Skip (sudah ada): {}", &err_str[..err_str.len().min(80)]);
+                if err_str.contains("Duplicate key name")
+                    || err_str.contains("already exists")
+                    || err_str.contains("duplicate")
+                {
+                    println!(
+                        "  ⚠️  Skip (sudah ada): {}",
+                        &err_str[..err_str.len().min(80)]
+                    );
                 } else {
                     eprintln!("  ❌ Migration error [{}]: {}", name, e);
                     failed = true;
@@ -148,9 +159,11 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
 }
 
 pub async fn migrate_status(pool: &Pool<Any>) -> Result<(), sqlx::Error> {
-    let applied_migrations: Vec<String> = match sqlx::query_scalar::<_, String>("SELECT name FROM _migrations ORDER BY id ASC")
-        .fetch_all(pool)
-        .await {
+    let applied_migrations: Vec<String> =
+        match sqlx::query_scalar::<_, String>("SELECT name FROM _migrations ORDER BY id ASC")
+            .fetch_all(pool)
+            .await
+        {
             Ok(v) => v,
             Err(_) => {
                 println!("⚠️  Tabel _migrations tidak ditemukan atau belum diinisialisasi.");
@@ -192,15 +205,18 @@ pub async fn migrate_status(pool: &Pool<Any>) -> Result<(), sqlx::Error> {
 }
 
 pub async fn migrate_rollback(pool: &Pool<Any>) -> Result<(), sqlx::Error> {
-    let last_migration: Option<String> = match sqlx::query_scalar::<_, String>("SELECT name FROM _migrations ORDER BY id DESC LIMIT 1")
-        .fetch_optional(pool)
-        .await {
-            Ok(v) => v,
-            Err(_) => {
-                println!("⚠️  Tabel _migrations tidak ditemukan.");
-                return Ok(());
-            }
-        };
+    let last_migration: Option<String> = match sqlx::query_scalar::<_, String>(
+        "SELECT name FROM _migrations ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(v) => v,
+        Err(_) => {
+            println!("⚠️  Tabel _migrations tidak ditemukan.");
+            return Ok(());
+        }
+    };
 
     let name = match last_migration {
         Some(n) => n,
@@ -216,13 +232,17 @@ pub async fn migrate_rollback(pool: &Pool<Any>) -> Result<(), sqlx::Error> {
     let file_path = migration_dir.join(&name);
 
     if !file_path.exists() {
-        println!("❌ File migrasi {} tidak ditemukan di folder migrations.", name);
+        println!(
+            "❌ File migrasi {} tidak ditemukan di folder migrations.",
+            name
+        );
         return Ok(());
     }
 
     let sql = fs::read_to_string(file_path).expect("Gagal baca file migrasi");
 
-    let re_create = Regex::new(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)").unwrap();
+    let re_create =
+        Regex::new(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)").unwrap();
     if let Some(caps) = re_create.captures(&sql) {
         let table_name = &caps[1];
         let drop_sql = format!("DROP TABLE IF EXISTS {}", table_name);

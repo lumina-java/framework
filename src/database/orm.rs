@@ -1,6 +1,6 @@
-use sqlx::{Arguments, any::AnyArguments, FromRow};
-use std::marker::PhantomData;
 use crate::database::connection::DatabasePool;
+use sqlx::{any::AnyArguments, Arguments, FromRow};
+use std::marker::PhantomData;
 
 /// QueryBuilder — Fluent API untuk membangun SQL query secara dinamis.
 pub struct QueryBuilder<'a, T> {
@@ -62,7 +62,8 @@ where
         V: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
     {
         let prefix = if self.wheres.is_empty() { "" } else { "AND " };
-        self.wheres.push(format!("{}{} {} ?", prefix, column, operator));
+        self.wheres
+            .push(format!("{}{} {} ?", prefix, column, operator));
         let _ = self.args.add(value);
         self
     }
@@ -101,7 +102,8 @@ where
     /// Shortcut WHERE column IS NOT NULL
     pub fn where_not_null(mut self, column: &str) -> Self {
         let prefix = if self.wheres.is_empty() { "" } else { "AND " };
-        self.wheres.push(format!("{}{} IS NOT NULL", prefix, column));
+        self.wheres
+            .push(format!("{}{} IS NOT NULL", prefix, column));
         self
     }
 
@@ -111,7 +113,8 @@ where
         V: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
     {
         let prefix = if self.wheres.is_empty() { "" } else { "OR " };
-        self.wheres.push(format!("{}{} {} ?", prefix, column, operator));
+        self.wheres
+            .push(format!("{}{} {} ?", prefix, column, operator));
         let _ = self.args.add(value);
         self
     }
@@ -127,8 +130,9 @@ where
 
         let placeholders = vec!["?"; values.len()].join(", ");
         let prefix = if self.wheres.is_empty() { "" } else { "AND " };
-        self.wheres.push(format!("{}{} IN ({})", prefix, column, placeholders));
-        
+        self.wheres
+            .push(format!("{}{} IN ({})", prefix, column, placeholders));
+
         for val in values {
             let _ = self.args.add(val);
         }
@@ -163,8 +167,9 @@ where
     }
 
     /// Ambil semua record yang cocok.
-    pub async fn get(self) -> Result<Vec<T>, sqlx::Error> 
-    where T: crate::database::model::Model
+    pub async fn get(self) -> Result<Vec<T>, sqlx::Error>
+    where
+        T: crate::database::model::Model,
     {
         let sql = self.build_sql();
         let mut items = sqlx::query_as_with::<sqlx::Any, T, _>(&sql, self.args)

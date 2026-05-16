@@ -1,4 +1,4 @@
-use axum::{Router, serve};
+use axum::{serve, Router};
 use tokio::net::TcpListener;
 
 pub struct Server {
@@ -17,8 +17,6 @@ impl Server {
 
         println!("🔥 HTTP Server running on http://{}", self.addr);
 
-        serve(listener, router)
-            .await
-            .expect("❌ Server error");
+        serve(listener, router).await.expect("❌ Server error");
     }
 }

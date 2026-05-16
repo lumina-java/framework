@@ -1,7 +1,7 @@
 use moka::future::Cache;
-use std::time::Duration;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 use serde_json;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct CacheManager {
@@ -14,18 +14,16 @@ impl CacheManager {
         let inner = Cache::builder()
             .max_capacity(10_000) // Batas maksimal 10.000 entry
             .build();
-        
+
         Self { inner }
     }
 
     /// Menyimpan data ke cache dengan TTL (Time To Live).
     pub async fn put<T: Serialize>(&self, key: &str, value: T, ttl_seconds: u64) {
         if let Ok(serialized) = serde_json::to_string(&value) {
-            self.inner
-                .insert(key.to_string(), serialized)
-                .await;
-            
-            // Note: moka handles expiry via policy, but for simple MVP 
+            self.inner.insert(key.to_string(), serialized).await;
+
+            // Note: moka handles expiry via policy, but for simple MVP
             // we could use different cache instances or per-entry expiry if supported.
             // In moka v0.12+, we use entry-based expiry via policy or builder.
             // However, to keep it simple and Laravel-like:
@@ -54,8 +52,8 @@ impl CacheManager {
     }
 
     /// Mengambil data dari cache, atau eksekusi closure dan simpan jika tidak ada.
-    pub async fn remember<T, F, Fut>(&self, key: &str, ttl_seconds: u64, f: F) -> Option<T> 
-    where 
+    pub async fn remember<T, F, Fut>(&self, key: &str, ttl_seconds: u64, f: F) -> Option<T>
+    where
         T: Serialize + DeserializeOwned,
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = T>,

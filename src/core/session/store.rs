@@ -1,8 +1,8 @@
-use tower_sessions::{SessionStore, session_store};
-use tower_sessions_sqlx_store::{MySqlStore, SqliteStore, PostgresStore};
-use tower_sessions::MemoryStore;
 use async_trait::async_trait;
 use tower_sessions::session::Record;
+use tower_sessions::MemoryStore;
+use tower_sessions::{session_store, SessionStore};
+use tower_sessions_sqlx_store::{MySqlStore, PostgresStore, SqliteStore};
 
 #[derive(Clone, Debug)]
 pub enum LuminaSessionStore {
@@ -32,7 +32,10 @@ impl SessionStore for LuminaSessionStore {
         }
     }
 
-    async fn load(&self, session_id: &tower_sessions::session::Id) -> session_store::Result<Option<Record>> {
+    async fn load(
+        &self,
+        session_id: &tower_sessions::session::Id,
+    ) -> session_store::Result<Option<Record>> {
         match self {
             Self::Memory(s) => s.load(session_id).await,
             Self::MySql(s) => s.load(session_id).await,

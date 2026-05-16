@@ -10,7 +10,7 @@ impl ConfigManager {
     /// Inisialisasi ConfigManager dengan memuat data dari environment variables.
     pub fn new() -> Self {
         let mut settings = HashMap::new();
-        
+
         // Muat semua environment variables ke dalam HashMap
         for (key, value) in std::env::vars() {
             settings.insert(key, value);
@@ -27,7 +27,10 @@ impl ConfigManager {
 
     /// Ambil nilai konfigurasi dengan fallback default.
     pub fn get_or(&self, key: &str, default: &str) -> String {
-        self.settings.get(key).cloned().unwrap_or_else(|| default.to_string())
+        self.settings
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| default.to_string())
     }
 
     /// Ambil nilai konfigurasi sebagai integer.
@@ -53,15 +56,22 @@ impl ConfigManager {
         }
 
         let connection = self.get_or("DB_CONNECTION", "sqlite");
-        
+
         match connection.as_str() {
             "sqlite" => {
                 let db = self.get_or("DB_DATABASE", "./lumina.db");
                 format!("sqlite:{}", db)
-            },
+            }
             "mysql" | "postgres" | "postgresql" => {
                 let host = self.get_or("DB_HOST", "127.0.0.1");
-                let port = self.get_or("DB_PORT", if connection == "mysql" { "3306" } else { "5432" });
+                let port = self.get_or(
+                    "DB_PORT",
+                    if connection == "mysql" {
+                        "3306"
+                    } else {
+                        "5432"
+                    },
+                );
                 let user = self.get_or("DB_USERNAME", "root");
                 let pass = self.get_or("DB_PASSWORD", "");
                 let db = self.get_or("DB_DATABASE", "lumina");
@@ -71,7 +81,7 @@ impl ConfigManager {
                 } else {
                     format!("postgres://{}:{}@{}:{}/{}", user, pass, host, port, db)
                 }
-            },
+            }
             _ => self.get_or("DATABASE_URL", "sqlite:./lumina.db"),
         }
     }

@@ -1,4 +1,5 @@
 pub mod debug;
+pub mod str;
 
 // Helper functions dan utilities
 pub fn env(key: &str, default: &str) -> String {

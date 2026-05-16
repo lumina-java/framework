@@ -37,9 +37,11 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
                                 length_msg = "Field ini wajib diisi".to_string();
                             }
                         } else if rule == "email" {
-                            validate_tokens.push(quote! { email(message = "Format email tidak valid") });
+                            validate_tokens
+                                .push(quote! { email(message = "Format email tidak valid") });
                         } else if rule == "url" {
-                            validate_tokens.push(quote! { url(message = "Format URL tidak valid") });
+                            validate_tokens
+                                .push(quote! { url(message = "Format URL tidak valid") });
                         } else if rule.starts_with("min:") {
                             if let Some(val) = rule.strip_prefix("min:") {
                                 if let Ok(num) = val.parse::<u64>() {
@@ -51,7 +53,9 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             if let Some(val) = rule.strip_prefix("max:") {
                                 if let Ok(num) = val.parse::<u64>() {
                                     max_val = Some(num);
-                                    if length_msg == "Field ini wajib diisi" || length_msg == "Format panjang karakter tidak sesuai" {
+                                    if length_msg == "Field ini wajib diisi"
+                                        || length_msg == "Format panjang karakter tidak sesuai"
+                                    {
                                         length_msg = format!("Maksimal {} karakter", num);
                                     }
                                 }
@@ -68,7 +72,7 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             length_args.push(quote! { max = #max });
                         }
                         length_args.push(quote! { message = #length_msg });
-                        
+
                         validate_tokens.push(quote! { length(#(#length_args),*) });
                     }
                 }
@@ -105,9 +109,11 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
     let name = &input.ident;
-    
+
     // Ambil nama tabel dari atribut #[table("...")]
-    let table_name = input.attrs.iter()
+    let table_name = input
+        .attrs
+        .iter()
         .find(|attr| attr.path().is_ident("table"))
         .and_then(|attr| attr.parse_args::<LitStr>().ok())
         .map(|lit| lit.value())
@@ -120,19 +126,21 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
         panic!("LuminaModel hanya bisa digunakan pada struct dengan named fields");
     };
 
-    let field_names: Vec<String> = fields.iter()
+    let field_names: Vec<String> = fields
+        .iter()
         .map(|f| f.ident.as_ref().unwrap().to_string())
         .collect();
 
     // Field names untuk SELECT (semua field)
     let select_fields = field_names.join(", ");
-    
+
     // Field names untuk INSERT (lewati 'id')
-    let insert_fields: Vec<String> = field_names.iter()
+    let insert_fields: Vec<String> = field_names
+        .iter()
         .filter(|&n| n != "id" && n != "created_at" && n != "updated_at" && n != "deleted_at")
         .cloned()
         .collect();
-    
+
     let insert_placeholders = vec!["?"; insert_fields.len()].join(", ");
     let insert_sql_fields = insert_fields.join(", ");
 
@@ -169,12 +177,12 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
                     #insert_sql_fields,
                     #insert_placeholders
                 );
-                
+
                 let result = sqlx::query(&sql)
                     #(#insert_bindings)*
                     .execute(&pool.pool)
                     .await?;
-                
+
                 Ok(result.last_insert_id().unwrap_or(0))
             }
 

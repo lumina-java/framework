@@ -11,6 +11,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Create a new Lumina project
+    #[command(name = "new")]
+    New {
+        /// Name of the project
+        name: String,
+    },
     /// Generate a new controller
     #[command(name = "make:controller")]
     MakeController {
@@ -41,6 +47,12 @@ enum Commands {
         /// Name of the request (e.g. StoreUserRequest)
         name: String,
     },
+    /// Generate a new service class
+    #[command(name = "make:service")]
+    MakeService {
+        /// Name of the service (e.g. UserService)
+        name: String,
+    },
     /// Start the HTTP server
     #[command(name = "serve")]
     Serve,
@@ -52,6 +64,9 @@ enum Commands {
     MakeCrud {
         /// Name of the entity (e.g. Patient)
         name: String,
+        /// Fields for the entity (e.g. name:string price:integer)
+        #[arg(num_args = 0..)]
+        fields: Vec<String>,
     },
     /// Generate a full Authentication scaffolding (Register, Login, Views)
     #[command(name = "make:auth")]
@@ -74,6 +89,27 @@ enum Commands {
         /// Name of the seeder (e.g. UserSeeder)
         name: String,
     },
+    /// Generate a new factory
+    #[command(name = "make:factory")]
+    MakeFactory {
+        /// Name of the factory (e.g. UserFactory)
+        name: String,
+    },
+    /// Start an interactive REPL session
+    #[command(name = "tinker")]
+    Tinker,
+    /// Generate Dockerfile and docker-compose.yml
+    #[command(name = "make:docker")]
+    MakeDocker,
+    /// Generate Nginx configuration
+    #[command(name = "make:nginx")]
+    MakeNginx,
+    /// Generate Supervisor configuration
+    #[command(name = "make:supervisor")]
+    MakeSupervisor,
+    /// Run full backup (Database & Storage)
+    #[command(name = "backup:run")]
+    BackupRun,
 }
 
 #[tokio::main]
@@ -82,6 +118,9 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::New { name } => {
+            cli::handle_new(&name).await;
+        }
         Commands::MakeController { name } => {
             cli::handle_make_controller(&name).await;
         }
@@ -97,26 +136,70 @@ async fn main() {
         Commands::MakeRequest { name } => {
             cli::handle_make_request(&name).await;
         }
-        Commands::MakeCrud { name } => {
-            cli::handle_make_crud(&name).await;
+        Commands::MakeService { name } => {
+            cli::handle_make_service(&name).await;
+        }
+        Commands::MakeCrud { name, fields } => {
+            cli::handle_make_crud(&name, fields).await;
         }
         Commands::MakeAuth => {
             cli::handle_make_auth().await;
         }
         Commands::Migrate => {
-            cli::handle_migrate().await;
+            println!("🔄 Running migrations via cargo...");
+            let _ = std::process::Command::new("cargo")
+                .arg("run")
+                .arg("--")
+                .arg("migrate")
+                .status();
         }
         Commands::MigrateStatus => {
-            cli::handle_migrate_status().await;
+            let _ = std::process::Command::new("cargo")
+                .arg("run")
+                .arg("--")
+                .arg("migrate:status")
+                .status();
         }
         Commands::MigrateRollback => {
-            cli::handle_migrate_rollback().await;
+            let _ = std::process::Command::new("cargo")
+                .arg("run")
+                .arg("--")
+                .arg("migrate:rollback")
+                .status();
         }
         Commands::DbSeed => {
-            cli::handle_db_seed().await;
+            println!("🌱 Seeding database via cargo...");
+            let _ = std::process::Command::new("cargo")
+                .arg("run")
+                .arg("--")
+                .arg("db:seed")
+                .status();
         }
         Commands::MakeSeeder { name } => {
             cli::handle_make_seeder(&name).await;
+        }
+        Commands::MakeFactory { name } => {
+            cli::handle_make_factory(&name).await;
+        }
+        Commands::Tinker => {
+            println!("🔍 Starting Tinker via cargo...");
+            let _ = std::process::Command::new("cargo")
+                .arg("run")
+                .arg("--")
+                .arg("tinker")
+                .status();
+        }
+        Commands::MakeDocker => {
+            cli::handle_make_docker().await;
+        }
+        Commands::MakeNginx => {
+            cli::handle_make_nginx().await;
+        }
+        Commands::MakeSupervisor => {
+            cli::handle_make_supervisor().await;
+        }
+        Commands::BackupRun => {
+            cli::handle_backup().await;
         }
         Commands::Serve => {
             println!("🚀 Starting Lumina Server...");
@@ -126,7 +209,7 @@ async fn main() {
                 .arg("lumina-server")
                 .spawn()
                 .expect("Failed to start server");
-            
+
             let _ = child.wait();
         }
         Commands::Watch => {
@@ -137,7 +220,7 @@ async fn main() {
                 .arg("run --bin lumina-server")
                 .spawn()
                 .expect("Failed to start cargo-watch. Make sure it's installed: cargo install cargo-watch");
-            
+
             let _ = child.wait();
         }
     }

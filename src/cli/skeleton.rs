@@ -634,7 +634,8 @@ CREATE TABLE IF NOT EXISTS users (
     // 14. src/app/models/mod.rs & user.rs
     fs::write(base.join("src/app/models/mod.rs"), "pub mod user;\n").ok();
     
-    let user_model = r#"use async_trait::async_trait;
+    let user_model = r#"#![allow(dead_code)]
+use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use sqlx::FromRow;
 use lumina::database::{connection::DatabasePool, model::Model};

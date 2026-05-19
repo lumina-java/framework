@@ -568,7 +568,8 @@ pub async fn handle_make_auth() {
     // 1. Ensure User model exists and has find_by_email & role
     let user_model_path = "src/app/models/user.rs";
     if !Path::new(user_model_path).exists() {
-        let user_model_content = r#"use async_trait::async_trait;
+        let user_model_content = r#"#![allow(dead_code)]
+use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use sqlx::FromRow;
 use lumina::database::{connection::DatabasePool, model::Model};

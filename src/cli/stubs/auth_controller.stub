@@ -84,7 +84,7 @@ impl AuthController {
         // 3. Proses Simpan
         let hashed_password = lumina::core::auth::hash::make(&form.password);
         
-        let result = sqlx::query("INSERT INTO users (name, email, password, role, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())")
+        let result = sqlx::query("INSERT INTO users (name, email, password, role, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
             .bind(&form.name).bind(&form.email).bind(&hashed_password).bind("user")
             .execute(&req.state.db().pool).await;
 

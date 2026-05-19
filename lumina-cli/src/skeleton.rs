@@ -392,6 +392,7 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -401,8 +402,10 @@ CREATE TABLE IF NOT EXISTS users (
     // 14. src/app/models/mod.rs & user.rs
     fs::write(base.join("src/app/models/mod.rs"), "pub mod user;\n").ok();
     
-    let user_model = r#"use lumina::database::model::Model;
-use serde::{Deserialize, Serialize};
+    let user_model = r#"use async_trait::async_trait;
+use serde::{Serialize, Deserialize};
+use sqlx::FromRow;
+use lumina::database::{connection::DatabasePool, model::Model};
 
 // =========================================================================
 //                            USER MODEL
@@ -410,17 +413,73 @@ use serde::{Deserialize, Serialize};
 // Models map structural database records into Rust types.
 // The `Model` trait tells Lumina what SQLite database table to fetch from.
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default)]
 pub struct User {
     pub id: i64,
     pub name: String,
     pub email: String,
     pub password: String,
+    pub role: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub deleted_at: Option<String>,
 }
 
+impl User {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn find_by_email(pool: &DatabasePool, email: &str) -> Result<Self, sqlx::Error> {
+        Self::query(pool).where_eq("email", email).first().await
+    }
+}
+
+#[async_trait]
 impl Model for User {
-    fn table_name() -> &'static str {
-        "users"
+    const TABLE: &'static str = "users";
+
+    async fn find(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
+        Self::query(pool).where_eq("id", id).first().await
+    }
+
+    async fn all(pool: &DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
+        Self::query(pool).get().await
+    }
+
+    async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {
+        if self.id > 0 {
+            sqlx::query("UPDATE users SET name = ?, email = ?, password = ?, role = ? WHERE id = ?")
+                .bind(&self.name)
+                .bind(&self.email)
+                .bind(&self.password)
+                .bind(&self.role)
+                .bind(self.id)
+                .execute(&pool.pool)
+                .await?;
+            Ok(self.id)
+        } else {
+            let result = sqlx::query(
+                "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)"
+            )
+            .bind(&self.name)
+            .bind(&self.email)
+            .bind(&self.password)
+            .bind(&self.role)
+            .execute(&pool.pool)
+            .await?;
+
+            Ok(result.last_insert_id().unwrap_or(0))
+        }
+    }
+
+    async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
+        sqlx::query("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
+            .bind(id)
+            .execute(&pool.pool)
+            .await?;
+
+        Ok(true)
     }
 }
 "#;

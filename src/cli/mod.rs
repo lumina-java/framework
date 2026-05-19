@@ -565,10 +565,190 @@ pub async fn handle_make_auth() {
         }
     }
 
-    println!("\n🚀 Auth Scaffolding Selesai!");
-    println!("📌 Selesaikan langkah berikut:");
-    println!("1. Daftarkan AuthController di src/app/controllers/mod.rs");
-    println!("2. Daftarkan routes autentikasi di routes/web.rs");
+    // 1. Ensure User model exists and has find_by_email & role
+    let user_model_path = "src/app/models/user.rs";
+    if !Path::new(user_model_path).exists() {
+        let user_model_content = r#"use async_trait::async_trait;
+use serde::{Serialize, Deserialize};
+use sqlx::FromRow;
+use lumina::database::{connection::DatabasePool, model::Model};
+
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default)]
+pub struct User {
+    pub id: i64,
+    pub name: String,
+    pub email: String,
+    pub password: String,
+    pub role: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub deleted_at: Option<String>,
+}
+
+impl User {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn find_by_email(pool: &DatabasePool, email: &str) -> Result<Self, sqlx::Error> {
+        Self::query(pool).where_eq("email", email).first().await
+    }
+}
+
+#[async_trait]
+impl Model for User {
+    const TABLE: &'static str = "users";
+
+    async fn find(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
+        Self::query(pool).where_eq("id", id).first().await
+    }
+
+    async fn all(pool: &DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
+        Self::query(pool).get().await
+    }
+
+    async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {
+        if self.id > 0 {
+            sqlx::query("UPDATE users SET name = ?, email = ?, password = ?, role = ? WHERE id = ?")
+                .bind(&self.name)
+                .bind(&self.email)
+                .bind(&self.password)
+                .bind(&self.role)
+                .bind(self.id)
+                .execute(&pool.pool)
+                .await?;
+            Ok(self.id)
+        } else {
+            let result = sqlx::query(
+                "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)"
+            )
+            .bind(&self.name)
+            .bind(&self.email)
+            .bind(&self.password)
+            .bind(&self.role)
+            .execute(&pool.pool)
+            .await?;
+
+            Ok(result.last_insert_id().unwrap_or(0))
+        }
+    }
+
+    async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
+        sqlx::query("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
+            .bind(id)
+            .execute(&pool.pool)
+            .await?;
+
+        Ok(true)
+    }
+}
+"#;
+        let _ = fs::write(user_model_path, user_model_content);
+        println!("✅ Model User berhasil dibuat: {}", user_model_path);
+
+        let mod_file = "src/app/models/mod.rs";
+        if let Ok(content) = fs::read_to_string(mod_file) {
+            let mod_line = "pub mod user;";
+            if !content.contains(mod_line) {
+                let mut f = fs::OpenOptions::new().append(true).open(mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod user;");
+                println!("✅ Model auto-registered in models/mod.rs");
+            }
+        }
+    } else {
+        if let Ok(mut content) = fs::read_to_string(user_model_path) {
+            let mut modified = false;
+            if !content.contains("find_by_email") {
+                if let Some(pos) = content.find("impl User {") {
+                    let insert_pos = pos + "impl User {".len();
+                    let inject_code = r#"
+    pub async fn find_by_email(pool: &DatabasePool, email: &str) -> Result<Self, sqlx::Error> {
+        Self::query(pool).where_eq("email", email).first().await
+    }
+"#;
+                    content.insert_str(insert_pos, inject_code);
+                    modified = true;
+                }
+            }
+            if !content.contains("pub role:") && !content.contains("role:") {
+                if let Some(pos) = content.find("pub password: String,") {
+                    let insert_pos = pos + "pub password: String,".len();
+                    content.insert_str(insert_pos, "\n    pub role: String,");
+                    modified = true;
+                }
+            }
+            if modified {
+                let _ = fs::write(user_model_path, content);
+                println!("✅ Model User berhasil diperbarui dengan find_by_email dan field role.");
+            }
+        }
+    }
+
+    // 2. Register AuthController in controllers/mod.rs
+    let ctrl_mod_file = "src/app/controllers/mod.rs";
+    if let Ok(content) = fs::read_to_string(ctrl_mod_file) {
+        let mod_line = "pub mod auth_controller;";
+        if !content.contains(mod_line) {
+            let mut f = fs::OpenOptions::new()
+                .append(true)
+                .open(ctrl_mod_file)
+                .unwrap();
+            use std::io::Write;
+            let _ = writeln!(f, "pub mod auth_controller;");
+            println!("✅ AuthController registered in controllers/mod.rs");
+        }
+    }
+
+    // 3. Register routes in routes/web.rs
+    let web_routes_file = if Path::new("src/routes/web.rs").exists() {
+        "src/routes/web.rs"
+    } else {
+        "routes/web.rs"
+    };
+
+    if let Ok(mut content) = fs::read_to_string(web_routes_file) {
+        let import_line = "use crate::app::controllers::auth_controller::AuthController;\n";
+        if !content.contains(&import_line) {
+            content.insert_str(0, &import_line);
+        }
+
+        let mut routes = String::new();
+        routes.push_str("        // Authentication Routes\n");
+        routes.push_str("        .get(\"/login\",          AuthController::show_login)\n");
+        routes.push_str("        .post(\"/login\",         AuthController::login)\n");
+        routes.push_str("        .get(\"/register\",       AuthController::show_register)\n");
+        routes.push_str("        .post(\"/register\",      AuthController::register)\n");
+        routes.push_str("        .get(\"/logout\",         AuthController::logout)\n");
+        routes.push_str("        .get(\"/auth/login\",     AuthController::show_login)\n");
+        routes.push_str("        .post(\"/auth/login\",    AuthController::login)\n");
+        routes.push_str("        .get(\"/auth/register\",  AuthController::show_register)\n");
+        routes.push_str("        .post(\"/auth/register\", AuthController::register)\n");
+        routes.push_str("        .get(\"/auth/logout\",    AuthController::logout)\n        ");
+
+        if !content.contains("AuthController::show_login") {
+            // Remove the old /login and /register routes from welcome controller if they are present
+            content = content.replace(".get(\"/login\",       WelcomeController::login)", "");
+            content = content.replace(".get(\"/register\",    WelcomeController::register)", "");
+            content = content.replace(".get(\"/login\",            WelcomeController::login)", "");
+            content = content.replace(".get(\"/register\",         WelcomeController::register)", "");
+
+            if let Some(pos) = content.find("        .get(\"/dashboard\"") {
+                content.insert_str(pos, &routes);
+            } else if let Some(pos) = content.find("        // Debug") {
+                content.insert_str(pos, &routes);
+            } else if let Some(pos) = content.find("    // ─── Protected Routes") {
+                content.insert_str(pos, &routes);
+            } else if let Some(_) = content.find("}") {
+                let last_brace = content.rfind("}").unwrap();
+                content.insert_str(last_brace, &routes);
+            }
+            let _ = fs::write(web_routes_file, content);
+            println!("✅ Registered authentication routes in {}", web_routes_file);
+        }
+    }
+
+    println!("\n🚀 Auth Scaffolding Selesai dengan Sempurna!");
 }
 
 pub async fn handle_migrate() {

@@ -2,6 +2,7 @@
 use async_trait::async_trait;
 use axum::{extract::FromRequestParts, http::request::Parts};
 use serde::{Deserialize, Serialize};
+use tower_sessions::Session;
 
 pub mod hash;
 pub mod socialite;
@@ -81,35 +82,30 @@ impl Auth {
         self::hash::check(plain, hashed)
     }
 
+    /// Verifikasi apakah password cocok dengan hash.
+    pub fn check(plain: &str, hashed: &str) -> bool {
+        self::hash::check(plain, hashed)
+    }
+
     /// Hasilkan AuthUser baru.
     pub fn user(user_id: i64, email: String, role: String, permissions: Vec<String>) -> AuthUser {
         AuthUser::new(user_id, email, role, permissions, 24)
     }
 
-    /*
-    /// Simpan user ke session (Login) menggunakan Request.
-    pub async fn login(req: &crate::core::request::Request, user_model: User) {
-        let pool = req.db().clone();
-        let permissions = user_model.all_permissions(&pool).await.unwrap_or_default();
-        let auth_user = Self::user(
-            user_model.id,
-            user_model.email,
-            user_model.role,
-            permissions,
-        );
-
+    /// Simpan user ke session (Login).
+    pub async fn login(session: &Session, auth_user: AuthUser) -> Result<(), tower_sessions::session::Error> {
         // Simpan User object untuk akses cepat via req.user
-        let _ = req.session.insert("user", auth_user.clone()).await;
+        let _ = session.insert("user", auth_user.clone()).await;
 
         // Simpan JWT untuk divalidasi oleh web_auth_required middleware
         if let Ok(token) = crate::http::auth::generate_token(&auth_user) {
-            let _ = req.session.insert("jwt", token).await;
+            let _ = session.insert("jwt", token).await;
         }
+        Ok(())
     }
-    */
 
     /// Hapus user dari session (Logout).
-    pub async fn logout(req: &crate::core::request::Request) {
-        req.session.clear().await;
+    pub async fn logout(session: &Session) {
+        session.clear().await;
     }
 }

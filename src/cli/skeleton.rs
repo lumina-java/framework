@@ -624,6 +624,7 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -650,6 +651,7 @@ pub struct User {
     pub name: String,
     pub email: String,
     pub password: String,
+    pub role: String,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
     pub deleted_at: Option<String>,
@@ -658,6 +660,10 @@ pub struct User {
 impl User {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub async fn find_by_email(pool: &DatabasePool, email: &str) -> Result<Self, sqlx::Error> {
+        Self::query(pool).where_eq("email", email).first().await
     }
 }
 
@@ -675,21 +681,23 @@ impl Model for User {
 
     async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {
         if self.id > 0 {
-            sqlx::query("UPDATE users SET name = ?, email = ?, password = ? WHERE id = ?")
+            sqlx::query("UPDATE users SET name = ?, email = ?, password = ?, role = ? WHERE id = ?")
                 .bind(&self.name)
                 .bind(&self.email)
                 .bind(&self.password)
+                .bind(&self.role)
                 .bind(self.id)
                 .execute(&pool.pool)
                 .await?;
             Ok(self.id)
         } else {
             let result = sqlx::query(
-                "INSERT INTO users (name, email, password) VALUES (?, ?, ?)"
+                "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)"
             )
             .bind(&self.name)
             .bind(&self.email)
             .bind(&self.password)
+            .bind(&self.role)
             .execute(&pool.pool)
             .await?;
 

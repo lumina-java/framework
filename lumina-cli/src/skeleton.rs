@@ -58,17 +58,51 @@ path = "src/main.rs"
     fs::write(base.join("Cargo.toml"), cargo_toml).ok();
 
     // 3. .env.example
-    let env_example = r#"APP_NAME="Lumina App"
+    let env_example = r#"# ─── LUMINA FRAMEWORK CONFIGURATION ──────────────────────────────────────────
+
+# Application Settings
+APP_NAME=Lumina
 APP_ENV=local
-APP_KEY=
 APP_DEBUG=true
 APP_URL=http://localhost:8000
+APP_KEY=lumina-super-secret-key-change-me-in-production
 
+# Logging
+LOG_LEVEL=info
+LOG_TO_FILE=true
+
+# OAuth2 (Socialite)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URL=http://127.0.0.1:8000/auth/google/callback
+
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GITHUB_REDIRECT_URL=http://127.0.0.1:8000/auth/github/callback
+
+# Database Configuration (Laravel Style)
 DB_CONNECTION=sqlite
-DATABASE_URL=sqlite:./database.sqlite
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=./database.sqlite
+DB_USERNAME=root
+DB_PASSWORD=
 
-# Auth configuration
-JWT_SECRET=your-secret-key-here
+# Atau gunakan URL eksplisit (jika DATABASE_URL ada, maka variabel DB_* diabaikan)
+# DATABASE_URL=sqlite:./database.sqlite
+
+# Rate Limiting
+RATE_LIMIT_MAX=60
+RATE_LIMIT_WINDOW=60
+
+# Storage Settings
+# Batas maksimal upload file dalam satuan Megabyte
+UPLOAD_MAX_SIZE_MB=2
+
+# Session Configuration
+JWT_SECRET=lumina-jwt-secret-key-change-me-in-production
+
+# ──────────────────────────────────────────────────────────────────────────────
 "#;
     fs::write(base.join(".env.example"), env_example).ok();
     fs::write(base.join(".env"), env_example).ok();

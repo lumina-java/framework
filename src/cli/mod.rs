@@ -566,7 +566,12 @@ pub async fn handle_make_auth() {
     }
 
     // 1. Ensure User model exists and has find_by_email & role
-    let user_model_path = "src/app/models/user.rs";
+    let user_model_path = if Path::new("src/app/models/user.rs").exists() {
+        "src/app/models/user.rs"
+    } else {
+        "app/models/user.rs"
+    };
+
     if !Path::new(user_model_path).exists() {
         let user_model_content = r#"#![allow(dead_code)]
 use async_trait::async_trait;
@@ -647,7 +652,12 @@ impl Model for User {
         let _ = fs::write(user_model_path, user_model_content);
         println!("✅ Model User berhasil dibuat: {}", user_model_path);
 
-        let mod_file = "src/app/models/mod.rs";
+        let mod_file = if Path::new("src/app/models/mod.rs").exists() {
+            "src/app/models/mod.rs"
+        } else {
+            "app/models/mod.rs"
+        };
+
         if let Ok(content) = fs::read_to_string(mod_file) {
             let mod_line = "pub mod user;";
             if !content.contains(mod_line) {
@@ -687,7 +697,12 @@ impl Model for User {
     }
 
     // 2. Register AuthController in controllers/mod.rs
-    let ctrl_mod_file = "src/app/controllers/mod.rs";
+    let ctrl_mod_file = if Path::new("src/app/controllers/mod.rs").exists() {
+        "src/app/controllers/mod.rs"
+    } else {
+        "app/controllers/mod.rs"
+    };
+
     if let Ok(content) = fs::read_to_string(ctrl_mod_file) {
         let mod_line = "pub mod auth_controller;";
         if !content.contains(mod_line) {
@@ -728,7 +743,11 @@ impl Model for User {
         routes.push_str("        .get(\"/auth/logout\",    AuthController::logout)\n        ");
 
         if !content.contains("AuthController::show_login") {
-            // Remove the old /login and /register routes from welcome controller if they are present
+            // Remove the old /login and /register routes from welcome controller if they are present (checking all whitespace options)
+            content = content.replace(".get(\"/login\", WelcomeController::login)", "");
+            content = content.replace(".get(\"/register\", WelcomeController::register)", "");
+            content = content.replace(".get(\"/login\",WelcomeController::login)", "");
+            content = content.replace(".get(\"/register\",WelcomeController::register)", "");
             content = content.replace(".get(\"/login\",       WelcomeController::login)", "");
             content = content.replace(".get(\"/register\",    WelcomeController::register)", "");
             content = content.replace(".get(\"/login\",            WelcomeController::login)", "");

@@ -15,37 +15,72 @@ Sebelum menginstal Lumina, pastikan komputer Anda telah terpasang:
 
 ---
 
-## ⚡ Langkah 1: Menginstal CLI Lumina secara Global
+## ⚡ Langkah 1: Opsi Metode Instalasi (Pilih Salah Satu)
 
-Lumina memiliki CLI mandiri yang sangat kuat bernama `lumina`. Untuk menginstalnya secara global di sistem Anda, buka terminal/PowerShell dan jalankan perintah berikut di dalam direktori framework lokal Anda:
+Sama seperti Laravel yang mendukung instalasi melalui global installer, composer, maupun manual cloning, Lumina Framework menyediakan **tiga metode instalasi modern** agar dapat digunakan secara fleksibel:
 
+### 🌟 Metode A: Menggunakan Lumina Installer (`cargo-lumina`) — *Sangat Direkomendasikan (Ala Laravel Installer)*
+Ini adalah cara tercepat dan paling elegan menggunakan Cargo subcommand. CLI terintegrasi langsung sebagai modul internal toolchain Rust Anda.
+1. **Instal installer-nya secara global:**
+   ```bash
+   cargo install cargo-lumina
+   ```
+2. **Buat proyek baru dari direktori mana saja dengan mudah:**
+   ```bash
+   cargo lumina new nama_project_anda
+   ```
+
+### 📦 Metode B: Menggunakan Standalone CLI (`lumina`) dari Git Source
+Jika Anda ingin mengompilasi langsung dari source code repositori GitHub resmi untuk mendapatkan fitur paling mutakhir:
+1. **Clone repositori dan masuk ke folder framework:**
+   ```bash
+   git clone https://github.com/lumina-java/framework.git
+   cd framework
+   ```
+2. **Instal binary `lumina` secara global:**
+   ```bash
+   cargo install --path .
+   ```
+3. **Buat proyek baru menggunakan command standalone:**
+   ```bash
+   lumina new nama_project_anda
+   ```
+
+### 📁 Metode C: Mengunduh Template Skeleton Secara Langsung
+Jika Anda ingin mengunduh folder boilerplate secara manual tanpa memasang installer global:
+1. **Cukup unduh / clone berkas skeleton Lumina dan ubah nama foldernya:**
+   ```bash
+   git clone https://github.com/lumina-java/framework.git
+   # Ambil folder skeleton bawaan di dalam folder 'src/cli/stubs' atau salin folder kerangka dasar.
+   ```
+
+---
+
+### 🔍 Verifikasi Instalasi CLI
+Setelah memasang Metode A atau Metode B, pastikan CLI Lumina sudah aktif dan terdaftar dengan menjalankan salah satu perintah di bawah ini:
 ```bash
-cargo install --path .
-```
+# Jika menggunakan Metode A:
+cargo lumina --help
 
-> [!TIP]
-> Jika Anda mengunduh framework dari repositori git secara langsung, Anda juga dapat menginstalnya dari jarak jauh menggunakan perintah:
-> `cargo install --git https://github.com/lumina-java/framework.git --bin lumina`
-
-### Verifikasi Instalasi
-
-Setelah proses kompilasi selesai, pastikan perintah `lumina` sudah terdaftar secara global dengan mengetik:
-
-```bash
+# Jika menggunakan Metode B:
 lumina --help
 ```
-
-Anda akan melihat daftar lengkap perintah CLI yang tersedia beserta penjelasannya!
+*Lumina akan menampilkan antarmuka bantuan yang sangat premium dengan daftar perintah lengkap!*
 
 ---
 
 ## 🆕 Langkah 2: Membuat Project Baru
 
-Untuk membuat project baru, Anda cukup mengetik satu perintah sederhana:
+Tergantung metode instalasi yang Anda pilih di Langkah 1, buat proyek baru Anda dengan perintah di bawah ini:
 
-```bash
-lumina new nama_project_anda
-```
+* **Untuk Pengguna Metode A (`cargo-lumina`):**
+  ```bash
+  cargo lumina new nama_project_anda
+  ```
+* **Untuk Pengguna Metode B (`lumina` standalone):**
+  ```bash
+  lumina new nama_project_anda
+  ```
 
 ### Apa yang terjadi di balik layar?
 Lumina secara otomatis me-generate seluruh kerangka kerja (scaffolding) MVC secara mandiri di komputer Anda:

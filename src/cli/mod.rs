@@ -3,6 +3,7 @@ use std::fs;
 use std::path::Path;
 
 pub mod tinker;
+pub mod skeleton;
 
 pub async fn handle_make_controller(name: &str) {
     let file_name = camel_to_snake(name);
@@ -116,7 +117,12 @@ pub async fn handle_make_request(name: &str) {
         println!("❌ Gagal membuat request: {}", e);
     } else {
         println!("✅ Request berhasil dibuat: {}", path_str);
+        let mod_dir = "src/app/requests";
+        let _ = fs::create_dir_all(mod_dir);
         let mod_file = "src/app/requests/mod.rs";
+        if !Path::new(mod_file).exists() {
+            let _ = fs::write(mod_file, "");
+        }
         if let Ok(content) = fs::read_to_string(mod_file) {
             let mod_line = format!("pub mod {};", file_name);
             if !content.contains(&mod_line) {
@@ -124,6 +130,15 @@ pub async fn handle_make_request(name: &str) {
                 use std::io::Write;
                 let _ = writeln!(f, "pub mod {};", file_name);
                 println!("✅ Request auto-registered in requests/mod.rs");
+            }
+        }
+        // Register in app/mod.rs
+        let app_mod_file = "src/app/mod.rs";
+        if let Ok(content) = fs::read_to_string(app_mod_file) {
+            if !content.contains("pub mod requests;") {
+                let mut f = fs::OpenOptions::new().append(true).open(app_mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod requests;");
             }
         }
     }
@@ -138,49 +153,20 @@ pub async fn handle_new(name: &str) {
         return;
     }
 
-    println!("🚀 Cloning Lumina Skeleton...");
-    let status = std::process::Command::new("git")
-        .arg("clone")
-        .arg("--depth")
-        .arg("1")
-        .arg("https://github.com/lumina-java/framework.git")
-        .arg(name)
+    println!("🚀 Generating Lumina Skeleton...");
+    skeleton::create_full_skeleton(path, name);
+
+    // Initialize fresh git repository
+    let _ = std::process::Command::new("git")
+        .arg("init")
+        .current_dir(path)
         .status();
+    println!("✅ Initialize fresh git repository.");
 
-    match status {
-        Ok(s) if s.success() => {
-            println!("✅ Project berhasil di-clone.");
-
-            // Cleanup .git folder to make it a fresh project
-            let git_dir = path.join(".git");
-            if git_dir.exists() {
-                let _ = fs::remove_dir_all(git_dir);
-            }
-
-            // Setup .env
-            let env_example = path.join(".env.example");
-            let env_file = path.join(".env");
-            if env_example.exists() && !env_file.exists() {
-                let _ = fs::copy(env_example, env_file);
-                println!("✅ Setup .env selesai.");
-            }
-
-            // Initialize fresh git repository
-            let _ = std::process::Command::new("git")
-                .arg("init")
-                .current_dir(path)
-                .status();
-            println!("✅ Initialize fresh git repository.");
-
-            println!("\n🎉 Project {} siap digunakan!", name);
-            println!("👉 Jalankan perintah berikut:");
-            println!("   cd {}", name);
-            println!("   cargo run --bin lumina-server\n");
-        }
-        _ => {
-            println!("❌ Gagal melakukan cloning. Pastikan 'git' sudah terinstall.");
-        }
-    }
+    println!("\n🎉 Project {} siap digunakan!", name);
+    println!("👉 Jalankan perintah berikut:");
+    println!("   cd {}", name);
+    println!("   cargo run\n");
 }
 
 pub async fn handle_make_service(name: &str) {
@@ -208,7 +194,12 @@ pub async fn handle_make_service(name: &str) {
         println!("❌ Gagal membuat service: {}", e);
     } else {
         println!("✅ Service berhasil dibuat: {}", path_str);
+        let mod_dir = "src/app/services";
+        let _ = fs::create_dir_all(mod_dir);
         let mod_file = "src/app/services/mod.rs";
+        if !Path::new(mod_file).exists() {
+            let _ = fs::write(mod_file, "");
+        }
         if let Ok(content) = fs::read_to_string(mod_file) {
             let mod_line = format!("pub mod {};", file_name);
             if !content.contains(&mod_line) {
@@ -216,6 +207,15 @@ pub async fn handle_make_service(name: &str) {
                 use std::io::Write;
                 let _ = writeln!(f, "pub mod {};", file_name);
                 println!("✅ Service auto-registered in services/mod.rs");
+            }
+        }
+        // Register in app/mod.rs
+        let app_mod_file = "src/app/mod.rs";
+        if let Ok(content) = fs::read_to_string(app_mod_file) {
+            if !content.contains("pub mod services;") {
+                let mut f = fs::OpenOptions::new().append(true).open(app_mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod services;");
             }
         }
     }
@@ -268,13 +268,27 @@ pub async fn handle_make_crud(name: &str, field_args: Vec<String>) {
         let _ = fs::write(req_path, content);
         println!("✅ CRUD Request berhasil dibuat: {}", req_path_str);
 
+        let mod_dir = "src/app/requests";
+        let _ = fs::create_dir_all(mod_dir);
         let mod_file = "src/app/requests/mod.rs";
+        if !Path::new(mod_file).exists() {
+            let _ = fs::write(mod_file, "");
+        }
         if let Ok(content) = fs::read_to_string(mod_file) {
             let mod_line = format!("pub mod {};", req_file_name);
             if !content.contains(&mod_line) {
                 let mut f = fs::OpenOptions::new().append(true).open(mod_file).unwrap();
                 use std::io::Write;
                 let _ = writeln!(f, "pub mod {};", req_file_name);
+            }
+        }
+        // Register in app/mod.rs
+        let app_mod_file = "src/app/mod.rs";
+        if let Ok(content) = fs::read_to_string(app_mod_file) {
+            if !content.contains("pub mod requests;") {
+                let mut f = fs::OpenOptions::new().append(true).open(app_mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod requests;");
             }
         }
     }
@@ -325,11 +339,11 @@ pub async fn handle_make_crud(name: &str, field_args: Vec<String>) {
     let mut td_cols = String::new();
     for field in &fields {
         th_cols.push_str(&format!(
-            "<th class=\"px-6 py-4\">{}</th>\n                    ",
+            "<th class=\"px-3 py-2 text-slate-400 font-bold text-[10px]\">{}</th>\n                    ",
             field.name.to_uppercase()
         ));
         td_cols.push_str(&format!(
-            "<td class=\"px-6 py-4\">{{{{ item.{} }}}}</td>\n                    ",
+            "<td class=\"px-3 py-2 text-slate-300 text-[11px]\">{{{{ item.{} }}}}</td>\n                    ",
             field.name
         ));
     }
@@ -346,16 +360,16 @@ pub async fn handle_make_crud(name: &str, field_args: Vec<String>) {
         if field.field_type == "text" {
             form_fields.push_str(&format!(
                 "<div>\n\
-                 \x20   <label class=\"block text-sm font-medium text-slate-700 mb-1\">{}</label>\n\
-                 \x20   <textarea name=\"{}\" class=\"w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all\" rows=\"4\">{{{{ item.{} | default(\"\") }}}}</textarea>\n\
+                 \x20   <label class=\"block font-semibold text-slate-300 mb-1 text-[11px]\">{}</label>\n\
+                 \x20   <textarea name=\"{}\" class=\"w-full bg-darkBg border border-borderBg rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-primary transition text-[11px]\" rows=\"3\">{{{{ item.{} | default(value=\"\") }}}}</textarea>\n\
                  </div>\n",
                 field.name.to_uppercase(), field.name, field.name
             ));
         } else {
             form_fields.push_str(&format!(
                 "<div>\n\
-                 \x20   <label class=\"block text-sm font-medium text-slate-700 mb-1\">{}</label>\n\
-                 \x20   <input type=\"{}\" name=\"{}\" value=\"{{{{ item.{} | default(\"\") }}}}\" class=\"w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all\">\n\
+                 \x20   <label class=\"block font-semibold text-slate-300 mb-1 text-[11px]\">{}</label>\n\
+                 \x20   <input type=\"{}\" name=\"{}\" value=\"{{{{ item.{} | default(value=\"\") }}}}\" class=\"w-full bg-darkBg border border-borderBg rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-primary transition text-[11px]\">\n\
                  </div>\n",
                 field.name.to_uppercase(), input_type, field.name, field.name
             ));
@@ -996,13 +1010,27 @@ async fn handle_make_service_with_fields(name: &str, _fields: &[Field]) {
         println!("❌ Gagal membuat service: {}", e);
     } else {
         println!("✅ Service berhasil dibuat: {}", path_str);
+        let mod_dir = "src/app/services";
+        let _ = fs::create_dir_all(mod_dir);
         let mod_file = "src/app/services/mod.rs";
+        if !Path::new(mod_file).exists() {
+            let _ = fs::write(mod_file, "");
+        }
         if let Ok(content) = fs::read_to_string(mod_file) {
             let mod_line = format!("pub mod {};", file_name);
             if !content.contains(&mod_line) {
                 let mut f = fs::OpenOptions::new().append(true).open(mod_file).unwrap();
                 use std::io::Write;
                 let _ = writeln!(f, "pub mod {};", file_name);
+            }
+        }
+        // Register in app/mod.rs
+        let app_mod_file = "src/app/mod.rs";
+        if let Ok(content) = fs::read_to_string(app_mod_file) {
+            if !content.contains("pub mod services;") {
+                let mut f = fs::OpenOptions::new().append(true).open(app_mod_file).unwrap();
+                use std::io::Write;
+                let _ = writeln!(f, "pub mod services;");
             }
         }
     }

@@ -1,4 +1,4 @@
-use lumina_macros::lumina_form;
+use lumina::lumina_form;
 
 #[lumina_form]
 pub struct {{name}}Request {

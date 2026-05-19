@@ -205,8 +205,6 @@ async fn main() {
             println!("🚀 Starting Lumina Server...");
             let mut child = std::process::Command::new("cargo")
                 .arg("run")
-                .arg("--bin")
-                .arg("lumina-server")
                 .spawn()
                 .expect("Failed to start server");
 
@@ -217,7 +215,7 @@ async fn main() {
             let mut child = std::process::Command::new("cargo")
                 .arg("watch")
                 .arg("-x")
-                .arg("run --bin lumina-server")
+                .arg("run")
                 .spawn()
                 .expect("Failed to start cargo-watch. Make sure it's installed: cargo install cargo-watch");
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
-use crate::database::connection::DatabasePool;
+use lumina::database::connection::DatabasePool;
 use crate::app::models::{{snake_name}}::{{name}};
-use crate::database::model::Model;
+use lumina::database::model::Model;
 
 pub struct {{name}}Service {
     db: Arc<DatabasePool>,

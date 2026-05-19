@@ -124,86 +124,132 @@ impl ViewEngine {
     }
 
     fn preprocess_blade(content: &str) -> String {
-        let mut processed = content.to_string();
+        let mut s = content.to_string();
 
-        // 1. @extends('layout') -> {% extends "layout.html" %}
-        let re_extends = Regex::new(r#"@extends\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
-        processed = re_extends
-            .replace_all(&processed, "{% extends \"$1.blade.rs\" %}")
-            .to_string();
+        // 0. {{-- Blade comment --}} -> {# Tera comment #}   (MUST be first!)
+        let re_comment = Regex::new(r"\{\{--.*?--\}\}").unwrap();
+        s = re_comment.replace_all(&s, "").to_string();
 
-        // 2. @section('content') -> {% block content %}
-        let re_section = Regex::new(r#"@section\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
-        processed = re_section
-            .replace_all(&processed, "{% block $1 %}")
-            .to_string();
+        // 1. @extends('layouts.app') OR @extends('layouts/app')  -> {% extends "layouts/app.blade.rs" %}
+        let re_extends = Regex::new(r#"@extends\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_extends.replace_all(&s, |caps: &regex::Captures| {
+            let path = caps[1].replace('.', "/");
+            if path.ends_with(".blade.rs") {
+                format!("{{% extends \"{}\" %}}", path)
+            } else {
+                format!("{{% extends \"{}.blade.rs\" %}}", path)
+            }
+        }).to_string();
 
-        // 3. @endsection -> {% endblock %}
-        processed = processed.replace("@endsection", "{% endblock %}");
+        // 2. @section('name') -> {% block name %}
+        let re_section = Regex::new(r#"@section\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_section.replace_all(&s, "{% block $1 %}").to_string();
 
-        // 4. @yield('content') -> {% block content %}{% endblock %}
-        let re_yield = Regex::new(r#"@yield\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
-        processed = re_yield
-            .replace_all(&processed, "{% block $1 %}{% endblock %}")
-            .to_string();
+        // 3. @endsection / @stop / @endblock -> {% endblock %}
+        s = s.replace("@endsection", "{% endblock %}");
+        s = s.replace("@stop", "{% endblock %}");
+        s = s.replace("@endblock", "{% endblock %}");
 
-        // 5. @if(cond) -> {% if cond %}
-        let re_if = Regex::new(r"@if\s*\((.*?)\)").unwrap();
-        processed = re_if.replace_all(&processed, "{% if $1 %}").to_string();
+        // 4. @yield('name') -> {% block name %}{% endblock %}
+        let re_yield = Regex::new(r#"@yield\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_yield.replace_all(&s, "{% block $1 %}{% endblock %}").to_string();
 
-        // 6. @elseif(cond) -> {% elif cond %}
-        let re_elif = Regex::new(r"@elseif\s*\((.*?)\)").unwrap();
-        processed = re_elif.replace_all(&processed, "{% elif $1 %}").to_string();
+        // 5. @include('path.subpath') -> {% include "path/subpath.blade.rs" %}
+        let re_include = Regex::new(r#"@include\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_include.replace_all(&s, |caps: &regex::Captures| {
+            let path = caps[1].replace('.', "/");
+            if path.ends_with(".blade.rs") {
+                format!("{{% include \"{}\" %}}", path)
+            } else {
+                format!("{{% include \"{}.blade.rs\" %}}", path)
+            }
+        }).to_string();
 
-        // 7. @else -> {% else %}
-        processed = processed.replace("@else", "{% else %}");
+        // 6. @elseif MUST come before @if
+        let re_elseif = Regex::new(r"@elseif\s*\(([^)]*)\)").unwrap();
+        s = re_elseif.replace_all(&s, "{% elif $1 %}").to_string();
+        let re_if = Regex::new(r"@if\s*\(([^)]*)\)").unwrap();
+        s = re_if.replace_all(&s, "{% if $1 %}").to_string();
+        s = s.replace("@else", "{% else %}");
+        s = s.replace("@endif", "{% endif %}");
 
-        // 8. @endif -> {% endif %}
-        processed = processed.replace("@endif", "{% endif %}");
+        // 7. @unless(cond) -> {% if not (cond) %}
+        let re_unless = Regex::new(r"@unless\s*\(([^)]*)\)").unwrap();
+        s = re_unless.replace_all(&s, "{% if not ($1) %}").to_string();
+        s = s.replace("@endunless", "{% endif %}");
 
-        // 9. @foreach(items as item) -> {% for item in items %}
-        // Mendukung @foreach(items as item) atau @foreach($items as $item)
-        let re_foreach = Regex::new(r"@foreach\s*\(\s*(\$)?(.*?)\s+as\s+(\$)?(.*?)\s*\)").unwrap();
-        processed = re_foreach
-            .replace_all(&processed, "{% for $4 in $2 %}")
-            .to_string();
+        // 8. @foreach($items as $item) -> {% for item in items %}
+        let re_foreach = Regex::new(r"@foreach\s*\(\s*\$?([\w.]+)\s+as\s+\$?([\w]+)\s*\)").unwrap();
+        s = re_foreach.replace_all(&s, "{% for $2 in $1 %}").to_string();
+        s = s.replace("@endforeach", "{% endfor %}");
+        s = s.replace("@endfor", "{% endfor %}");
 
-        // 10. @endforeach -> {% endfor %}
-        processed = processed.replace("@endforeach", "{% endfor %}");
+        // 9. @forelse / @empty / @endforelse
+        let re_forelse = Regex::new(r"@forelse\s*\(\s*\$?([\w.]+)\s+as\s+\$?([\w]+)\s*\)").unwrap();
+        s = re_forelse.replace_all(&s, "{% for $2 in $1 %}").to_string();
+        s = s.replace("@empty", "{% else %}");
+        s = s.replace("@endforelse", "{% endfor %}");
 
-        // 11. @csrf -> <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        processed = processed.replace(
-            "@csrf",
-            "<input type=\"hidden\" name=\"csrf_token\" value=\"{{ csrf_token }}\">",
-        );
+        // 10. @auth / @endauth / @guest / @endguest
+        s = s.replace("@auth", "{% if email != \"\" %}");
+        s = s.replace("@endauth", "{% endif %}");
+        s = s.replace("@guest", "{% if email == \"\" %}");
+        s = s.replace("@endguest", "{% endif %}");
 
-        // 12. {{ $var }} -> {{ var }} (Opsional, karena Tera sudah mendukung {{ var }})
-        let re_var = Regex::new(r"\{\{\s*\$(.*?)\s*\}\}").unwrap();
-        processed = re_var.replace_all(&processed, "{{ $1 }}").to_string();
+        // 11. @csrf
+        s = s.replace("@csrf", "<input type=\"hidden\" name=\"csrf_token\" value=\"{{ csrf_token }}\">");
 
-        // 13. @include('path') -> {% include "path.html" %}
-        let re_include = Regex::new(r#"@include\s*\(\s*['"](.*?)['"]\s*\)"#).unwrap();
-        processed = re_include
-            .replace_all(&processed, "{% include \"$1.blade.rs\" %}")
-            .to_string();
+        // 12. @method('PUT')
+        let re_method = Regex::new(r#"@method\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_method.replace_all(&s, "<input type=\"hidden\" name=\"_method\" value=\"$1\">").to_string();
 
-        // 14. @auth -> {% if email != "" %}
-        processed = processed.replace("@auth", "{% if email != \"\" %}");
-        // 15. @endauth -> {% endif %}
-        processed = processed.replace("@endauth", "{% endif %}");
+        // 13. {{ $var }} -> {{ var }}
+        let re_var = Regex::new(r"\{\{\s*\$([\w.]+)\s*\}\}").unwrap();
+        s = re_var.replace_all(&s, "{{ $1 }}").to_string();
 
-        // 16. @guest -> {% if email == "" %}
-        processed = processed.replace("@guest", "{% if email == \"\" %}");
-        // 17. @endguest -> {% endif %}
-        processed = processed.replace("@endguest", "{% endif %}");
+        // 14. {!! $html !!} -> {{ html | safe }}
+        let re_raw = Regex::new(r"\{!!\s*\$?([\w.]+)\s*!!\}").unwrap();
+        s = re_raw.replace_all(&s, "{{ $1 | safe }}").to_string();
 
-        // 18. {{ __("key") }} -> {{ __(key="key") }}
+        // 15. @{{ }} -> {{ }}  (for JS frameworks like Alpine/Vue)
+        s = s.replace("@{{", "{{");
+
+        // 16. @php ... @endphp -> Tera comment (not supported in Tera)
+        let re_php = Regex::new(r"(?s)@php.*?@endphp").unwrap();
+        s = re_php.replace_all(&s, "{# @php block removed #}").to_string();
+
+        // 17. @dd($var) -> debug dump pre block
+        let re_dd = Regex::new(r"@dd\s*\(\s*\$?([\w.]+)\s*\)").unwrap();
+        s = re_dd.replace_all(&s, "<pre style=\"background:#1e293b;color:#e2e8f0;padding:12px;border-radius:6px;\">{{ $1 | json_encode() }}</pre>").to_string();
+
+        // 18. {{ __('key') }} / @lang('key') i18n helpers
         let re_trans = Regex::new(r#"__\(\s*(['"][^'"]*['"])"#).unwrap();
-        processed = re_trans.replace_all(&processed, "__(key=$1").to_string();
+        s = re_trans.replace_all(&s, "__(key=$1").to_string();
+        let re_lang = Regex::new(r#"@lang\s*\(\s*(['"][^'"]+['"])\s*\)"#).unwrap();
+        s = re_lang.replace_all(&s, "{{ __(key=$1) }}").to_string();
 
-        processed
+        // 19. @push / @endpush / @stack (simplified: strip for now)
+        let re_push = Regex::new(r#"@push\s*\(\s*['"][^'"]*['"]\s*\)"#).unwrap();
+        s = re_push.replace_all(&s, "").to_string();
+        s = s.replace("@endpush", "");
+        let re_stack = Regex::new(r#"@stack\s*\(\s*['"][^'"]*['"]\s*\)"#).unwrap();
+        s = re_stack.replace_all(&s, "").to_string();
+
+        // 20. @continue / @break
+        s = s.replace("@continue", "{% continue %}");
+        s = s.replace("@break", "{% break %}");
+
+        // 21. @error('field') / @enderror
+        let re_error = Regex::new(r#"@error\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_error.replace_all(&s, "{% if has_error(field=\"$1\") %}").to_string();
+        s = s.replace("@enderror", "{% endif %}");
+
+        // 22. @verbatim / @endverbatim
+        s = s.replace("@verbatim", "{% raw %}");
+        s = s.replace("@endverbatim", "{% endraw %}");
+
+        s
     }
-
     /// Render template dengan context data
     pub fn render(&self, template_name: &str, context: &Context) -> String {
         let res = match self.inner.render(template_name, context) {

@@ -1,46 +1,42 @@
-{% extends "layout.blade.rs" %}
+{% extends "layouts/app.blade.rs" %}
 
 {% block title %}Login - Lumina Framework{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-5">
-        <div class="card shadow-lg border-0 mt-5">
-            <div class="card-body p-5">
-                <div class="text-center mb-4">
-                    <h2 class="fw-bold text-primary">Welcome Back</h2>
-                    <p class="text-muted">Please enter your credentials to login</p>
-                </div>
-                
-                {{ alert_flash() }}
-                
-                <form action="/auth/login" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Email Address</label>
-                        <input type="email" name="email" class="form-control form-control-lg" 
-                            placeholder="name@example.com" value="{{ old.email | default(value="") }}" required>
-                        {{ form_error(field="email") }}
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" name="password" class="form-control form-control-lg" 
-                            placeholder="Enter password" required>
-                        {{ form_error(field="password") }}
-                    </div>
-                    
-                    <div class="d-grid gap-2 mt-4">
-                        <button type="submit" class="btn btn-primary btn-lg rounded-pill">Login Now</button>
-                    </div>
-                    
-                    <div class="text-center mt-4">
-                        <p class="mb-0">Don't have an account? <a href="/auth/register" class="text-primary fw-bold text-decoration-none">Register</a></p>
-                    </div>
-                </form>
-            </div>
+<div class="min-h-[75vh] flex items-center justify-center px-4 relative">
+    <div class="max-w-xs w-full bg-cardBg border border-borderBg rounded-lg p-5 shadow-lg relative z-10 text-xs">
+        <div class="text-center mb-4">
+            <h2 class="text-sm font-bold text-white code-font">Welcome Back</h2>
+            <p class="text-slate-400 mt-0.5 text-[10px]">Enter credentials to access account</p>
         </div>
+
+        {{ alert_flash() }}
+
+        <form action="/auth/login" method="POST" class="space-y-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div>
+                <label class="block font-semibold text-slate-300 mb-1">Email Address</label>
+                <input type="email" name="email" class="w-full bg-darkBg border border-borderBg rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-primary transition text-[11px]" 
+                    placeholder="name@example.com" value="{{ old.email | default(value="") }}" required>
+                {{ form_error(field="email") }}
+            </div>
+
+            <div>
+                <label class="block font-semibold text-slate-300 mb-1">Password</label>
+                <input type="password" name="password" class="w-full bg-darkBg border border-borderBg rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-primary transition text-[11px]" 
+                    placeholder="Enter password" required>
+                {{ form_error(field="password") }}
+            </div>
+
+            <button type="submit" class="w-full bg-primary hover:bg-blue-600 text-white py-1.5 rounded font-bold transition mt-2">
+                Sign In
+            </button>
+        </form>
+
+        <p class="text-center text-[10px] text-slate-400 mt-4">
+            Don't have an account? <a href="/auth/register" class="text-primary font-bold hover:underline">Register</a>
+        </p>
     </div>
 </div>
 {% endblock %}

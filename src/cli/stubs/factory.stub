@@ -3,7 +3,7 @@ use fake::Fake;
 use fake::faker::name::raw::*;
 use fake::faker::internet::raw::*;
 use fake::locales::*;
-use crate::database::{connection::DatabasePool, factory::Factory, model::Model};
+use lumina::database::{connection::DatabasePool, factory::Factory, model::Model};
 use crate::app::models::{{model_snake}}::{{model_camel}};
 
 pub struct {{name}};

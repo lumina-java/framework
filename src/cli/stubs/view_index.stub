@@ -1,50 +1,52 @@
-{% extends "dashboard_layout.blade.rs" %}
+{% extends "layouts/app.blade.rs" %}
 
 {% block content %}
-<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-    <div>
-        <h1 class="text-2xl font-bold text-slate-800">{{ name }} Management</h1>
-        <p class="text-sm text-slate-500">Kelola data {{ name }} dengan mudah dan cepat.</p>
+<div class="max-w-7xl mx-auto px-4 py-6 text-xs sm:text-sm">
+    <div class="flex justify-between items-center mb-4 pb-3 border-b border-borderBg">
+        <div>
+            <h1 class="text-base font-bold text-white tracking-tight code-font">{{ name }} Management</h1>
+            <p class="text-slate-400 text-[10px] mt-0.5">Manage your {{ snake_name }} list efficiently.</p>
+        </div>
+        <div>
+            <a href="/{{ snake_name }}s/create" class="inline-flex items-center bg-primary hover:bg-blue-600 text-white font-bold py-1.5 px-3 rounded text-[11px] transition shadow" hx-boost="true">
+                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Create New
+            </a>
+        </div>
     </div>
-    <div>
-        <a href="/{{ snake_name }}s/create" class="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200" hx-boost="true">
-            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            Tambah Baru
-        </a>
-    </div>
-</div>
 
-<div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-    <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm text-slate-600">
-            <thead class="bg-slate-50 text-slate-500 uppercase text-xs font-bold border-b border-slate-100">
-                <tr>
-                    <th class="px-6 py-4">ID</th>
-                    {{th_cols}}
-                    <th class="px-6 py-4">Created At</th>
-                    <th class="px-6 py-4 text-right">Aksi</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                {% for item in items %}
-                <tr class="hover:bg-slate-50/50 transition-colors">
-                    <td class="px-6 py-4 font-medium text-slate-800">#{{ item.id }}</td>
-                    {{td_cols}}
-                    <td class="px-6 py-4 text-slate-400">{{ item.created_at }}</td>
-                    <td class="px-6 py-4 text-right space-x-2">
-                        <a href="/{{ snake_name }}s/{{ item.id }}/edit" class="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold rounded-lg transition-colors" hx-boost="true">Edit</a>
-                        <form action="/{{ snake_name }}s/{{ item.id }}/delete" method="POST" class="inline" hx-boost="true" onsubmit="return confirm('Yakin ingin menghapus?')">
-                            <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-semibold rounded-lg transition-colors">Hapus</button>
-                        </form>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="10" class="px-6 py-8 text-center text-slate-400 italic">Data kosong.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="bg-cardBg border border-borderBg rounded shadow-md overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                    <tr class="bg-darkBg/60 text-slate-400 uppercase font-bold border-b border-borderBg text-[10px]">
+                        <th class="px-3 py-2">ID</th>
+                        {{th_cols}}
+                        <th class="px-3 py-2">Created At</th>
+                        <th class="px-3 py-2 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-borderBg text-slate-300">
+                    {% for item in items %}
+                    <tr class="hover:bg-darkBg/30 transition text-[11px]">
+                        <td class="px-3 py-2 text-slate-400 code-font">#{{ item.id }}</td>
+                        {{td_cols}}
+                        <td class="px-3 py-2 text-slate-500 code-font">{{ item.created_at }}</td>
+                        <td class="px-3 py-2 text-right space-x-1.5">
+                            <a href="/{{ snake_name }}s/{{ item.id }}/edit" class="inline-flex items-center px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 text-[10px] font-semibold rounded transition" hx-boost="true">Edit</a>
+                            <form action="/{{ snake_name }}s/{{ item.id }}/delete" method="POST" class="inline" hx-boost="true" onsubmit="return confirm('Yakin ingin menghapus?')">
+                                <button type="submit" class="inline-flex items-center px-2 py-0.5 bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 text-[10px] font-semibold rounded transition">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="px-3 py-6 text-center text-slate-500 italic">No records found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endblock %}

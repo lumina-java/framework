@@ -1,6 +1,4 @@
 use crate::database::connection::DatabasePool;
-use crate::database::model::Model;
-use comfy_table::Table;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 

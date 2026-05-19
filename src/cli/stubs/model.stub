@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use sqlx::FromRow;
-use crate::database::{connection::DatabasePool, model::Model};
+use lumina::database::{connection::DatabasePool, model::Model};
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default)]
 pub struct {{name}} {

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use crate::core::queue::Job;
-use crate::core::application::AppState;
+use lumina::core::queue::Job;
+use lumina::core::application::AppState;
 use std::sync::Arc;
 
 #[derive(Debug)]

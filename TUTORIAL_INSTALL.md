@@ -95,6 +95,18 @@ lumina make:crud Book title:string price:integer description:text
 ```
 *Ini adalah fitur ajaib Lumina! Perintah ini akan langsung menghasilkan seluruh halaman CRUD lengkap yang fungsional beserta form, tabel, sidebar menu, rute, controller, dan migrasi.*
 
+### D. Membuat Sistem Autentikasi Instan (Register & Login)
+```bash
+lumina make:auth
+```
+*Ini adalah fitur praktis Lumina untuk keamanan sistem! Hanya dengan satu perintah, CLI secara otomatis melakukan seluruh alur berikut tanpa konfigurasi manual:*
+* **Membuat Halaman View:** Menghasilkan file tampilan premium untuk form **Register** dan **Login** (`resources/views/auth/`).
+* **Membuat & Mendaftarkan Controller:** Menghasilkan file `src/app/controllers/auth_controller.rs` dan mendaftarkannya otomatis di `controllers/mod.rs`.
+* **Sinkronisasi Rute Pintar:** Mendeteksi berkas rute Anda (`routes/web.rs`), menghapus rute welcome statis yang lama, dan langsung menyuntikkan rute dinamis `GET` & `POST` lengkap untuk alur Login, Register, dan Logout.
+* **Integrasi Model User:** Memeriksa dan memperbarui model database `User` (`src/app/models/user.rs`) untuk menambahkan field `role` serta method verifikasi email bawaan.
+
+*Setelah perintah selesai dijalankan, Anda hanya perlu mengetik perintah `lumina migrate` untuk memastikan tabel database siap, lalu jalankan `lumina serve` untuk langsung menguji sistem autentikasi fungsional Anda!*
+
 ---
 
 ## 🐳 Langkah 5: Fitur Deployment & Auto Host (Docker / Nginx / Supervisor)

@@ -11,7 +11,7 @@ pub fn create_full_skeleton(base: &Path, name: &str) {
         "src/app/services",
         "src/app/requests",
         "src/core",
-        "routes",
+        "src/routes",
         "resources",
         "resources/views",
         "resources/views/auth",

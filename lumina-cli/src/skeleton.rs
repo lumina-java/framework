@@ -32,22 +32,22 @@ pub fn create_full_skeleton(base: &Path, name: &str) {
 
     // 2. Cargo.toml
     let cargo_toml = format!(
-        r#"[workspace]
-
-[package]
+        r#"[package]
 name = "{}"
 version = "0.1.0"
 edition = "2021"
 default-run = "{}-server"
 
 [dependencies]
-lumina = {{ package = "lumina-framework", git = "https://github.com/lumina-java/framework.git" }}
+lumina = {{ package = "lumina-framework", path = "../framework" }}
 tokio = {{ version = "1", features = ["full"] }}
 axum = {{ version = "0.7", features = ["macros", "multipart"] }}
 serde = {{ version = "1", features = ["derive"] }}
 serde_json = "1"
 dotenv = "0.15"
 tera = "1.19"
+async-trait = "0.1"
+sqlx = {{ version = "0.8", features = ["runtime-tokio", "sqlite", "any", "macros"] }}
 
 [[bin]]
 name = "{}-server"
@@ -145,15 +145,13 @@ async fn main() {
 
     // 7. src/app/controllers/welcome_controller.rs
     let welcome_ctrl = r#"use lumina::prelude::*;
-use axum::response::Html;
-use tera::Context;
 
 // =========================================================================
 //                        WELCOME CONTROLLER
 // =========================================================================
 // Controllers handle incoming HTTP requests and return responses.
-// In Lumina, controllers are simple async functions. They can receive AppState,
-// database connections, and session data automatically.
+// In Lumina, controllers are simple async functions. They receive AppState
+// via State extractor, which is available through `lumina::prelude::*`.
 
 pub struct WelcomeController;
 
@@ -184,7 +182,9 @@ impl WelcomeController {
 "#;
     fs::write(base.join("src/app/controllers/welcome_controller.rs"), welcome_ctrl).ok();
 
+
     // 8. routes/mod.rs & routes/web.rs
+    fs::create_dir_all(base.join("src/routes")).ok();
     fs::write(base.join("src/routes/mod.rs"), "pub mod web;\n").ok();
     
     let web_routes = r#"use lumina::prelude::*;

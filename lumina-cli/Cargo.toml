@@ -1,6 +1,6 @@
 [package]
-name = "lumina-cli"
-version = "0.1.3"
+name = "cargo-lumina"
+version = "0.1.4"
 edition = "2021"
 authors = ["Lumina Java <admin@lumina-java.com>"]
 description = "The Lumina Framework Installer"

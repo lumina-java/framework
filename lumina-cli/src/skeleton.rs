@@ -113,9 +113,7 @@ mod routes;
 
 use lumina::prelude::*;
 
-// =========================================================================
 //                  LUMINA FRAMEWORK APPLICATION ENTRYPOINT
-// =========================================================================
 // This is the core entrypoint of your Lumina application.
 // Here, we load environment variables, register routes, and launch the server.
 
@@ -154,9 +152,7 @@ async fn main() {
     // 7. src/app/controllers/welcome_controller.rs
     let welcome_ctrl = r#"use lumina::prelude::*;
 
-// =========================================================================
 //                        WELCOME CONTROLLER
-// =========================================================================
 // Selamat datang di Controller! Controller berfungsi untuk menerima request
 // dari user dan mengembalikan response (biasanya berupa halaman web / HTML).
 //
@@ -208,9 +204,7 @@ impl WelcomeController {
     let web_routes = r#"use lumina::prelude::*;
 use crate::app::controllers::welcome_controller::WelcomeController;
 
-// =========================================================================
 //                            WEB ROUTING
-// =========================================================================
 // Di sinilah kamu mendaftarkan semua URL (route) web untuk aplikasimu.
 // Konsepnya sama persis seperti `Route::get()` di Laravel!
 //
@@ -225,6 +219,7 @@ pub fn router() -> Router<AppState> {
         // Rute untuk halaman autentikasi (Login & Register)
         .get("/login", WelcomeController::login)
         .get("/register", WelcomeController::register)
+
 
         // 👇 CONTOH MENAMBAH RUTE BARU:
         // .get("/halo", WelcomeController::halo)
@@ -493,9 +488,7 @@ use serde::{Serialize, Deserialize};
 use sqlx::FromRow;
 use lumina::database::{connection::DatabasePool, model::Model};
 
-// =========================================================================
 //                            USER MODEL
-// =========================================================================
 // Selamat datang di Model! Di Laravel, ini adalah class Eloquent (seperti `User extends Model`).
 // Di Rust/Lumina, Model adalah `struct` yang mendefinisikan kolom apa saja yang
 // ada di tabel database, lalu kita beritahu Lumina nama tabelnya (di `const TABLE`).
@@ -543,6 +536,7 @@ impl Model for User {
         Self::query(pool).get().await
     }
 
+    /// Menyimpan data ke database (Mirip `$user->save()`).
     /// Menyimpan data ke database (Mirip `$user->save()`).
     /// Lumina akan otomatis mengecek: jika ID > 0 berarti UPDATE, jika 0 berarti INSERT baru.
     async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {

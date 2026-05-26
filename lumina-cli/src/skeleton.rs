@@ -588,92 +588,114 @@ impl Model for User {
 
     // 15. Auto-generate comprehensive, educational README.md
     let readme = format!(
-        r#"# ⚡ Welcome to Your New Lumina Project: {}
+        r#"# ⚡ Selamat Datang di Project Lumina Baru Kamu: {}
 
-Congratulations! You have successfully scaffolded a fresh project with the **Lumina Framework** — the highly ergonomic, high-performance web framework designed for developers who love the speed & memory-safety of **Rust** mixed with the clean, elegant MVC patterns of **Laravel**.
+Selamat! Kamu telah berhasil membuat project baru dengan **Lumina Framework** — framework web berbasis Rust yang super cepat, aman, namun memiliki sintaks elegan dan semudah **Laravel**.
 
 ---
 
-## 🚀 Quick Start Guide
+## 🚀 Panduan Menjalankan Project (Sangat Mudah!)
 
-Ready to get running? Just follow these simple steps:
+Secara default, project ini menggunakan database **SQLite** (file lokal). Artinya, **kamu tidak perlu repot menginstall database apapun** di komputer kamu untuk langsung mencoba framework ini!
 
-### 1. Copy local configuration
-We already copied `.env.example` to `.env` for you! Open `.env` to check your settings:
-```bash
-# Look inside your .env configuration
-APP_URL=http://localhost:8000
-DB_CONNECTION=sqlite
-DATABASE_URL=sqlite:./database.sqlite
-```
-
-### 2. Launch the Application Server
-Run the cargo command in your terminal:
+Cukup ketik perintah ini di terminal kamu:
 ```bash
 cargo run
 ```
-Your server is now active! Open your browser and navigate to:
+
+Tunggu proses kompilasi Rust (hanya lama di awal), lalu buka browser dan kunjungi:
 👉 **[http://localhost:8000](http://localhost:8000)**
 
----
-
-## 📁 Understanding the Folder Structure
-
-Lumina follows a clean, intuitive MVC layout to make it incredibly easy for beginners and laypeople to explore:
-
-*   **`src/`** — Houses all Rust source logic.
-    *   **`src/main.rs`** — The entrypoint of your server where everything is loaded.
-    *   **`src/routes/web.rs`** — Register all of your web endpoints here.
-    *   **`src/app/controllers/`** — Write your controller handlers to handle requests.
-    *   **`src/app/models/`** — Structural database models (e.g., `User` model).
-*   **`resources/views/`** — HTML frontend templates using the Blade-style format.
-*   **`database/migrations/`** — Standard SQL files to structure your database schemas.
-*   **`storage/`** — Internal caching and public asset uploads.
+Boom! Website kamu sudah berjalan! 🎉
 
 ---
 
-## 💡 How to Add a New Route & View (Step-by-Step)
+## 🗄️ Mengubah Database ke MySQL
 
-Want to add a custom `/about` page? It takes just 3 simple steps:
+Kalau kamu sudah siap mendeploy aplikasi atau ingin beralih ke MySQL, mengubahnya sangatlah gampang, persis seperti di Laravel.
 
-### Step A: Create the HTML View
-Create a file at `resources/views/about.blade.rs` and write standard HTML:
+**Langkah-langkah ganti ke MySQL:**
+1. Buka file `.env` di folder project ini.
+2. Cari bagian `# Database Configuration`.
+3. Matikan (hapus atau beri komentar `#`) konfigurasi SQLite.
+4. Ganti baris `DATABASE_URL` agar mengarah ke MySQL kamu.
+
+**Contoh isi `.env` untuk MySQL:**
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=nama_db_kamu
+DB_USERNAME=root
+DB_PASSWORD=password_rahasia
+
+# Variabel ini yang paling penting dan dibaca langsung oleh sistem:
+DATABASE_URL=mysql://root:password_rahasia@127.0.0.1:3306/nama_db_kamu
+```
+
+*Jangan lupa: Buat dulu database kosong bernama `nama_db_kamu` di phpMyAdmin / MySQL kamu!*
+
+Setelah itu, jalankan migrasi agar Lumina membuat tabel di MySQL:
+```bash
+cargo lumina migrate
+```
+
+---
+
+## 📁 Penjelasan Struktur Folder (MVC)
+
+Struktur folder Lumina dibuat agar sangat familiar bagi programmer PHP/JS:
+
+*   **`src/`** — Di sinilah semua kode bahasa Rust kamu berada.
+    *   **`src/routes/web.rs`** — Tempat mendaftarkan URL (seperti `Route::get()`).
+    *   **`src/app/controllers/`** — Tempat menaruh logika aplikasi.
+    *   **`src/app/models/`** — File untuk mengakses database (CRUD).
+*   **`resources/views/`** — Tempat file HTML (dengan sintaks mirip Blade).
+*   **`database/migrations/`** — File SQL untuk membuat tabel database.
+
+---
+
+## 💡 Cara Menambah Halaman Baru (Step-by-Step)
+
+Ingin membuat halaman `/tentang`? Cuma butuh 3 langkah!
+
+### Langkah 1: Buat Tampilan HTML (View)
+Buat file `resources/views/tentang.blade.rs`:
 ```html
 {{% extends "layouts/app.blade.rs" %}}
 
 {{% block content %}}
 <div class="max-w-4xl mx-auto px-4 py-20 text-center">
-    <h1 class="text-4xl font-extrabold heading-font text-white">About Lumina</h1>
-    <p class="text-slate-400 mt-4 text-lg">This is my first Lumina custom view!</p>
+    <h1 class="text-4xl font-bold text-white">Tentang Kami</h1>
+    <p class="text-slate-400 mt-4">Ini adalah halaman baruku!</p>
 </div>
 {{% endblock %}}
 ```
 
-### Step B: Create a Controller Method
-Open `src/app/controllers/welcome_controller.rs` and add a new method:
+### Langkah 2: Buat Logika (Controller)
+Buka `src/app/controllers/welcome_controller.rs` dan tambahkan fungsi ini ke dalam `impl WelcomeController`:
 ```rust
-pub async fn about(State(state): State<AppState>) -> Html<String> {{
-    let mut ctx = Context::new();
-    ctx.insert("title", "About Us");
-    Html(state.view.render("about.blade.rs", &ctx))
+pub async fn tentang(State(state): State<AppState>) -> Html<String> {{
+    let ctx = Context::new();
+    Html(state.view.render("tentang.blade.rs", &ctx))
 }}
 ```
 
-### Step C: Register the Route
-Open `src/routes/web.rs` and link your URL to your new controller method:
+### Langkah 3: Daftarkan URL (Route)
+Buka `src/routes/web.rs` dan tambahkan rutenya:
 ```rust
 pub fn router() -> Router<AppState> {{
     Router::new()
         .get("/", WelcomeController::index)
-        .get("/about", WelcomeController::about) // <-- Just add this line!
+        .get("/tentang", WelcomeController::tentang) // <-- Tambahkan baris ini!
 }}
 ```
-Compile and run again! Your new page will be live at `http://localhost:8000/about`.
+Jalankan ulang `cargo run` dan buka `http://localhost:8000/tentang`.
 
 ---
 
-## 🦀 Built with Pride in Rust
-Enjoy building something incredibly fast, secure, and beautiful with **Lumina**!
+## 🦀 Selamat Belajar Rust dengan Menyenangkan!
+Dengan Lumina, belajar bahasa sistem yang kompleks menjadi ramah dan asyik.
 "#,
         name
     );

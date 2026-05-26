@@ -153,41 +153,40 @@ async fn main() {
     let welcome_ctrl = r#"use lumina::prelude::*;
 
 //                        WELCOME CONTROLLER
-// Selamat datang di Controller! Controller berfungsi untuk menerima request
-// dari user dan mengembalikan response (biasanya berupa halaman web / HTML).
+// Selamat datang di Controller! Controller berfungsi untuk memproses request
+// dan mengembalikan response (biasanya berupa halaman web HTML).
 //
-// Di Lumina, controller dibuat semudah di Laravel. Setiap fungsi controller
-// menerima `State<AppState>` yang berisi semua hal yang kamu butuhkan
-// (seperti view engine `state.view` atau koneksi database `state.db`).
+// Lumina dirancang agar sangat elegan ("beautiful"). Kamu hanya butuh
+// memanggil parameter `req: Request` untuk mengakses segalanya!
 
 pub struct WelcomeController;
 
 impl WelcomeController {
-    /// Fungsi ini menangani rute halaman utama ("/")
-    pub async fn index(State(state): State<AppState>) -> Html<String> {
-        // `Context` digunakan untuk mengirim data (variabel) dari Controller ke View (HTML).
-        // Mirip seperti `return view('welcome', ['title' => 'Lumina'])` di Laravel.
-        let mut ctx = Context::new();
-        ctx.insert("title", "Welcome to Lumina");
-        ctx.insert("app_name", "Lumina Framework");
-        ctx.insert("version", "0.1.0");
-
-        // `state.view.render` akan mencari file di folder `resources/views/welcome.blade.rs`
-        Html(state.view.render("welcome.blade.rs", &ctx))
+    /// Fungsi ini menangani halaman utama ("/")
+    pub async fn index(req: Request) -> impl IntoResponse {
+        // Render halaman semudah di Laravel: `return view('welcome')->with(...)`
+        req.view("welcome.blade.rs")
+            .with("title", "Welcome to Lumina")
+            .with("app_name", "Lumina Framework")
+            .with("version", "0.1.0")
+            .render(&req)
+            .await
     }
 
     /// Menampilkan Halaman Login ("/login")
-    pub async fn login(State(state): State<AppState>) -> Html<String> {
-        let mut ctx = Context::new();
-        ctx.insert("title", "Login - Lumina");
-        Html(state.view.render("auth/login.blade.rs", &ctx))
+    pub async fn login(req: Request) -> impl IntoResponse {
+        req.view("auth/login.blade.rs")
+            .with("title", "Login - Lumina")
+            .render(&req)
+            .await
     }
 
     /// Menampilkan Halaman Register ("/register")
-    pub async fn register(State(state): State<AppState>) -> Html<String> {
-        let mut ctx = Context::new();
-        ctx.insert("title", "Register - Lumina");
-        Html(state.view.render("auth/register.blade.rs", &ctx))
+    pub async fn register(req: Request) -> impl IntoResponse {
+        req.view("auth/register.blade.rs")
+            .with("title", "Register - Lumina")
+            .render(&req)
+            .await
     }
 }
 "#;
@@ -486,15 +485,17 @@ CREATE TABLE IF NOT EXISTS users (
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use sqlx::FromRow;
-use lumina::database::{connection::DatabasePool, model::Model};
+use lumina::prelude::*;
 
 //                            USER MODEL
 // Selamat datang di Model! Di Laravel, ini adalah class Eloquent (seperti `User extends Model`).
-// Di Rust/Lumina, Model adalah `struct` yang mendefinisikan kolom apa saja yang
-// ada di tabel database, lalu kita beritahu Lumina nama tabelnya (di `const TABLE`).
+// Lumina membuat database di Rust menjadi sangat indah dan simpel.
 
-/// Struct `User` ini mencerminkan struktur kolom di tabel `users`.
-#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default)]
+// Cukup tambahkan `#[derive(LuminaModel)]`, dan Lumina otomatis membuatkan
+// fungsi sakti seperti `User::find(id)`, `User::all()`, `$user.save()`, dll
+// tanpa kamu perlu menulis SQL mentah sedikitpun! 🪄
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel)]
+#[table("users")]
 pub struct User {
     pub id: i64,
     pub name: String,
@@ -510,71 +511,6 @@ impl User {
     /// Membuat object User baru yang kosong (seperti `$user = new User()`)
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Contoh fungsi kustom: Mencari user berdasarkan Email (Mirip `User::where('email', $email)->first()`)
-    pub async fn find_by_email(pool: &DatabasePool, email: &str) -> Result<Self, sqlx::Error> {
-        // Query builder Lumina menyembunyikan SQL mentah dari kamu!
-        Self::query(pool).where_eq("email", email).first().await
-    }
-}
-
-/// Di sinilah keajaiban "Eloquent" Lumina terjadi. Kita memberitahu Lumina
-/// cara melakukan aksi CRUD standard (Create, Read, Update, Delete) ke tabel ini.
-#[async_trait]
-impl Model for User {
-    // Nama tabel di database (seperti `$table = 'users'` di Laravel)
-    const TABLE: &'static str = "users";
-
-    /// Mencari data berdasarkan ID (Mirip `User::find($id)`)
-    async fn find(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
-        Self::query(pool).where_eq("id", id).first().await
-    }
-
-    /// Mengambil semua data (Mirip `User::all()`)
-    async fn all(pool: &DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
-        Self::query(pool).get().await
-    }
-
-    /// Menyimpan data ke database (Mirip `$user->save()`).
-    /// Menyimpan data ke database (Mirip `$user->save()`).
-    /// Lumina akan otomatis mengecek: jika ID > 0 berarti UPDATE, jika 0 berarti INSERT baru.
-    async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {
-        if self.id > 0 {
-            // Mode UPDATE (Edit data lama)
-            sqlx::query("UPDATE users SET name = ?, email = ?, password = ?, role = ? WHERE id = ?")
-                .bind(&self.name)
-                .bind(&self.email)
-                .bind(&self.password)
-                .bind(&self.role)
-                .bind(self.id)
-                .execute(&pool.pool)
-                .await?;
-            Ok(self.id)
-        } else {
-            // Mode INSERT (Buat data baru)
-            let result = sqlx::query(
-                "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)"
-            )
-            .bind(&self.name)
-            .bind(&self.email)
-            .bind(&self.password)
-            .bind(&self.role)
-            .execute(&pool.pool)
-            .await?;
-
-            Ok(result.last_insert_id().unwrap_or(0))
-        }
-    }
-
-    /// Menghapus data secara "Soft Delete" (Mirip `$user->delete()`)
-    async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
-        sqlx::query("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
-            .bind(id)
-            .execute(&pool.pool)
-            .await?;
-
-        Ok(true)
     }
 }
 "#;
@@ -669,9 +605,11 @@ Buat file `resources/views/tentang.blade.rs`:
 ### Langkah 2: Buat Logika (Controller)
 Buka `src/app/controllers/welcome_controller.rs` dan tambahkan fungsi ini ke dalam `impl WelcomeController`:
 ```rust
-pub async fn tentang(State(state): State<AppState>) -> Html<String> {{
-    let ctx = Context::new();
-    Html(state.view.render("tentang.blade.rs", &ctx))
+pub async fn tentang(req: Request) -> impl IntoResponse {{
+    req.view("tentang.blade.rs")
+       .with("title", "Tentang Kami")
+       .render(&req)
+       .await
 }}
 ```
 

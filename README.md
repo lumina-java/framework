@@ -1,7 +1,118 @@
 # ✨ Lumina Framework
 
 A beautiful, fast, and elegant web framework for Rust.  
-Inspired by Laravel's clean and readable syntax.
+Inspired by Laravel's clean and readable syntax, Lumina is designed to be the absolute easiest way for beginners to dive into the Rust ecosystem.
+
+---
+
+## 🚀 Tutorial Memulai (Untuk Pemula)
+
+Apakah kamu baru belajar Rust dan terbiasa dengan kemudahan Laravel atau PHP? Jangan khawatir! Lumina dirancang khusus agar mudah dipahami. Ikuti 3 langkah sederhana ini untuk menjalankan project pertamamu.
+
+### 📦 1. Install Lumina CLI
+Pastikan komputer kamu sudah terpasang **Rust** (jika belum, install via [rustup.rs](https://rustup.rs/)). Setelah itu, buka Terminal atau Command Prompt kamu dan ketik perintah berikut untuk menginstall Lumina CLI secara global:
+
+```bash
+cargo install cargo-lumina
+```
+*(Tunggu hingga proses instalasi selesai)*
+
+### 🏗️ 2. Buat Project Baru
+Sama halnya seperti `laravel new`, kamu bisa membuat project baru (misal dengan nama `toko_online`) menggunakan perintah ini:
+
+```bash
+cargo lumina new toko_online
+```
+Lumina akan otomatis membuatkan folder `toko_online` beserta seluruh kerangka MVC-nya (Models, Views, Controllers, Routes, dll).
+
+### 🏃 3. Jalankan Server (Database SQLite Otomatis!)
+Masuk ke folder project yang baru dibuat, lalu jalankan aplikasinya!
+
+```bash
+cd toko_online
+cargo run
+```
+**Selesai! 🎉** Buka browser kamu dan kunjungi 👉 **http://localhost:8000**
+Secara default, Lumina sudah menggunakan database **SQLite**. Database ini tersimpan dalam bentuk file (di `database.sqlite`), sehingga kamu **tidak perlu menginstall atau mengatur database apapun di komputer kamu** saat pertama kali mencoba. Sangat praktis!
+
+---
+
+## 🗄️ Mengubah Database dari SQLite ke MySQL
+
+Setelah kamu nyaman dan ingin beralih ke MySQL, mengubahnya sangatlah mudah.
+Buka file bernama `.env` di dalam folder project kamu.
+
+Cari bagian konfigurasi database (biasanya di baris-baris tengah) dan ubah dari SQLite ke MySQL.
+
+**Ubah dari:**
+```env
+DB_CONNECTION=sqlite
+DB_DATABASE=./database.sqlite
+DATABASE_URL=sqlite:./database.sqlite
+```
+
+**Menjadi (Sesuaikan dengan username & password MySQL kamu):**
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=nama_database_kamu
+DB_USERNAME=root
+DB_PASSWORD=password_kamu
+DATABASE_URL=mysql://root:password_kamu@127.0.0.1:3306/nama_database_kamu
+```
+
+*Catatan: Pastikan kamu sudah membuat database kosong bernama `nama_database_kamu` di aplikasi MySQL kamu (misal lewat XAMPP, phpMyAdmin, atau DBeaver). Variabel utama yang dibaca oleh Rust SQLx adalah `DATABASE_URL`.*
+
+Setelah mengubah `.env`, jalankan migrasi agar Lumina membuat tabel di MySQL:
+```bash
+cargo lumina migrate
+```
+
+---
+
+## 💖 Beautiful Syntax (Lebih Indah dari PHP!)
+
+Lumina membuang semua kode boilerplate (kode rumit bawaan framework/bahasa) dan menggantinya dengan sintaks yang amat sangat bersih dan cantik ala Laravel, berkat kekuatan `Macro` Rust.
+
+### Controller yang Elegan (Fluent Builder)
+Menerima request dan mengembalikan tampilan HTML kini seindah merangkai kata:
+```rust
+use lumina::prelude::*;
+
+pub struct WelcomeController;
+
+impl WelcomeController {
+    // 🤩 Cukup gunakan parameter `req: Request`!
+    pub async fn index(req: Request) -> impl IntoResponse {
+        req.view("welcome") // otomatis mencari file resources/views/welcome.blade.rs
+            .with("title", "Welcome to Lumina")
+            .with("app_name", "Lumina Framework")
+            .render(&req)
+            .await.into_response()
+    }
+}
+```
+
+### Model tanpa SQL Mentah (Magic Macro)
+Lupakan penulisan Query SQL mentah (raw string) di dalam fungsi save/find! Hanya tambahkan `#[derive(LuminaModel)]`:
+```rust
+use lumina::prelude::*;
+use sqlx::FromRow;
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel)]
+#[table("users")]
+pub struct User {
+    pub id: i64,
+    pub name: String,
+    pub email: String,
+    pub password: String,
+}
+
+// 🪄 Simsalabim! Sekarang struct `User` kamu otomatis memiliki fungsi:
+// User::find(pool, id), User::all(pool), user.save(pool), dll!
+```
 
 ---
 
@@ -21,65 +132,18 @@ Inspired by Laravel's clean and readable syntax.
 
 ---
 
-## 📦 Installation
+## ⚡ Contoh Penggunaan Lainnya
 
-Anda dapat menginstall Lumina CLI secara global menggunakan cargo:
-
+### Fitur Autentikasi Instan
+Buat halaman Login dan Register lengkap dengan session cookie hanya dalam hitungan detik:
 ```bash
-cargo install lumina-framework
+cargo lumina make:auth
 ```
-
-Atau jika Anda ingin menginstall dari source:
-
-```bash
-git clone https://github.com/lumina-java/framework.git
-cd lumina
-cargo install --path .
-```
-
----
-
-## 🚀 Quick Start
-
-### 1. Buat Project Baru
-Gunakan CLI untuk membuat skeleton project baru:
-```bash
-lumina new my-app
-cd my-app
-cp .env.example .env
-```
-
-### 2. Jalankan Server
-```bash
-cargo run --bin lumina-server
-```
-
-Server berjalan di **http://127.0.0.1:8000** 🎉
-
----
-
-## ⚡ Contoh Penggunaan
 
 ### Smart CRUD Scaffolding
 Buat modul produk lengkap (Model, Migration, Controller, Views) dalam 1 detik:
 ```bash
-./lumina make:crud Product name:string:required price:integer description:text
-```
-
-### Elegant Controller Logic
-Gunakan `Request` bundle untuk akses cepat ke segalanya:
-```rust
-pub async fn store(req: Request, ValidatedForm(form): ValidatedForm<ProductRequest>) -> impl IntoResponse {
-    let mut item = Product::new();
-    item.name = form.name;
-    item.price = form.price;
-
-    let service = ProductService::new(req.db_arc());
-    match service.create_model(item).await {
-        Ok(_) => req.redirect("/products").with_success("Berhasil!").go(&req).await,
-        Err(e) => req.back().with_error("Gagal!").go(&req).await
-    }
-}
+cargo lumina make:crud Product name:string:required price:integer description:text
 ```
 
 ### Fluent Testing

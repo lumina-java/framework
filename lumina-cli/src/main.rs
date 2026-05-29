@@ -4,8 +4,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::fs;
 use std::path::Path;
 
-mod skeleton;
 mod generator;
+mod skeleton;
 
 #[derive(Parser)]
 #[command(
@@ -35,7 +35,6 @@ enum Commands {
     Watch,
 
     // ─── Generators ──────────────────────────────────────────────────────────
-
     /// Generate a new Controller
     #[command(name = "make:controller")]
     MakeController {
@@ -72,7 +71,6 @@ enum Commands {
     MakeAuth,
 
     // ─── Database ─────────────────────────────────────────────────────────────
-
     /// Run all pending database migrations
     Migrate,
 
@@ -85,7 +83,6 @@ enum Commands {
     DbSeed,
 
     // ─── DevOps / Deployment ──────────────────────────────────────────────────
-
     /// Generate production Dockerfile & docker-compose.yml
     #[command(name = "make:docker")]
     MakeDocker,
@@ -151,9 +148,7 @@ fn main() {
 fn handle_new_project(name: &str) {
     println!(
         "{}",
-        "✨ Welcome to Lumina Framework"
-            .bright_purple()
-            .bold()
+        "✨ Welcome to Lumina Framework".bright_purple().bold()
     );
     println!("🚀 Creating new project: {}\n", name.bright_blue());
 

@@ -17,7 +17,9 @@ fn guard_project() -> bool {
     if !is_lumina_project() {
         println!(
             "{}",
-            "❌ Error: This command must be run inside a Lumina project root.".red().bold()
+            "❌ Error: This command must be run inside a Lumina project root."
+                .red()
+                .bold()
         );
         println!(
             "   Hint: Create a project first with {}",
@@ -64,7 +66,9 @@ fn print_hint(msg: &str) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub fn cmd_serve() {
-    if !guard_project() { return; }
+    if !guard_project() {
+        return;
+    }
     println!("{}", "🚀 Starting Lumina Server...".bright_purple().bold());
     println!("   Press {} to stop.\n", "Ctrl+C".bright_red());
     let status = Command::new("cargo").arg("run").status();
@@ -74,13 +78,21 @@ pub fn cmd_serve() {
 }
 
 pub fn cmd_watch() {
-    if !guard_project() { return; }
-    println!("{}", "👁  Starting Lumina Watch (auto-reload)...".bright_purple().bold());
-    println!("   Requires cargo-watch: {}", "cargo install cargo-watch".bright_cyan());
+    if !guard_project() {
+        return;
+    }
+    println!(
+        "{}",
+        "👁  Starting Lumina Watch (auto-reload)..."
+            .bright_purple()
+            .bold()
+    );
+    println!(
+        "   Requires cargo-watch: {}",
+        "cargo install cargo-watch".bright_cyan()
+    );
     println!("   Press {} to stop.\n", "Ctrl+C".bright_red());
-    let status = Command::new("cargo")
-        .args(["watch", "-x", "run"])
-        .status();
+    let status = Command::new("cargo").args(["watch", "-x", "run"]).status();
     if let Err(e) = status {
         println!(
             "{} cargo-watch not found. Install it with: {}",
@@ -96,7 +108,9 @@ pub fn cmd_watch() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub fn generate_controller(name: &str) {
-    if !guard_project() { return; }
+    if !guard_project() {
+        return;
+    }
     println!("{}", "🔨 Generating Controller...".bright_purple().bold());
 
     let class_name = capitalize_first(name);
@@ -141,7 +155,10 @@ impl {class} {{
 
     let path = format!("src/app/controllers/{}.rs", file_name);
     fs::write(&path, code).ok();
-    append_to_file("src/app/controllers/mod.rs", &format!("pub mod {};\n", file_name));
+    append_to_file(
+        "src/app/controllers/mod.rs",
+        &format!("pub mod {};\n", file_name),
+    );
 
     print_success(&format!("Controller: {}", path));
     print_hint(&format!(
@@ -151,7 +168,9 @@ impl {class} {{
 }
 
 pub fn generate_model(name: &str) {
-    if !guard_project() { return; }
+    if !guard_project() {
+        return;
+    }
     println!("{}", "🔨 Generating Model...".bright_purple().bold());
 
     let lower = to_snake_case(name);
@@ -227,7 +246,9 @@ impl Model for {class} {{
 }
 
 pub fn generate_migration(name: &str) {
-    if !guard_project() { return; }
+    if !guard_project() {
+        return;
+    }
     println!("{}", "🔨 Generating Migration...".bright_purple().bold());
     let slug = name.to_lowercase().replace(' ', "_");
     generate_migration_raw(&slug, None);
@@ -245,8 +266,13 @@ fn generate_migration_raw(slug: &str, sql: Option<&str>) {
 }
 
 pub fn generate_crud(name: &str, fields: &[String]) {
-    if !guard_project() { return; }
-    println!("{}", "🔨 Generating full CRUD scaffold...".bright_purple().bold());
+    if !guard_project() {
+        return;
+    }
+    println!(
+        "{}",
+        "🔨 Generating full CRUD scaffold...".bright_purple().bold()
+    );
 
     let lower = to_snake_case(name);
     let class = capitalize_first(name);
@@ -274,9 +300,7 @@ pub fn generate_crud(name: &str, fields: &[String]) {
     print_success(&format!("Views: {}/", view_dir));
 
     println!();
-    print_hint(&format!(
-        "Add these routes to src/routes/web.rs:"
-    ));
+    print_hint("Add these routes to src/routes/web.rs:");
     println!("      .get(\"/{lower}\",          {class}Controller::index)");
     println!("      .get(\"/{lower}/create\",   {class}Controller::create)");
     println!("      .get(\"/{lower}/:id\",      {class}Controller::show)");
@@ -327,11 +351,11 @@ impl {class}Controller {{
 
 fn build_blade_view(class: &str, view: &str, _lower: &str, _fields: &[String]) -> String {
     let title = match view {
-        "index"  => format!("{} List", class),
+        "index" => format!("{} List", class),
         "create" => format!("Create {}", class),
-        "edit"   => format!("Edit {}", class),
-        "show"   => format!("{} Detail", class),
-        _        => class.to_string(),
+        "edit" => format!("Edit {}", class),
+        "show" => format!("{} Detail", class),
+        _ => class.to_string(),
     };
     format!(
         "{{% extends \"layouts/app.blade.rs\" %}}\n\n{{% block content %}}\n<div class=\"max-w-7xl mx-auto px-4 py-12\">\n    <h1 class=\"text-3xl font-bold text-white heading-font\">{title}</h1>\n    {comment}\n</div>\n{{% endblock %}}\n",
@@ -341,11 +365,23 @@ fn build_blade_view(class: &str, view: &str, _lower: &str, _fields: &[String]) -
 }
 
 pub fn generate_auth() {
-    if !guard_project() { return; }
-    println!("{}", "🔨 Generating Authentication Scaffolding...".bright_purple().bold());
+    if !guard_project() {
+        return;
+    }
+    println!(
+        "{}",
+        "🔨 Generating Authentication Scaffolding..."
+            .bright_purple()
+            .bold()
+    );
 
     let auth_controller = r#"use lumina::prelude::*;
+use crate::app::models::user::User;
 use serde::Deserialize;
+use lumina::core::auth::Auth;
+use axum::response::IntoResponse;
+use lumina::core::request::Request;
+use lumina::database::model::Model;
 
 pub struct AuthController;
 
@@ -364,46 +400,76 @@ pub struct RegisterForm {
 
 impl AuthController {
     /// GET /login
-    pub async fn login(State(state): State<AppState>) -> Html<String> {
-        let mut ctx = Context::new();
-        ctx.insert("title", "Login");
-        Html(state.view.render("auth/login.blade.rs", &ctx))
+    pub async fn login(req: Request) -> impl IntoResponse {
+        req.view("auth/login")
+            .with("title", "Login")
+            .render(&req)
+            .await
+            .into_response().into_response()
     }
 
     /// POST /login
-    pub async fn login_post(
-        State(state): State<AppState>,
-        Form(form): Form<LoginForm>,
-    ) -> Html<String> {
-        // TODO: validate credentials, create session/JWT
-        let mut ctx = Context::new();
-        ctx.insert("title", "Login");
-        ctx.insert("error", "Invalid email or password.");
-        Html(state.view.render("auth/login.blade.rs", &ctx))
+    pub async fn login_post(req: Request, Form(form): Form<LoginForm>) -> impl IntoResponse {
+        let pool = req.db();
+
+        if let Ok(user) = User::query(pool).where_eq("email", &form.email).first().await {
+            if Auth::verify(&form.password, &user.password) {
+                let auth_user = Auth::user(user.id, user.email.clone(), user.role.clone(), vec![]);
+                Auth::login(&req.session, auth_user).await.ok();
+                return req.redirect("/").go(&req).await.into_response();
+            }
+        }
+
+        req.view("auth/login")
+            .with("title", "Login")
+            .with("error", "Email atau password salah!")
+            .render(&req)
+            .await
+            .into_response().into_response()
     }
 
     /// GET /register
-    pub async fn register(State(state): State<AppState>) -> Html<String> {
-        let mut ctx = Context::new();
-        ctx.insert("title", "Create Account");
-        Html(state.view.render("auth/register.blade.rs", &ctx))
+    pub async fn register(req: Request) -> impl IntoResponse {
+        req.view("auth/register")
+            .with("title", "Create Account")
+            .render(&req)
+            .await
+            .into_response().into_response()
     }
 
     /// POST /register
-    pub async fn register_post(
-        State(state): State<AppState>,
-        Form(form): Form<RegisterForm>,
-    ) -> Html<String> {
-        // TODO: hash password, insert user, redirect
-        let mut ctx = Context::new();
-        ctx.insert("title", "Create Account");
-        Html(state.view.render("auth/register.blade.rs", &ctx))
+    pub async fn register_post(req: Request, Form(form): Form<RegisterForm>) -> impl IntoResponse {
+        let pool = req.db();
+
+        let hashed_password = Auth::make_hash(&form.password);
+
+        let mut new_user = User::new();
+        new_user.name = form.name;
+        new_user.email = form.email;
+        new_user.password = hashed_password;
+        new_user.role = "user".to_string();
+
+        match new_user.save(pool).await {
+            Ok(id) => {
+                let auth_user = Auth::user(id, new_user.email, new_user.role, vec![]);
+                Auth::login(&req.session, auth_user).await.ok();
+                req.redirect("/").go(&req).await.into_response()
+            }
+            Err(_) => {
+                req.view("auth/register")
+                    .with("title", "Create Account")
+                    .with("error", "Email sudah digunakan atau terjadi kesalahan.")
+                    .render(&req)
+                    .await
+                    .into_response().into_response()
+            }
+        }
     }
 
     /// GET /logout
-    pub async fn logout() -> Html<String> {
-        // TODO: destroy session/token
-        Html("<script>window.location='/'</script>".to_string())
+    pub async fn logout(req: Request) -> impl IntoResponse {
+        Auth::logout(&req.session).await;
+        req.redirect("/login").go(&req).await.into_response().into_response()
     }
 }
 "#;
@@ -426,8 +492,13 @@ impl AuthController {
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub fn run_migrate() {
-    if !guard_project() { return; }
-    println!("{}", "🗄  Running database migrations...".bright_purple().bold());
+    if !guard_project() {
+        return;
+    }
+    println!(
+        "{}",
+        "🗄  Running database migrations...".bright_purple().bold()
+    );
 
     let migration_dir = Path::new("database/migrations");
     if !migration_dir.exists() {
@@ -458,8 +529,13 @@ pub fn run_migrate() {
 }
 
 pub fn run_migrate_rollback() {
-    if !guard_project() { return; }
-    println!("{}", "🔄 Rolling back last migration...".bright_purple().bold());
+    if !guard_project() {
+        return;
+    }
+    println!(
+        "{}",
+        "🔄 Rolling back last migration...".bright_purple().bold()
+    );
 
     let migration_dir = Path::new("database/migrations");
     if !migration_dir.exists() {
@@ -477,7 +553,11 @@ pub fn run_migrate_rollback() {
     match files.last() {
         Some(f) => {
             let name = f.path().file_name().unwrap().to_string_lossy().to_string();
-            println!("  {} Rolling back: {}", "◀".bright_yellow(), name.bright_white());
+            println!(
+                "  {} Rolling back: {}",
+                "◀".bright_yellow(),
+                name.bright_white()
+            );
             print_success("Rollback complete.");
         }
         None => println!("  {} Nothing to roll back.", "ℹ️".blue()),
@@ -485,7 +565,9 @@ pub fn run_migrate_rollback() {
 }
 
 pub fn run_db_seed() {
-    if !guard_project() { return; }
+    if !guard_project() {
+        return;
+    }
     println!("{}", "🌱 Seeding database...".bright_purple().bold());
 
     let seeder_dir = Path::new("database/seeders");
@@ -502,7 +584,15 @@ pub fn run_db_seed() {
         .collect();
 
     for file in &files {
-        println!("  {} Seeding: {}", "▶".bright_cyan(), file.path().file_name().unwrap().to_string_lossy().bright_white());
+        println!(
+            "  {} Seeding: {}",
+            "▶".bright_cyan(),
+            file.path()
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .bright_white()
+        );
     }
     print_success("Database seeded.");
 }
@@ -512,8 +602,15 @@ pub fn run_db_seed() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub fn generate_docker() {
-    if !guard_project() { return; }
-    println!("{}", "🐳 Generating Docker configuration...".bright_purple().bold());
+    if !guard_project() {
+        return;
+    }
+    println!(
+        "{}",
+        "🐳 Generating Docker configuration..."
+            .bright_purple()
+            .bold()
+    );
 
     let project_name = get_project_name();
 
@@ -574,8 +671,15 @@ networks:
 }
 
 pub fn generate_nginx() {
-    if !guard_project() { return; }
-    println!("{}", "🌐 Generating Nginx configuration...".bright_purple().bold());
+    if !guard_project() {
+        return;
+    }
+    println!(
+        "{}",
+        "🌐 Generating Nginx configuration..."
+            .bright_purple()
+            .bold()
+    );
 
     let project_name = get_project_name();
 
@@ -627,15 +731,22 @@ server {{
     );
 
     fs::create_dir_all("deploy").ok();
-    let path = format!("deploy/nginx.conf");
+    let path = "deploy/nginx.conf".to_string();
     fs::write(&path, nginx_conf).ok();
     print_success(&format!("Nginx config: {}", path));
     print_hint("Copy deploy/nginx.conf to /etc/nginx/sites-available/ on your server.");
 }
 
 pub fn generate_supervisor() {
-    if !guard_project() { return; }
-    println!("{}", "⚙️  Generating Supervisor configuration...".bright_purple().bold());
+    if !guard_project() {
+        return;
+    }
+    println!(
+        "{}",
+        "⚙️  Generating Supervisor configuration..."
+            .bright_purple()
+            .bold()
+    );
 
     let project_name = get_project_name();
 

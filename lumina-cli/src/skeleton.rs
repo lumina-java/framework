@@ -113,9 +113,7 @@ mod routes;
 
 use lumina::prelude::*;
 
-// =========================================================================
 //                  LUMINA FRAMEWORK APPLICATION ENTRYPOINT
-// =========================================================================
 // This is the core entrypoint of your Lumina application.
 // Here, we load environment variables, register routes, and launch the server.
 
@@ -138,72 +136,92 @@ async fn main() {
     fs::write(base.join("src/main.rs"), main_rs).ok();
 
     // 5. src/app/mod.rs
-    fs::write(base.join("src/app/mod.rs"), "pub mod controllers;\npub mod models;\n").ok();
+    fs::write(
+        base.join("src/app/mod.rs"),
+        "pub mod controllers;\npub mod models;\n",
+    )
+    .ok();
 
     // 6. src/app/controllers/mod.rs
-    fs::write(base.join("src/app/controllers/mod.rs"), "pub mod welcome_controller;\n").ok();
+    fs::write(
+        base.join("src/app/controllers/mod.rs"),
+        "pub mod welcome_controller;\n",
+    )
+    .ok();
 
     // 7. src/app/controllers/welcome_controller.rs
     let welcome_ctrl = r#"use lumina::prelude::*;
 
-// =========================================================================
 //                        WELCOME CONTROLLER
-// =========================================================================
-// Controllers handle incoming HTTP requests and return responses.
-// In Lumina, controllers are simple async functions. They receive AppState
-// via State extractor, which is available through `lumina::prelude::*`.
+// Selamat datang di Controller! Controller berfungsi untuk memproses request
+// dan mengembalikan response (biasanya berupa halaman web HTML).
+//
+// Lumina dirancang agar sangat elegan ("beautiful"). Kamu hanya butuh
+// memanggil parameter `req: Request` untuk mengakses segalanya!
 
 pub struct WelcomeController;
 
 impl WelcomeController {
-    // Renders the main welcoming landing page
-    pub async fn index(State(state): State<AppState>) -> Html<String> {
-        let mut ctx = Context::new();
-        ctx.insert("title", "Welcome to Lumina");
-        ctx.insert("app_name", "Lumina Framework");
-        ctx.insert("version", "0.1.0");
-        Html(state.view.render("welcome.blade.rs", &ctx))
+    /// Fungsi ini menangani halaman utama ("/")
+    pub async fn index(req: Request) -> impl IntoResponse {
+        // Render halaman semudah di Laravel: `return view('welcome')->with(...)`
+        req.view("welcome.blade.rs")
+            .with("title", "Welcome to Lumina")
+            .with("app_name", "Lumina Framework")
+            .with("version", "0.1.0")
+            .render(&req)
+            .await
     }
 
-    // Renders the Login page
-    pub async fn login(State(state): State<AppState>) -> Html<String> {
-        let mut ctx = Context::new();
-        ctx.insert("title", "Login - Lumina");
-        Html(state.view.render("auth/login.blade.rs", &ctx))
+    /// Menampilkan Halaman Login ("/login")
+    pub async fn login(req: Request) -> impl IntoResponse {
+        req.view("auth/login.blade.rs")
+            .with("title", "Login - Lumina")
+            .render(&req)
+            .await
     }
 
-    // Renders the Register page
-    pub async fn register(State(state): State<AppState>) -> Html<String> {
-        let mut ctx = Context::new();
-        ctx.insert("title", "Register - Lumina");
-        Html(state.view.render("auth/register.blade.rs", &ctx))
+    /// Menampilkan Halaman Register ("/register")
+    pub async fn register(req: Request) -> impl IntoResponse {
+        req.view("auth/register.blade.rs")
+            .with("title", "Register - Lumina")
+            .render(&req)
+            .await
     }
 }
 "#;
-    fs::write(base.join("src/app/controllers/welcome_controller.rs"), welcome_ctrl).ok();
-
+    fs::write(
+        base.join("src/app/controllers/welcome_controller.rs"),
+        welcome_ctrl,
+    )
+    .ok();
 
     // 8. routes/mod.rs & routes/web.rs
     fs::create_dir_all(base.join("src/routes")).ok();
     fs::write(base.join("src/routes/mod.rs"), "pub mod web;\n").ok();
-    
+
     let web_routes = r#"use lumina::prelude::*;
 use crate::app::controllers::welcome_controller::WelcomeController;
 
-// =========================================================================
 //                            WEB ROUTING
-// =========================================================================
-// This is where you register all web routes for your application.
-// Lumina uses an intuitive routing syntax similar to modern MVC frameworks.
+// Di sinilah kamu mendaftarkan semua URL (route) web untuk aplikasimu.
+// Konsepnya sama persis seperti `Route::get()` di Laravel!
+//
+// Cukup panggil method `.get()`, `.post()`, `.put()`, atau `.delete()`
+// dan hubungkan dengan fungsi yang ada di dalam Controller kamu.
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        // Landing index page
+        // Saat user mengakses URL "/" (halaman depan), panggil WelcomeController::index
         .get("/", WelcomeController::index)
         
-        // Simple authentication views
+        // Rute untuk halaman autentikasi (Login & Register)
         .get("/login", WelcomeController::login)
         .get("/register", WelcomeController::register)
+
+
+        // 👇 CONTOH MENAMBAH RUTE BARU:
+        // .get("/halo", WelcomeController::halo)
 }
 "#;
     fs::write(base.join("src/routes/web.rs"), web_routes).ok();
@@ -305,36 +323,55 @@ pub fn router() -> Router<AppState> {
             </div>
         </div>
 
-        <!-- Features Matrix -->
-        <div class="mt-28 grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div class="bg-slate-900/50 border border-slate-800/80 p-8 rounded-3xl backdrop-filter backdrop-blur-sm hover:border-indigo-500/30 transition-all duration-300 hover:-translate-y-1">
-                <div class="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center mb-6">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold mb-3 heading-font text-white">Blazing Fast Speed</h3>
-                <p class="text-slate-400 leading-relaxed text-sm">Powered by Tokio and Axum under the hood to achieve concurrent connections with zero garbage collection overhead.</p>
-            </div>
+        <!-- Step-by-Step Beginner Guide -->
+        <div class="mt-28 bg-slate-900/50 border border-slate-800/80 rounded-3xl backdrop-filter backdrop-blur-sm p-8 md:p-12 text-left shadow-2xl">
+            <h2 class="text-3xl font-bold text-white mb-8 heading-font border-b border-slate-800 pb-4">🚀 Mari Mulai: Buat Halaman Pertamamu!</h2>
             
-            <div class="bg-slate-900/50 border border-slate-800/80 p-8 rounded-3xl backdrop-filter backdrop-blur-sm hover:border-green-500/30 transition-all duration-300 hover:-translate-y-1">
-                <div class="w-12 h-12 bg-green-500/10 text-green-400 rounded-2xl flex items-center justify-center mb-6">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                    </svg>
+            <div class="space-y-8">
+                <!-- Step 1 -->
+                <div class="flex gap-4">
+                    <div class="w-10 h-10 shrink-0 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-lg">1</div>
+                    <div>
+                        <h3 class="text-xl font-bold text-indigo-300 mb-2">Buat View (HTML)</h3>
+                        <p class="text-slate-400 mb-3 text-sm">Buka folder <code class="bg-slate-800 text-indigo-300 px-2 py-1 rounded">resources/views/</code> dan buat file baru bernama <code class="bg-slate-800 text-indigo-300 px-2 py-1 rounded">halo.blade.rs</code>. Isi dengan kode HTML biasa:</p>
+                        <pre class="bg-black/60 p-4 rounded-xl text-sm text-emerald-300 overflow-x-auto border border-slate-800">
+&lt;h1&gt;Halo, Selamat datang di Lumina!&lt;/h1&gt;</pre>
+                    </div>
                 </div>
-                <h3 class="text-xl font-bold mb-3 heading-font text-white">Total Type Safety</h3>
-                <p class="text-slate-400 leading-relaxed text-sm">Rust's elite compilation system stops runtime database crashes, memory leaks, and null pointers before deployment.</p>
-            </div>
 
-            <div class="bg-slate-900/50 border border-slate-800/80 p-8 rounded-3xl backdrop-filter backdrop-blur-sm hover:border-pink-500/30 transition-all duration-300 hover:-translate-y-1">
-                <div class="w-12 h-12 bg-pink-500/10 text-pink-400 rounded-2xl flex items-center justify-center mb-6">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-                    </svg>
+                <!-- Step 2 -->
+                <div class="flex gap-4">
+                    <div class="w-10 h-10 shrink-0 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-lg">2</div>
+                    <div>
+                        <h3 class="text-xl font-bold text-indigo-300 mb-2">Buat Controller</h3>
+                        <p class="text-slate-400 mb-3 text-sm">Buka file <code class="bg-slate-800 text-indigo-300 px-2 py-1 rounded">src/app/controllers/welcome_controller.rs</code> dan tambahkan fungsi baru ini di dalam <code class="bg-slate-800 text-indigo-300 px-2 py-1 rounded">impl WelcomeController</code>:</p>
+                        <pre class="bg-black/60 p-4 rounded-xl text-sm text-emerald-300 overflow-x-auto border border-slate-800">
+// Fungsi ini akan merender file halo.blade.rs yang baru kita buat
+pub async fn halo(State(state): State&lt;AppState&gt;) -&gt; Html&lt;String&gt; {
+    let ctx = Context::new();
+    Html(state.view.render("halo.blade.rs", &ctx))
+}</pre>
+                    </div>
                 </div>
-                <h3 class="text-xl font-bold mb-3 heading-font text-white">Intuitive MVC Architecture</h3>
-                <p class="text-slate-400 leading-relaxed text-sm">Designed with clean, simple controllers, easy routes, and elegant view renders that PHP/JS developers will master immediately.</p>
+
+                <!-- Step 3 -->
+                <div class="flex gap-4">
+                    <div class="w-10 h-10 shrink-0 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-lg">3</div>
+                    <div>
+                        <h3 class="text-xl font-bold text-indigo-300 mb-2">Daftarkan Route</h3>
+                        <p class="text-slate-400 mb-3 text-sm">Buka file <code class="bg-slate-800 text-indigo-300 px-2 py-1 rounded">src/routes/web.rs</code> dan tambahkan URL baru ke router kamu:</p>
+                        <pre class="bg-black/60 p-4 rounded-xl text-sm text-emerald-300 overflow-x-auto border border-slate-800">
+pub fn router() -&gt; Router&lt;AppState&gt; {
+    Router::new()
+        .get("/", WelcomeController::index)
+        // Tambahkan baris ini 👇
+        .get("/halo", WelcomeController::halo)
+}</pre>
+                        <div class="mt-4 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                            <p class="text-slate-300 text-sm">🎉 <strong>Selesai!</strong> Sekarang buka <a href="/halo" target="_blank" class="text-indigo-400 font-bold hover:underline">http://localhost:8000/halo</a> di browser kamu!</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -417,7 +454,11 @@ pub fn router() -> Router<AppState> {
 </div>
 {% endblock %}
 "#;
-    fs::write(base.join("resources/views/auth/register.blade.rs"), register).ok();
+    fs::write(
+        base.join("resources/views/auth/register.blade.rs"),
+        register,
+    )
+    .ok();
 
     // 13. database/migrations/0001_create_users_table.sql
     let migration = r#"-- Users Table Migration
@@ -431,24 +472,30 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 "#;
-    fs::write(base.join("database/migrations/0001_create_users_table.sql"), migration).ok();
+    fs::write(
+        base.join("database/migrations/0001_create_users_table.sql"),
+        migration,
+    )
+    .ok();
 
     // 14. src/app/models/mod.rs & user.rs
     fs::write(base.join("src/app/models/mod.rs"), "pub mod user;\n").ok();
-    
+
     let user_model = r#"#![allow(dead_code)]
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use sqlx::FromRow;
-use lumina::database::{connection::DatabasePool, model::Model};
+use lumina::prelude::*;
 
-// =========================================================================
 //                            USER MODEL
-// =========================================================================
-// Models map structural database records into Rust types.
-// The `Model` trait tells Lumina what SQLite database table to fetch from.
+// Selamat datang di Model! Di Laravel, ini adalah class Eloquent (seperti `User extends Model`).
+// Lumina membuat database di Rust menjadi sangat indah dan simpel.
 
-#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default)]
+// Cukup tambahkan `#[derive(LuminaModel)]`, dan Lumina otomatis membuatkan
+// fungsi sakti seperti `User::find(id)`, `User::all()`, `$user.save()`, dll
+// tanpa kamu perlu menulis SQL mentah sedikitpun! 🪄
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel)]
+#[table("users")]
 pub struct User {
     pub id: i64,
     pub name: String,
@@ -461,60 +508,9 @@ pub struct User {
 }
 
 impl User {
+    /// Membuat object User baru yang kosong (seperti `$user = new User()`)
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub async fn find_by_email(pool: &DatabasePool, email: &str) -> Result<Self, sqlx::Error> {
-        Self::query(pool).where_eq("email", email).first().await
-    }
-}
-
-#[async_trait]
-impl Model for User {
-    const TABLE: &'static str = "users";
-
-    async fn find(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
-        Self::query(pool).where_eq("id", id).first().await
-    }
-
-    async fn all(pool: &DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
-        Self::query(pool).get().await
-    }
-
-    async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {
-        if self.id > 0 {
-            sqlx::query("UPDATE users SET name = ?, email = ?, password = ?, role = ? WHERE id = ?")
-                .bind(&self.name)
-                .bind(&self.email)
-                .bind(&self.password)
-                .bind(&self.role)
-                .bind(self.id)
-                .execute(&pool.pool)
-                .await?;
-            Ok(self.id)
-        } else {
-            let result = sqlx::query(
-                "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)"
-            )
-            .bind(&self.name)
-            .bind(&self.email)
-            .bind(&self.password)
-            .bind(&self.role)
-            .execute(&pool.pool)
-            .await?;
-
-            Ok(result.last_insert_id().unwrap_or(0))
-        }
-    }
-
-    async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
-        sqlx::query("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
-            .bind(id)
-            .execute(&pool.pool)
-            .await?;
-
-        Ok(true)
     }
 }
 "#;
@@ -522,92 +518,116 @@ impl Model for User {
 
     // 15. Auto-generate comprehensive, educational README.md
     let readme = format!(
-        r#"# ⚡ Welcome to Your New Lumina Project: {}
+        r#"# ⚡ Selamat Datang di Project Lumina Baru Kamu: {}
 
-Congratulations! You have successfully scaffolded a fresh project with the **Lumina Framework** — the highly ergonomic, high-performance web framework designed for developers who love the speed & memory-safety of **Rust** mixed with the clean, elegant MVC patterns of **Laravel**.
+Selamat! Kamu telah berhasil membuat project baru dengan **Lumina Framework** — framework web berbasis Rust yang super cepat, aman, namun memiliki sintaks elegan dan semudah **Laravel**.
 
 ---
 
-## 🚀 Quick Start Guide
+## 🚀 Panduan Menjalankan Project (Sangat Mudah!)
 
-Ready to get running? Just follow these simple steps:
+Secara default, project ini menggunakan database **SQLite** (file lokal). Artinya, **kamu tidak perlu repot menginstall database apapun** di komputer kamu untuk langsung mencoba framework ini!
 
-### 1. Copy local configuration
-We already copied `.env.example` to `.env` for you! Open `.env` to check your settings:
-```bash
-# Look inside your .env configuration
-APP_URL=http://localhost:8000
-DB_CONNECTION=sqlite
-DATABASE_URL=sqlite:./database.sqlite
-```
-
-### 2. Launch the Application Server
-Run the cargo command in your terminal:
+Cukup ketik perintah ini di terminal kamu:
 ```bash
 cargo run
 ```
-Your server is now active! Open your browser and navigate to:
+
+Tunggu proses kompilasi Rust (hanya lama di awal), lalu buka browser dan kunjungi:
 👉 **[http://localhost:8000](http://localhost:8000)**
 
----
-
-## 📁 Understanding the Folder Structure
-
-Lumina follows a clean, intuitive MVC layout to make it incredibly easy for beginners and laypeople to explore:
-
-*   **`src/`** — Houses all Rust source logic.
-    *   **`src/main.rs`** — The entrypoint of your server where everything is loaded.
-    *   **`src/routes/web.rs`** — Register all of your web endpoints here.
-    *   **`src/app/controllers/`** — Write your controller handlers to handle requests.
-    *   **`src/app/models/`** — Structural database models (e.g., `User` model).
-*   **`resources/views/`** — HTML frontend templates using the Blade-style format.
-*   **`database/migrations/`** — Standard SQL files to structure your database schemas.
-*   **`storage/`** — Internal caching and public asset uploads.
+Boom! Website kamu sudah berjalan! 🎉
 
 ---
 
-## 💡 How to Add a New Route & View (Step-by-Step)
+## 🗄️ Mengubah Database ke MySQL
 
-Want to add a custom `/about` page? It takes just 3 simple steps:
+Kalau kamu sudah siap mendeploy aplikasi atau ingin beralih ke MySQL, mengubahnya sangatlah gampang, persis seperti di Laravel.
 
-### Step A: Create the HTML View
-Create a file at `resources/views/about.blade.rs` and write standard HTML:
+**Langkah-langkah ganti ke MySQL:**
+1. Buka file `.env` di folder project ini.
+2. Cari bagian `# Database Configuration`.
+3. Matikan (hapus atau beri komentar `#`) konfigurasi SQLite.
+4. Ganti baris `DATABASE_URL` agar mengarah ke MySQL kamu.
+
+**Contoh isi `.env` untuk MySQL:**
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=nama_db_kamu
+DB_USERNAME=root
+DB_PASSWORD=password_rahasia
+
+# Variabel ini yang paling penting dan dibaca langsung oleh sistem:
+DATABASE_URL=mysql://root:password_rahasia@127.0.0.1:3306/nama_db_kamu
+```
+
+*Jangan lupa: Buat dulu database kosong bernama `nama_db_kamu` di phpMyAdmin / MySQL kamu!*
+
+Setelah itu, jalankan migrasi agar Lumina membuat tabel di MySQL:
+```bash
+cargo lumina migrate
+```
+
+---
+
+## 📁 Penjelasan Struktur Folder (MVC)
+
+Struktur folder Lumina dibuat agar sangat familiar bagi programmer PHP/JS:
+
+*   **`src/`** — Di sinilah semua kode bahasa Rust kamu berada.
+    *   **`src/routes/web.rs`** — Tempat mendaftarkan URL (seperti `Route::get()`).
+    *   **`src/app/controllers/`** — Tempat menaruh logika aplikasi.
+    *   **`src/app/models/`** — File untuk mengakses database (CRUD).
+*   **`resources/views/`** — Tempat file HTML (dengan sintaks mirip Blade).
+*   **`database/migrations/`** — File SQL untuk membuat tabel database.
+
+---
+
+## 💡 Cara Menambah Halaman Baru (Step-by-Step)
+
+Ingin membuat halaman `/tentang`? Cuma butuh 3 langkah!
+
+### Langkah 1: Buat Tampilan HTML (View)
+Buat file `resources/views/tentang.blade.rs`:
 ```html
 {{% extends "layouts/app.blade.rs" %}}
 
 {{% block content %}}
 <div class="max-w-4xl mx-auto px-4 py-20 text-center">
-    <h1 class="text-4xl font-extrabold heading-font text-white">About Lumina</h1>
-    <p class="text-slate-400 mt-4 text-lg">This is my first Lumina custom view!</p>
+    <h1 class="text-4xl font-bold text-white">Tentang Kami</h1>
+    <p class="text-slate-400 mt-4">Ini adalah halaman baruku!</p>
 </div>
 {{% endblock %}}
 ```
 
-### Step B: Create a Controller Method
-Open `src/app/controllers/welcome_controller.rs` and add a new method:
+### Langkah 2: Buat Logika (Controller)
+Buka `src/app/controllers/welcome_controller.rs` dan tambahkan fungsi ini ke dalam `impl WelcomeController`:
 ```rust
-pub async fn about(State(state): State<AppState>) -> Html<String> {{
-    let mut ctx = Context::new();
-    ctx.insert("title", "About Us");
-    Html(state.view.render("about.blade.rs", &ctx))
+pub async fn tentang(req: Request) -> impl IntoResponse {{
+    req.view("tentang.blade.rs")
+       .with("title", "Tentang Kami")
+       .render(&req)
+       .await
 }}
 ```
 
-### Step C: Register the Route
-Open `src/routes/web.rs` and link your URL to your new controller method:
+### Langkah 3: Daftarkan URL (Route)
+Buka `src/routes/web.rs` dan tambahkan rutenya:
 ```rust
 pub fn router() -> Router<AppState> {{
     Router::new()
         .get("/", WelcomeController::index)
-        .get("/about", WelcomeController::about) // <-- Just add this line!
+        .get("/tentang", WelcomeController::tentang) // <-- Tambahkan baris ini!
 }}
 ```
-Compile and run again! Your new page will be live at `http://localhost:8000/about`.
+Jalankan ulang `cargo run` dan buka `http://localhost:8000/tentang`.
 
 ---
 
-## 🦀 Built with Pride in Rust
-Enjoy building something incredibly fast, secure, and beautiful with **Lumina**!
+## 🦀 Selamat Belajar Rust dengan Menyenangkan!
+Dengan Lumina, belajar bahasa sistem yang kompleks menjadi ramah dan asyik.
 "#,
         name
     );

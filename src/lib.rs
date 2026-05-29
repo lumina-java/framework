@@ -14,6 +14,10 @@ pub mod prelude {
     pub use axum::response::Html;
     pub use axum::Form;
     pub use tera::Context;
+    pub use crate::core::request::Request;
+    pub use axum::response::IntoResponse;
+    pub use crate::database::model::Model;
+    pub use lumina_macros::LuminaModel;
 }
 
 

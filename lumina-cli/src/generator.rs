@@ -167,7 +167,7 @@ impl {class} {{
     ));
 }
 
-pub fn generate_model(name: &str) {
+pub fn generate_model(name: &str, fields: &[String]) {
     if !guard_project() {
         return;
     }
@@ -177,22 +177,29 @@ pub fn generate_model(name: &str) {
     let class = capitalize_first(name);
     let table = format!("{}s", lower);
 
+    let mut struct_fields = String::new();
+    let mut sql_fields = String::new();
+
+    for field in fields {
+        let parts: Vec<&str> = field.split(':').collect();
+        let fname = parts[0];
+        let ty = if parts.len() > 1 && parts[1] == "integer" { "i64" } else { "String" };
+        let sql_ty = if ty == "i64" { "INTEGER NULL" } else { "TEXT NULL" };
+
+        struct_fields.push_str(&format!("    pub {}: {},\n", fname, ty));
+        sql_fields.push_str(&format!("    {} {},\n", fname, sql_ty));
+    }
+
     let code = format!(
-        r#"#![allow(dead_code)]
-use async_trait::async_trait;
+        r#"use lumina::prelude::*;
 use serde::{{Serialize, Deserialize}};
 use sqlx::FromRow;
-use lumina::database::{{connection::DatabasePool, model::Model}};
 
-// =========================================================================
-//  {class} MODEL
-// =========================================================================
-
-#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, FromRow, LuminaModel)]
+#[table("{}")]
 pub struct {class} {{
     pub id: i64,
-    // TODO: add your fields here
-    pub created_at: Option<String>,
+{struct_fields}    pub created_at: Option<String>,
     pub updated_at: Option<String>,
     pub deleted_at: Option<String>,
 }}
@@ -202,45 +209,31 @@ impl {class} {{
         Self::default()
     }}
 }}
-
-#[async_trait]
-impl Model for {class} {{
-    const TABLE: &'static str = "{table}";
-
-    async fn find(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error> {{
-        Self::query(pool).where_eq("id", id).first().await
-    }}
-
-    async fn all(pool: &DatabasePool) -> Result<Vec<Self>, sqlx::Error> {{
-        Self::query(pool).get().await
-    }}
-
-    async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {{
-        // TODO: implement insert / update logic
-        Ok(self.id)
-    }}
-
-    async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {{
-        sqlx::query("UPDATE {table} SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
-            .bind(id)
-            .execute(&pool.pool)
-            .await?;
-        Ok(true)
-    }}
-}}
 "#,
+        table,
         class = class,
-        table = table,
+        struct_fields = struct_fields
     );
 
     let path = format!("src/app/models/{}.rs", lower);
     fs::write(&path, &code).ok();
-    append_to_file("src/app/models/mod.rs", &format!("pub mod {};\n", lower));
+
+    let mod_file = "src/app/models/mod.rs";
+    if let Ok(mod_content) = fs::read_to_string(mod_file) {
+        let stmt = format!("pub mod {};", lower);
+        if !mod_content.contains(&stmt) {
+            append_to_file(mod_file, &format!("{}\n", stmt));
+        }
+    } else {
+        append_to_file(mod_file, &format!("pub mod {};\n", lower));
+    }
+
     print_success(&format!("Model: {}", path));
 
     // Also generate migration
     generate_migration_raw(&format!("create_{}_table", table), Some(&format!(
-        "CREATE TABLE IF NOT EXISTS {table} (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n);\n",
+        "CREATE TABLE IF NOT EXISTS {table} (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n{}    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n    deleted_at DATETIME NULL\n);\n",
+        sql_fields,
         table = table
     )));
 }
@@ -278,16 +271,22 @@ pub fn generate_crud(name: &str, fields: &[String]) {
     let class = capitalize_first(name);
 
     // 1. Model + migration
-    generate_model(name);
+    generate_model(name, fields);
 
     // 2. Controller
     let ctrl_code = build_crud_controller(&lower, &class, fields);
     let ctrl_path = format!("src/app/controllers/{}_controller.rs", lower);
     fs::write(&ctrl_path, ctrl_code).ok();
-    append_to_file(
-        "src/app/controllers/mod.rs",
-        &format!("pub mod {}_controller;\n", lower),
-    );
+
+    let ctrl_mod_file = "src/app/controllers/mod.rs";
+    if let Ok(mod_content) = fs::read_to_string(ctrl_mod_file) {
+        let stmt = format!("pub mod {}_controller;", lower);
+        if !mod_content.contains(&stmt) {
+            append_to_file(ctrl_mod_file, &format!("{}\n", stmt));
+        }
+    } else {
+        append_to_file(ctrl_mod_file, &format!("pub mod {}_controller;\n", lower));
+    }
     print_success(&format!("Controller: {}", ctrl_path));
 
     // 3. Views
@@ -301,55 +300,146 @@ pub fn generate_crud(name: &str, fields: &[String]) {
 
     println!();
     print_hint("Add these routes to src/routes/web.rs:");
-    println!("      .get(\"/{lower}\",          {class}Controller::index)");
-    println!("      .get(\"/{lower}/create\",   {class}Controller::create)");
-    println!("      .get(\"/{lower}/:id\",      {class}Controller::show)");
-    println!("      .get(\"/{lower}/:id/edit\", {class}Controller::edit)");
+    println!("      .get(\"/{lower}\",                {class}Controller::index)");
+    println!("      .get(\"/{lower}/create\",         {class}Controller::create)");
+    println!("      .post(\"/{lower}\",               {class}Controller::store)");
+    println!("      .get(\"/{lower}/:id\",            {class}Controller::show)");
+    println!("      .get(\"/{lower}/:id/edit\",       {class}Controller::edit)");
+    println!("      .post(\"/{lower}/:id/update\",    {class}Controller::update)");
+    println!("      .post(\"/{lower}/:id/delete\",    {class}Controller::destroy)");
 }
 
-fn build_crud_controller(lower: &str, class: &str, _fields: &[String]) -> String {
+fn build_crud_controller(lower: &str, class: &str, fields: &[String]) -> String {
+    let mut form_fields = String::new();
+    let mut assign_fields = String::new();
+
+    for field in fields {
+        let parts: Vec<&str> = field.split(':').collect();
+        let name = parts[0];
+        let ty = if parts.len() > 1 && parts[1] == "integer" { "i64" } else { "String" };
+
+        form_fields.push_str(&format!("    pub {}: {},\n", name, ty));
+        if ty == "i64" {
+            assign_fields.push_str(&format!("        item.{} = form.{};\n", name, name));
+        } else {
+            assign_fields.push_str(&format!("        item.{} = form.{}.clone();\n", name, name));
+        }
+    }
+
     format!(
         r#"use lumina::prelude::*;
+use axum::extract::Path;
 use crate::app::models::{lower}::{class};
+use serde::Deserialize;
+use axum::response::IntoResponse;
+use axum::Form;
 
 pub struct {class}Controller;
 
+#[derive(Deserialize)]
+pub struct {class}Form {{
+{form_fields}
+}}
+
 impl {class}Controller {{
     /// GET /{lower} — list all records
-    pub async fn index(State(state): State<AppState>) -> Html<String> {{
-        let mut ctx = Context::new();
-        ctx.insert("title", "{class}s");
-        Html(state.view.render("{lower}/index.blade.rs", &ctx))
+    pub async fn index(req: Request) -> impl IntoResponse {{
+        let pool = req.db();
+        let items = {class}::all(pool).await.unwrap_or_default();
+
+        req.view("{lower}/index")
+            .with("title", "{class} List")
+            .with("items", items)
+            .render(&req)
+            .await.into_response()
     }}
 
     /// GET /{lower}/create — show create form
-    pub async fn create(State(state): State<AppState>) -> Html<String> {{
-        let mut ctx = Context::new();
-        ctx.insert("title", "Create {class}");
-        Html(state.view.render("{lower}/create.blade.rs", &ctx))
+    pub async fn create(req: Request) -> impl IntoResponse {{
+        req.view("{lower}/create")
+            .with("title", "Create {class}")
+            .render(&req)
+            .await.into_response()
+    }}
+
+    /// POST /{lower} — store new record
+    pub async fn store(req: Request, Form(form): Form<{class}Form>) -> impl IntoResponse {{
+        let pool = req.db();
+        let mut item = {class}::new();
+{assign_fields}
+
+        match item.save(pool).await {{
+            Ok(_) => req.redirect("/{lower}")
+                .with_success("{class} berhasil ditambahkan!")
+                .go(&req).await.into_response(),
+            Err(e) => req.view("{lower}/create")
+                .with("title", "Create {class}")
+                .with("error", format!("Gagal menyimpan data: {{}}", e))
+                .render(&req).await.into_response()
+        }}
     }}
 
     /// GET /{lower}/:id — show single record
-    pub async fn show(State(state): State<AppState>) -> Html<String> {{
-        let mut ctx = Context::new();
-        ctx.insert("title", "{class} Detail");
-        Html(state.view.render("{lower}/show.blade.rs", &ctx))
+    pub async fn show(req: Request, Path(id): Path<i64>) -> impl IntoResponse {{
+        let pool = req.db();
+        match {class}::find(pool, id).await {{
+            Ok(item) => req.view("{lower}/show")
+                .with("title", "{class} Detail")
+                .with("item", item)
+                .render(&req).await.into_response(),
+            Err(_) => req.redirect("/{lower}")
+                .with_error("Data tidak ditemukan!")
+                .go(&req).await.into_response()
+        }}
     }}
 
     /// GET /{lower}/:id/edit — show edit form
-    pub async fn edit(State(state): State<AppState>) -> Html<String> {{
-        let mut ctx = Context::new();
-        ctx.insert("title", "Edit {class}");
-        Html(state.view.render("{lower}/edit.blade.rs", &ctx))
+    pub async fn edit(req: Request, Path(id): Path<i64>) -> impl IntoResponse {{
+        let pool = req.db();
+        match {class}::find(pool, id).await {{
+            Ok(item) => req.view("{lower}/edit")
+                .with("title", "Edit {class}")
+                .with("item", item)
+                .render(&req).await.into_response(),
+            Err(_) => req.redirect("/{lower}")
+                .with_error("Data tidak ditemukan!")
+                .go(&req).await.into_response()
+        }}
+    }}
+
+    /// POST /{lower}/:id/update — update existing record
+    pub async fn update(req: Request, Path(id): Path<i64>, Form(form): Form<{class}Form>) -> impl IntoResponse {{
+        let pool = req.db();
+
+        if let Ok(mut item) = {class}::find(pool, id).await {{
+{assign_fields}
+            let _ = item.save(pool).await;
+        }}
+
+        req.redirect("/{lower}")
+            .with_success("{class} berhasil diperbarui!")
+            .go(&req).await.into_response()
+    }}
+
+    /// POST /{lower}/:id/delete — delete record
+    pub async fn destroy(req: Request, Path(id): Path<i64>) -> impl IntoResponse {{
+        let pool = req.db();
+        let _ = {class}::delete(pool, id).await;
+
+        req.redirect("/{lower}")
+            .with_success("{class} berhasil dihapus!")
+            .go(&req).await.into_response()
     }}
 }}
 "#,
         lower = lower,
         class = class,
+        form_fields = form_fields,
+        assign_fields = assign_fields
     )
 }
 
-fn build_blade_view(class: &str, view: &str, _lower: &str, _fields: &[String]) -> String {
+fn build_blade_view(class: &str, view: &str, lower: &str, fields: &[String]) -> String {
     let title = match view {
         "index" => format!("{} List", class),
         "create" => format!("Create {}", class),
@@ -357,10 +447,140 @@ fn build_blade_view(class: &str, view: &str, _lower: &str, _fields: &[String]) -
         "show" => format!("{} Detail", class),
         _ => class.to_string(),
     };
+
+    let mut table_headers = String::new();
+    let mut table_cells = String::new();
+    let mut form_inputs = String::new();
+    let mut form_edit_inputs = String::new();
+    let mut show_details = String::new();
+
+    for field in fields {
+        let parts: Vec<&str> = field.split(':').collect();
+        let name = parts[0];
+        let ty = if parts.len() > 1 { parts[1] } else { "text" };
+        let input_type = if ty == "integer" { "number" } else { "text" };
+        let label = capitalize_first(name);
+
+        table_headers.push_str(&format!("                    <th class=\"px-6 py-4 text-left text-sm font-semibold text-slate-400\">{}</th>\n", label));
+        table_cells.push_str(&format!("                    <td class=\"px-6 py-4\">{{{{ item.{} }}}}</td>\n", name));
+
+        form_inputs.push_str(&format!(r#"            <div>
+                <label class="block text-sm font-semibold text-slate-300 mb-2">{}</label>
+                <input type="{}" name="{}" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" required>
+            </div>
+"#, label, input_type, name));
+
+        form_edit_inputs.push_str(&format!(r#"            <div>
+                <label class="block text-sm font-semibold text-slate-300 mb-2">{}</label>
+                <input type="{}" name="{}" value="{{{{ item.{} }}}}" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" required>
+            </div>
+"#, label, input_type, name, name));
+
+        show_details.push_str(&format!("        <div class=\"mb-4\">\n            <p class=\"text-sm text-slate-400\">{}</p>\n            <p class=\"text-lg text-white font-semibold\">{{{{ item.{} }}}}</p>\n        </div>\n", label, name));
+    }
+
+
+    let body = match view {
+        "index" => format!(r#"
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-white heading-font">{title}</h1>
+        <a href="/{lower}/create" class="bg-indigo-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-indigo-500 transition">+ Add New</a>
+    </div>
+
+    {{% if flash_success %}}
+    <div class="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-4 py-3 rounded-xl mb-6">
+        {{{{ flash_success }}}}
+    </div>
+    {{% endif %}}
+
+    <div class="bg-slate-900/50 border border-slate-800/80 rounded-3xl overflow-hidden backdrop-filter backdrop-blur-sm">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="border-b border-slate-800 bg-slate-900/80">
+                    <th class="px-6 py-4 text-left text-sm font-semibold text-slate-400 w-16">ID</th>
+{table_headers}
+                    <th class="px-6 py-4 text-right text-sm font-semibold text-slate-400">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/50">
+                {{% for item in items %}}
+                <tr class="hover:bg-slate-800/30 transition">
+                    <td class="px-6 py-4 text-slate-500">#{{{{ item.id }}}}</td>
+{table_cells}
+                    <td class="px-6 py-4 text-right space-x-3">
+                        <a href="/{lower}/{{{{ item.id }}}}" class="text-slate-400 hover:text-white font-medium text-sm">View</a>
+                        <a href="/{lower}/{{{{ item.id }}}}/edit" class="text-indigo-400 hover:text-indigo-300 font-medium text-sm">Edit</a>
+                        <form action="/{lower}/{{{{ item.id }}}}/delete" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this?');">
+                            <button type="submit" class="text-pink-500 hover:text-pink-400 font-medium text-sm">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {{% else %}}
+                <tr>
+                    <td colspan="10" class="px-6 py-8 text-center text-slate-500">No {lower}s found.</td>
+                </tr>
+                {{% endfor %}}
+            </tbody>
+        </table>
+    </div>
+"#),
+        "create" => format!(r#"
+    <div class="max-w-2xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-white heading-font">{title}</h1>
+            <a href="/{lower}" class="text-slate-400 hover:text-white transition">← Back</a>
+        </div>
+
+        {{% if error %}}
+        <div class="bg-pink-500/10 border border-pink-500/20 text-pink-400 px-4 py-3 rounded-xl mb-6">
+            {{{{ error }}}}
+        </div>
+        {{% endif %}}
+
+        <form action="/{lower}" method="POST" class="bg-slate-900/50 border border-slate-800/80 rounded-3xl p-8 space-y-6">
+{form_inputs}
+            <div class="pt-4">
+                <button type="submit" class="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 transition transform active:scale-98">Save Data</button>
+            </div>
+        </form>
+    </div>
+"#),
+        "edit" => format!(r#"
+    <div class="max-w-2xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-white heading-font">{title}</h1>
+            <a href="/{lower}" class="text-slate-400 hover:text-white transition">← Back</a>
+        </div>
+
+        <form action="/{lower}/{{{{ item.id }}}}/update" method="POST" class="bg-slate-900/50 border border-slate-800/80 rounded-3xl p-8 space-y-6">
+{form_edit_inputs}
+            <div class="pt-4">
+                <button type="submit" class="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 transition transform active:scale-98">Update Data</button>
+            </div>
+        </form>
+    </div>
+"#),
+        "show" => format!(r#"
+    <div class="max-w-2xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-white heading-font">{title}</h1>
+            <a href="/{lower}" class="text-slate-400 hover:text-white transition">← Back</a>
+        </div>
+
+        <div class="bg-slate-900/50 border border-slate-800/80 rounded-3xl p-8">
+{show_details}
+            <div class="mt-8 pt-6 border-t border-slate-800 flex gap-4">
+                <a href="/{lower}/{{{{ item.id }}}}/edit" class="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-500 transition">Edit</a>
+            </div>
+        </div>
+    </div>
+"#),
+        _ => String::new(),
+    };
+
     format!(
-        "{{% extends \"layouts/app.blade.rs\" %}}\n\n{{% block content %}}\n<div class=\"max-w-7xl mx-auto px-4 py-12\">\n    <h1 class=\"text-3xl font-bold text-white heading-font\">{title}</h1>\n    {comment}\n</div>\n{{% endblock %}}\n",
-        title = title,
-        comment = format!("<!-- TODO: build your {} {} view here -->", class, view),
+        "{{% extends \"layouts/app.blade.rs\" %}}\n\n{{% block content %}}\n<div class=\"px-4 py-12\">\n{}\n</div>\n{{% endblock %}}\n",
+        body
     )
 }
 

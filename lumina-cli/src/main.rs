@@ -113,7 +113,7 @@ fn main() {
             generator::generate_controller(&name);
         }
         Commands::MakeModel { name } => {
-            generator::generate_model(&name);
+            generator::generate_model(&name, &[]);
         }
         Commands::MakeMigration { name } => {
             generator::generate_migration(&name);

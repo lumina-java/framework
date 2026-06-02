@@ -8,7 +8,7 @@ use async_trait::async_trait;
 /// Implementasi detail query ada di masing-masing struct model.
 ///
 /// # Contoh
-/// ```rust
+/// ```rust,ignore
 /// let user = User::find(&pool, 1).await?;
 /// let all  = User::all(&pool).await?;
 /// ```
@@ -28,7 +28,7 @@ pub trait Model:
 
     /// Simpan record ini ke database.
     /// Mengembalikan `last_insert_rowid` jika sukses.
-    async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error>;
+    async fn save(&mut self, pool: &DatabasePool) -> Result<i64, sqlx::Error>;
 
     /// Soft delete — set `deleted_at = NOW()` tanpa menghapus baris.
     async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error>;

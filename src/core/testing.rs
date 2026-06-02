@@ -71,7 +71,12 @@ impl TestApp {
             tower_sessions::MemoryStore::default(),
         );
 
-        let app = crate::core::application::Application::new();
+        let mut app = crate::core::application::Application::new();
+
+        let mut web = crate::core::router::Router::new();
+        web = web.get("/", || async { axum::response::Html("Lumina") });
+        app = app.with_web(web);
+
         let router = app.build_router(state.clone(), session_store);
 
         Self { router, state }

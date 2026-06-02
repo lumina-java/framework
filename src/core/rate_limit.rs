@@ -75,7 +75,7 @@ struct RateLimitError {
 /// Middleware Rate Limiter berbasis IP menggunakan CacheManager (moka) yang sudah ada.
 ///
 /// Cara penggunaan sebagai global middleware:
-/// ```rust
+/// ```rust,ignore
 /// // Di application.rs atau route builder:
 /// use lumina::core::rate_limit::{RateLimitConfig, rate_limit_middleware};
 /// use axum::middleware;

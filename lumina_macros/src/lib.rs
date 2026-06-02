@@ -145,10 +145,10 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
     let insert_sql_fields = insert_fields.join(", ");
 
     // Bindings untuk INSERT
-    let insert_bindings = insert_fields.iter().map(|n| {
+    let insert_bindings: Vec<_> = insert_fields.iter().map(|n| {
         let ident = syn::Ident::new(n, proc_macro2::Span::call_site());
         quote! { .bind(&self.#ident) }
-    });
+    }).collect();
 
     let expanded = quote! {
         #[async_trait::async_trait]
@@ -170,20 +170,37 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
                     .await
             }
 
-            async fn save(&self, pool: &lumina::database::connection::DatabasePool) -> Result<i64, sqlx::Error> {
-                let sql = format!(
-                    "INSERT INTO {} ({}) VALUES ({})",
-                    Self::TABLE,
-                    #insert_sql_fields,
-                    #insert_placeholders
-                );
+            async fn save(&mut self, pool: &lumina::database::connection::DatabasePool) -> Result<i64, sqlx::Error> {
+                if self.id > 0 {
+                    let mut update_pairs = Vec::new();
+                    #(update_pairs.push(format!("{} = ?", #insert_fields));)*
 
-                let result = sqlx::query(&sql)
-                    #(#insert_bindings)*
-                    .execute(&pool.pool)
-                    .await?;
+                    let sql = format!("UPDATE {} SET {} WHERE id = ?", Self::TABLE, update_pairs.join(", "));
 
-                Ok(result.last_insert_id().unwrap_or(0))
+                    let result = sqlx::query(&sql)
+                        #(#insert_bindings)*
+                        .bind(self.id)
+                        .execute(&pool.pool)
+                        .await?;
+
+                    Ok(self.id)
+                } else {
+                    let sql = format!(
+                        "INSERT INTO {} ({}) VALUES ({})",
+                        Self::TABLE,
+                        #insert_sql_fields,
+                        #insert_placeholders
+                    );
+
+                    let result = sqlx::query(&sql)
+                        #(#insert_bindings)*
+                        .execute(&pool.pool)
+                        .await?;
+
+                    let id = result.last_insert_id() as i64;
+                    self.id = id;
+                    Ok(id)
+                }
             }
 
             async fn delete(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {

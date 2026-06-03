@@ -71,55 +71,10 @@ cargo lumina migrate
 
 ---
 
-## 💖 Beautiful Syntax (Lebih Indah dari PHP!)
-
-Lumina membuang semua kode boilerplate (kode rumit bawaan framework/bahasa) dan menggantinya dengan sintaks yang amat sangat bersih dan cantik ala Laravel, berkat kekuatan `Macro` Rust.
-
-### Controller yang Elegan (Fluent Builder)
-Menerima request dan mengembalikan tampilan HTML kini seindah merangkai kata:
-```rust
-use lumina::prelude::*;
-
-pub struct WelcomeController;
-
-impl WelcomeController {
-    // 🤩 Cukup gunakan parameter `req: Request`!
-    pub async fn index(req: Request) -> impl IntoResponse {
-        req.view("welcome") // otomatis mencari file resources/views/welcome.blade.rs
-            .with("title", "Welcome to Lumina")
-            .with("app_name", "Lumina Framework")
-            .render(&req)
-            .await.into_response()
-    }
-}
-```
-
-### Model tanpa SQL Mentah (Magic Macro)
-Lupakan penulisan Query SQL mentah (raw string) di dalam fungsi save/find! Hanya tambahkan `#[derive(LuminaModel)]`:
-```rust
-use lumina::prelude::*;
-use sqlx::FromRow;
-use serde::{Serialize, Deserialize};
-
-#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel)]
-#[table("users")]
-pub struct User {
-    pub id: i64,
-    pub name: String,
-    pub email: String,
-    pub password: String,
-}
-
-// 🪄 Simsalabim! Sekarang struct `User` kamu otomatis memiliki fungsi:
-// User::find(pool, id), User::all(pool), user.save(pool), dll!
-```
-
----
-
 ## ✨ Features
 
 - 🚀 **Fast & Efficient** — Built on Tokio + Axum, fully async
-- 🎨 **Clean Syntax** — Laravel-like fluent API with `Request` bundle
+- 🎨 **Clean Syntax** — Laravel-like fluent API
 - 🏗️ **MVC Architecture** — Controllers, Models, Services
 - 🛣️ **Elegant Routing** — Route groups, Middleware, and Param binding
 - 🪄 **Smart Scaffolding** — Full CRUD generation with fields in one command
@@ -132,18 +87,30 @@ pub struct User {
 
 ---
 
-## ⚡ Contoh Penggunaan Lainnya
+---
 
-### Fitur Autentikasi Instan
-Buat halaman Login dan Register lengkap dengan session cookie hanya dalam hitungan detik:
-```bash
-cargo lumina make:auth
-```
+## ⚡ Contoh Penggunaan
 
 ### Smart CRUD Scaffolding
 Buat modul produk lengkap (Model, Migration, Controller, Views) dalam 1 detik:
 ```bash
-cargo lumina make:crud Product name:string:required price:integer description:text
+./lumina make:crud Product name:string:required price:integer description:text
+```
+
+### Elegant Controller Logic
+Gunakan `Request` bundle untuk akses cepat ke segalanya:
+```rust
+pub async fn store(req: Request, ValidatedForm(form): ValidatedForm<ProductRequest>) -> impl IntoResponse {
+    let mut item = Product::new();
+    item.name = form.name;
+    item.price = form.price;
+
+    let service = ProductService::new(req.db_arc());
+    match service.create_model(item).await {
+        Ok(_) => req.redirect("/products").with_success("Berhasil!").go(&req).await,
+        Err(e) => req.back().with_error("Gagal!").go(&req).await
+    }
+}
 ```
 
 ### Fluent Testing

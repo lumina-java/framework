@@ -596,12 +596,7 @@ pub fn generate_auth() {
     );
 
     let auth_controller = r#"use lumina::prelude::*;
-use crate::app::models::user::User;
 use serde::Deserialize;
-use lumina::core::auth::Auth;
-use axum::response::IntoResponse;
-use lumina::core::request::Request;
-use lumina::database::model::Model;
 
 pub struct AuthController;
 
@@ -620,76 +615,46 @@ pub struct RegisterForm {
 
 impl AuthController {
     /// GET /login
-    pub async fn login(req: Request) -> impl IntoResponse {
-        req.view("auth/login")
-            .with("title", "Login")
-            .render(&req)
-            .await
-            .into_response().into_response()
+    pub async fn login(State(state): State<AppState>) -> Html<String> {
+        let mut ctx = Context::new();
+        ctx.insert("title", "Login");
+        Html(state.view.render("auth/login.blade.rs", &ctx))
     }
 
     /// POST /login
-    pub async fn login_post(req: Request, Form(form): Form<LoginForm>) -> impl IntoResponse {
-        let pool = req.db();
-
-        if let Ok(user) = User::query(pool).where_eq("email", &form.email).first().await {
-            if Auth::verify(&form.password, &user.password) {
-                let auth_user = Auth::user(user.id, user.email.clone(), user.role.clone(), vec![]);
-                Auth::login(&req.session, auth_user).await.ok();
-                return req.redirect("/").go(&req).await.into_response();
-            }
-        }
-
-        req.view("auth/login")
-            .with("title", "Login")
-            .with("error", "Email atau password salah!")
-            .render(&req)
-            .await
-            .into_response().into_response()
+    pub async fn login_post(
+        State(state): State<AppState>,
+        Form(form): Form<LoginForm>,
+    ) -> Html<String> {
+        // TODO: validate credentials, create session/JWT
+        let mut ctx = Context::new();
+        ctx.insert("title", "Login");
+        ctx.insert("error", "Invalid email or password.");
+        Html(state.view.render("auth/login.blade.rs", &ctx))
     }
 
     /// GET /register
-    pub async fn register(req: Request) -> impl IntoResponse {
-        req.view("auth/register")
-            .with("title", "Create Account")
-            .render(&req)
-            .await
-            .into_response().into_response()
+    pub async fn register(State(state): State<AppState>) -> Html<String> {
+        let mut ctx = Context::new();
+        ctx.insert("title", "Create Account");
+        Html(state.view.render("auth/register.blade.rs", &ctx))
     }
 
     /// POST /register
-    pub async fn register_post(req: Request, Form(form): Form<RegisterForm>) -> impl IntoResponse {
-        let pool = req.db();
-
-        let hashed_password = Auth::make_hash(&form.password);
-
-        let mut new_user = User::new();
-        new_user.name = form.name;
-        new_user.email = form.email;
-        new_user.password = hashed_password;
-        new_user.role = "user".to_string();
-
-        match new_user.save(pool).await {
-            Ok(id) => {
-                let auth_user = Auth::user(id, new_user.email, new_user.role, vec![]);
-                Auth::login(&req.session, auth_user).await.ok();
-                req.redirect("/").go(&req).await.into_response()
-            }
-            Err(_) => {
-                req.view("auth/register")
-                    .with("title", "Create Account")
-                    .with("error", "Email sudah digunakan atau terjadi kesalahan.")
-                    .render(&req)
-                    .await
-                    .into_response().into_response()
-            }
-        }
+    pub async fn register_post(
+        State(state): State<AppState>,
+        Form(form): Form<RegisterForm>,
+    ) -> Html<String> {
+        // TODO: hash password, insert user, redirect
+        let mut ctx = Context::new();
+        ctx.insert("title", "Create Account");
+        Html(state.view.render("auth/register.blade.rs", &ctx))
     }
 
     /// GET /logout
-    pub async fn logout(req: Request) -> impl IntoResponse {
-        Auth::logout(&req.session).await;
-        req.redirect("/login").go(&req).await.into_response().into_response()
+    pub async fn logout() -> Html<String> {
+        // TODO: destroy session/token
+        Html("<script>window.location='/'</script>".to_string())
     }
 }
 "#;

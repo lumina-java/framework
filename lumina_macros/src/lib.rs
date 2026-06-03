@@ -152,10 +152,10 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         #[async_trait::async_trait]
-        impl lumina::database::model::Model for #name {
+        impl crate::database::model::Model for #name {
             const TABLE: &'static str = #table_name;
 
-            async fn find(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
+            async fn find(pool: &crate::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
                 let sql = format!("SELECT {} FROM {} WHERE id = ? AND deleted_at IS NULL", #select_fields, Self::TABLE);
                 sqlx::query_as::<_, Self>(&sql)
                     .bind(id)
@@ -163,7 +163,7 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
                     .await
             }
 
-            async fn all(pool: &lumina::database::connection::DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
+            async fn all(pool: &crate::database::connection::DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
                 let sql = format!("SELECT {} FROM {} WHERE deleted_at IS NULL ORDER BY id DESC", #select_fields, Self::TABLE);
                 sqlx::query_as::<_, Self>(&sql)
                     .fetch_all(&pool.pool)
@@ -203,7 +203,7 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
                 }
             }
 
-            async fn delete(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
+            async fn delete(pool: &crate::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
                 let sql = format!("UPDATE {} SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", Self::TABLE);
                 sqlx::query(&sql)
                     .bind(id)

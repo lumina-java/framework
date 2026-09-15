@@ -73,7 +73,7 @@ impl<'a> MailBuilder<'a> {
 
     /// Kirim email menggunakan template View.
     pub async fn send(self, template: &str, data: Value) -> Result<(), String> {
-        let mut ctx = tera::Context::new();
+        let mut ctx = crate::core::blade::BladeContext::new();
         if let Some(obj) = data.as_object() {
             for (k, v) in obj {
                 ctx.insert(k, v);

@@ -7,6 +7,7 @@ pub mod is_engine;
 pub mod telescope;
 
 pub mod auth;
+pub mod blade;
 pub mod cache;
 pub mod config;
 pub mod container;

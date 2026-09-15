@@ -102,9 +102,6 @@ Jangan biarkan bug bersembunyi.
 // Dump and Die (Browser akan menampilkan data dengan cantik dan berhenti di situ)
 crate::dd!(variabel_anda);
 
-// 🚀 HTMX (Zero-Mouse UI)
-// Lumina otomatis mendukung partial rendering di layout.blade.rs
-// Cukup gunakan hx-boost="true" pada tag body.
 ```
 
 ---

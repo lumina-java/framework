@@ -248,6 +248,27 @@ impl ViewEngine {
         s = s.replace("@verbatim", "{% raw %}");
         s = s.replace("@endverbatim", "{% endraw %}");
 
+        // 23. @is('script_name') or @script('script_name') -> Kompilasi Indonesian Script (.is) ke Vanilla JS
+        let re_is = Regex::new(r#"(?:@is|@script)\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_is.replace_all(&s, |caps: &regex::Captures| {
+            let script_name = caps[1].trim();
+            let mut file_path = format!("resources/scripts/{}", script_name);
+            if !file_path.ends_with(".is") {
+                file_path.push_str(".is");
+            }
+
+            let source = if let Ok(content) = std::fs::read_to_string(&file_path) {
+                content
+            } else {
+                let alt_path = format!("resources/js/{}", script_name);
+                let alt_path_is = if alt_path.ends_with(".is") { alt_path.clone() } else { format!("{}.is", alt_path) };
+                std::fs::read_to_string(&alt_path_is).unwrap_or_else(|_| format!("// File script '.is' tidak ditemukan: {}", file_path))
+            };
+
+            let compiled_js = crate::core::is_engine::IsEngine::compile(&source);
+            format!("<script>\n{}\n</script>", compiled_js)
+        }).to_string();
+
         s
     }
     /// Render template dengan context data
@@ -501,10 +522,8 @@ impl ViewBuilder {
     }
 
     /// Mengeksekusi render dan mengembalikan ViewResponse.
-    /// Sekarang mendukung deteksi HTMX otomatis dan Injeksi CSRF otomatis.
+    /// Sekarang mendukung Injeksi CSRF otomatis.
     pub async fn render(mut self, req: &crate::core::request::Request) -> ViewResponse {
-        self.context.insert("is_htmx", &req.is_htmx());
-        self.context.insert("hx_target", &req.hx_target());
 
         // Auto-inject CSRF Token jika tersedia
         if let Ok(token) = req.token.authenticity_token() {

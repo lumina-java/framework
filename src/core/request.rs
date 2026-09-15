@@ -57,23 +57,6 @@ where
 use axum::extract::FromRef;
 
 impl Request {
-    /// Cek apakah request berasal dari HTMX.
-    pub fn is_htmx(&self) -> bool {
-        self.headers.contains_key("HX-Request")
-    }
-
-    /// Ambil target HTMX (HX-Target header).
-    pub fn hx_target(&self) -> Option<String> {
-        self.headers
-            .get("HX-Target")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string())
-    }
-
-    /// Cek apakah request adalah HTMX Boosted.
-    pub fn is_htmx_boosted(&self) -> bool {
-        self.headers.contains_key("HX-Boosted")
-    }
 
     /// Shortcut untuk mengambil instance DatabasePool.
     pub fn db(&self) -> &crate::database::connection::DatabasePool {

@@ -12,10 +12,11 @@ path = "src/lib.rs"
 
 
 [workspace]
-members = ["lumina_macros", "lumina-cli"]
+members = ["lumina_macros", "lumina-cli", "indonesian-script"]
 
 [dependencies]
 lumina_macros = { path = "lumina_macros", version = "0.1.0" }
+indonesian-script = { path = "indonesian-script", version = "0.1.0" }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["macros", "multipart", "ws"] }
 futures = "0.3"

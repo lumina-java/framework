@@ -1,0 +1,25 @@
+[package]
+name = "indonesian-script"
+version = "0.1.0"
+edition = "2021"
+authors = ["Lumina Java <admin@lumina-java.com>"]
+description = "Indonesian Script (.is) - Super lightweight reactive JavaScript compiler in Rust with Indonesian & Javanese syntax helpers"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+regex = "1"
+clap = { version = "4", features = ["derive"], optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+
+[features]
+default = ["cli"]
+cli = ["dep:clap"]
+wasm = ["dep:wasm-bindgen"]
+
+[[bin]]
+name = "is-cli"
+path = "src/bin/is.rs"
+required-features = ["cli"]

@@ -4,7 +4,7 @@ use syn::{parse_macro_input, Attribute, ItemStruct, LitStr};
 
 /// Attribute macro untuk mendeklarasikan Validasi Form dengan gaya yang lebih manusiawi.
 /// Contoh:
-/// ```rust
+/// ```rust,ignore
 /// #[lumina_form]
 /// pub struct RegisterForm {
 ///     #[rule("required|min:3")]

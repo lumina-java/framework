@@ -5,7 +5,7 @@ use crate::core::security::csrf;
 use crate::core::session::store::LuminaSessionStore;
 use crate::core::view::ViewEngine;
 use crate::database::{connection::DatabasePool, migration};
-use crate::http::middleware::logger;
+use crate::http::middleware::{logger, security_headers};
 use crate::http::server::Server;
 use axum::{
     extract::State,
@@ -116,8 +116,20 @@ impl Application {
         router
             .into_axum()
             .route(
+                "/up",
+                axum::routing::get(crate::http::health::health_check_handler),
+            )
+            .route(
+                "/health",
+                axum::routing::get(crate::http::health::health_check_handler),
+            )
+            .route(
                 "/lumina/echo",
                 axum::routing::get(crate::core::echo::handler::echo_handler),
+            )
+            .route(
+                "/lumina/echo/auth",
+                axum::routing::post(crate::core::echo::handler::echo_auth_handler),
             )
             .nest_service("/js", ServeDir::new("resources/js"))
             .nest_service("/images", ServeDir::new("resources/images"))
@@ -128,6 +140,7 @@ impl Application {
             // .fallback(ErrorController::not_found)
             .with_state(state.clone())
             // ── Middleware dasar (urutan: dari luar ke dalam) ──────────────
+            .layer(from_fn(security_headers))
             .layer(from_fn_with_state(
                 state.clone(),
                 crate::core::rate_limit::rate_limit_middleware,

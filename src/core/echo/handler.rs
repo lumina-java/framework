@@ -1,11 +1,14 @@
 use crate::core::application::AppState;
+use crate::core::echo::broadcaster::ChannelAuthRequest;
 use crate::core::echo::manager::EchoMessage;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         State,
     },
+    http::StatusCode,
     response::IntoResponse,
+    Json,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use serde::Deserialize;
@@ -24,6 +27,19 @@ pub async fn echo_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
+}
+
+/// Handler untuk otorisasi private / presence channel (`/lumina/echo/auth`)
+pub async fn echo_auth_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<ChannelAuthRequest>,
+) -> impl IntoResponse {
+    let res = state.echo.authenticate_channel(&payload);
+    if res.authorized {
+        (StatusCode::OK, Json(res)).into_response()
+    } else {
+        (StatusCode::FORBIDDEN, Json(res)).into_response()
+    }
 }
 
 async fn handle_socket(socket: WebSocket, state: AppState) {
@@ -53,7 +69,9 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     match client_msg.event.as_str() {
                         "subscribe" => {
                             if let Some(channel) = client_msg.channel {
-                                echo_manager.subscribe(id, &channel);
+                                if echo_manager.is_authorized(&channel, Some(&id.to_string())) {
+                                    echo_manager.subscribe(id, &channel);
+                                }
                             }
                         }
                         "unsubscribe" => {

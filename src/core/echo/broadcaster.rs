@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub trait ShouldBroadcast {
@@ -18,4 +19,19 @@ pub trait ShouldBroadcast {
     fn broadcast_with(&self) -> Value {
         serde_json::json!({})
     }
+}
+
+/// Request otorisasi channel private
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ChannelAuthRequest {
+    pub channel_name: String,
+    pub socket_id: Option<String>,
+}
+
+/// Response otorisasi channel private
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ChannelAuthResponse {
+    pub auth: String,
+    pub channel: String,
+    pub authorized: bool,
 }

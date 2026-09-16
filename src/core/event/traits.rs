@@ -1,4 +1,5 @@
 use crate::core::application::AppState;
+use crate::core::echo::broadcaster::ShouldBroadcast;
 use async_trait::async_trait;
 use std::any::Any;
 use std::sync::Arc;
@@ -7,6 +8,11 @@ use std::sync::Arc;
 /// Harus mengimplementasikan Any agar bisa di-downcast di Listener.
 pub trait Event: Any + std::fmt::Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
+
+    /// Mengembalikan referensi ke `ShouldBroadcast` jika event ini dapat di-broadcast.
+    fn broadcaster(&self) -> Option<&dyn ShouldBroadcast> {
+        None
+    }
 }
 
 /// Trait untuk Listener yang menangani event.

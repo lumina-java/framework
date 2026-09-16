@@ -1,4 +1,5 @@
 use crate::core::application::AppState;
+use crate::core::echo::broadcaster::ShouldBroadcast;
 use crate::core::event::traits::{Event, Listener};
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -28,6 +29,8 @@ impl EventDispatcher {
     }
 
     /// Mengirimkan event ke semua listener yang terdaftar secara asinkron.
+    /// Jika event mengimplementasikan `ShouldBroadcast` (via `event.broadcaster()`),
+    /// otomatis mem-broadcast via WebSocket/Echo.
     pub async fn dispatch<E: Event + std::fmt::Debug + 'static>(
         &self,
         event: E,
@@ -43,6 +46,15 @@ impl EventDispatcher {
         state
             .telescope
             .record_event(event_name, &format!("{:?}", event_arc));
+
+        // Cek apakah event ini dipromosikan sebagai ShouldBroadcast
+        if let Some(broadcaster) = event_arc.broadcaster() {
+            let event_name = broadcaster.broadcast_as();
+            let data = broadcaster.broadcast_with();
+            for channel in broadcaster.broadcast_on() {
+                state.echo.broadcast(&channel, &event_name, data.clone());
+            }
+        }
 
         let listeners_to_run = {
             let listeners = self.listeners.read().unwrap();
@@ -61,6 +73,15 @@ impl EventDispatcher {
                     }
                 });
             }
+        }
+    }
+
+    /// Helper untuk langsung mem-broadcast event secara manual jika mengimplementasikan ShouldBroadcast.
+    pub fn dispatch_broadcast<B: ShouldBroadcast>(&self, broadcaster: &B, state: &AppState) {
+        let event_name = broadcaster.broadcast_as();
+        let data = broadcaster.broadcast_with();
+        for channel in broadcaster.broadcast_on() {
+            state.echo.broadcast(&channel, &event_name, data.clone());
         }
     }
 }

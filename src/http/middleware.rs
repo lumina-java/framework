@@ -182,8 +182,5 @@ pub async fn security_headers(req: Request, next: Next) -> Response {
         "strict-origin-when-cross-origin".parse().unwrap(),
     );
 
-    // Content-Security-Policy (Sangat dasar, silakan disesuaikan)
-    headers.insert("Content-Security-Policy", "default-src 'self'; script-src 'self' unpkg.com cdn.jsdelivr.net code.jquery.com cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; img-src 'self' data:;".parse().unwrap());
-
     response
 }

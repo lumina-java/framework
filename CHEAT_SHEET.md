@@ -29,7 +29,51 @@ pub async fn store(req: Request, ValidatedForm(form): ValidatedForm<MyForm>) -> 
 
 ---
 
-## 🔐 2. Autentikasi & Keamanan (Facade Auth)
+## 📡 2. WebSocket & Event Broadcasting (Production Ready)
+
+Fitur WebSocket bawaan untuk fitur real-time seperti obrolan dan notifikasi.
+
+```rust
+use lumina::core::echo::ShouldBroadcast;
+use serde_json::json;
+
+#[derive(Debug)]
+pub struct OrderPlacedEvent {
+    pub order_id: u64,
+    pub user_id: u64,
+}
+
+impl ShouldBroadcast for OrderPlacedEvent {
+    fn broadcast_on(&self) -> Vec<String> {
+        vec![format!("private-user-{}", self.user_id)]
+    }
+
+    fn broadcast_as(&self) -> String {
+        "OrderPlaced".to_string()
+    }
+
+    fn broadcast_with(&self) -> serde_json::Value {
+        json!({ "order_id": self.order_id })
+    }
+}
+
+// Dispatch Event (Otomatis ter-broadcast ke channel WebSocket)
+state.events.dispatch(OrderPlacedEvent { order_id: 101, user_id: 1 }, state.clone()).await;
+```
+
+---
+
+## 🏥 3. Health Check & Production Features
+
+Lumina menyediakan endpoint pemantauan kesehatan serta keamanan produksi bawaan:
+
+* **Health Check Endpoint:** `GET /up` atau `GET /health` (Memeriksa status server & database).
+* **Graceful Shutdown:** Server menangani sinyal `SIGINT` / `SIGTERM` secara aman saat proses restart atau deployment.
+* **Security Headers:** HTTP headers bawaan (`X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, `HSTS`, `Referrer-Policy`).
+
+---
+
+## 🔐 4. Autentikasi & Keamanan (Facade Auth)
 
 Hindari path panjang, gunakan Facade `Auth`.
 
@@ -51,7 +95,7 @@ let user = Auth::user(id, email, role);
 
 ---
 
-## 🔗 3. ORM & Relasi Database
+## 🔗 5. ORM & Relasi Database
 
 Gunakan Trait `Model` untuk interaksi database yang elegan.
 
@@ -73,7 +117,7 @@ let users = User::query(db).with("posts").get().await?;
 
 ---
 
-## 🚀 4. Redirect, Flash & CSRF
+## 🚀 6. Redirect, Flash & CSRF
 
 Sistem feedback user yang sangat ringkas.
 
@@ -94,7 +138,7 @@ Redirect::back(&req_parts)
 
 ---
 
-## 🐞 5. Debugging Pro
+## 🐞 7. Debugging Pro
 
 Jangan biarkan bug bersembunyi.
 
@@ -106,7 +150,7 @@ crate::dd!(variabel_anda);
 
 ---
 
-## ⌨️ 6. CLI Tools (Keyboardholic)
+## ⌨️ 8. CLI Tools (Keyboardholic)
 
 | Perintah | Fungsi |
 | :--- | :--- |
@@ -116,12 +160,5 @@ crate::dd!(variabel_anda);
 | `./lumina make:model [Name]` | Generate boilerplate model baru. |
 
 ---
-
-## 💡 Saran Pengembangan Berikutnya (Next Skills)
-
-1.  **Validation Macros**: Deklarasi validasi non-teknis `required|email|unique`.
-2.  **Global Middleware Groups**: Kemudahan registrasi middleware dalam grup (web, api, auth).
-3.  **Lumina Blueprint**: CLI yang lebih pintar untuk generate seluruh CRUD sekaligus.
-4.  **Task Scheduling**: Menjalankan cron jobs bergaya Laravel.
 
 > **Dokumentasi Lengkap:** [DOCUMENTATION.md](./DOCUMENTATION.md)

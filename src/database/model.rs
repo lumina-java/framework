@@ -8,7 +8,7 @@ use async_trait::async_trait;
 /// Implementasi detail query ada di masing-masing struct model.
 ///
 /// # Contoh
-/// ```rust
+/// ```rust,ignore
 /// let user = User::find(&pool, 1).await?;
 /// let all  = User::all(&pool).await?;
 /// ```

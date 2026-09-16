@@ -80,7 +80,7 @@ cargo lumina migrate
 - 🪄 **Smart Scaffolding** — Full CRUD generation with fields in one command
 - 🧪 **Testing Suite** — Built-in testing with fluent assertions
 - 🗄️ **Database Layer** — SQLx, Migrations, Seeders, and Factories
-- 🎭 **Template Engine** — Tera with `.blade.rs` preprocessor and HTMX support
+- 🎭 **Template Engine** — Tera with `.blade.rs` preprocessor and Indonesian Script (`.is`) support
 - 🔐 **JWT Auth** — Full authentication scaffolding ready to use
 - 📁 **File Upload** — Multipart handling & Image manipulation
 - 🐳 **Deployment Tools** — Docker, Nginx, and Supervisor auto-scaffolding

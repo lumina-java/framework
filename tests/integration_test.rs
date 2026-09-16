@@ -1,13 +1,16 @@
-use axum::http::StatusCode;
-use lumina::core::testing::TestApp;
-use lumina::core::router::Router;
+use axum::extract::{Path, Query};
+use axum::http::{HeaderValue, StatusCode};
+use axum::middleware;
+use axum::response::IntoResponse;
+use lumina::core::auth::AuthUser;
 use lumina::core::request::Request as LuminaRequest;
 use lumina::core::response::ApiResponse;
-use axum::response::IntoResponse;
-use axum::extract::Path;
+use lumina::core::router::Router;
+use lumina::core::testing::TestApp;
 use serde::{Deserialize, Serialize};
+use tower::ServiceExt;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 struct ProductItem {
     id: i64,
     name: String,
@@ -20,19 +23,42 @@ struct CreateProductInput {
     price: i64,
 }
 
-// Controller handlers for API CRUD testing
-async fn list_products(req: LuminaRequest) -> impl IntoResponse {
-    let db = req.db().get_pool();
-    let rows = sqlx::query_as::<_, (i64, String, i64)>("SELECT id, name, price FROM products")
-        .fetch_all(db)
-        .await
-        .unwrap_or_default();
+#[derive(Deserialize)]
+struct PaginationQuery {
+    page: Option<i64>,
+    limit: Option<i64>,
+}
 
-    let items: Vec<ProductItem> = rows.into_iter().map(|(id, name, price)| ProductItem { id, name, price }).collect();
+// Controller handlers for API CRUD testing
+async fn list_products(
+    req: LuminaRequest,
+    Query(query): Query<PaginationQuery>,
+) -> impl IntoResponse {
+    let db = req.db().get_pool();
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = query.limit.unwrap_or(10).max(1);
+    let offset = (page - 1) * limit;
+
+    let rows = sqlx::query_as::<_, (i64, String, i64)>(
+        "SELECT id, name, price FROM products ORDER BY id ASC LIMIT ? OFFSET ?",
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+
+    let items: Vec<ProductItem> = rows
+        .into_iter()
+        .map(|(id, name, price)| ProductItem { id, name, price })
+        .collect();
     ApiResponse::success(items)
 }
 
-async fn create_product(req: LuminaRequest, axum::Json(input): axum::Json<CreateProductInput>) -> impl IntoResponse {
+async fn create_product(
+    req: LuminaRequest,
+    axum::Json(input): axum::Json<CreateProductInput>,
+) -> impl IntoResponse {
     let db = req.db().get_pool();
     let res = sqlx::query("INSERT INTO products (name, price) VALUES (?, ?)")
         .bind(&input.name)
@@ -52,20 +78,29 @@ async fn create_product(req: LuminaRequest, axum::Json(input): axum::Json<Create
 
 async fn get_product(req: LuminaRequest, Path(id): Path<i64>) -> impl IntoResponse {
     let db = req.db().get_pool();
-    let row = sqlx::query_as::<_, (i64, String, i64)>("SELECT id, name, price FROM products WHERE id = ?")
-        .bind(id)
-        .fetch_optional(db)
-        .await
-        .unwrap_or_default();
+    let row =
+        sqlx::query_as::<_, (i64, String, i64)>("SELECT id, name, price FROM products WHERE id = ?")
+            .bind(id)
+            .fetch_optional(db)
+            .await
+            .unwrap_or_default();
 
     if let Some((id, name, price)) = row {
         ApiResponse::success(ProductItem { id, name, price }).into_response()
     } else {
-        (StatusCode::NOT_FOUND, ApiResponse::error("Product not found")).into_response()
+        (
+            StatusCode::NOT_FOUND,
+            ApiResponse::error("Product not found"),
+        )
+            .into_response()
     }
 }
 
-async fn update_product(req: LuminaRequest, Path(id): Path<i64>, axum::Json(input): axum::Json<CreateProductInput>) -> impl IntoResponse {
+async fn update_product(
+    req: LuminaRequest,
+    Path(id): Path<i64>,
+    axum::Json(input): axum::Json<CreateProductInput>,
+) -> impl IntoResponse {
     let db = req.db().get_pool();
     let res = sqlx::query("UPDATE products SET name = ?, price = ? WHERE id = ?")
         .bind(&input.name)
@@ -76,9 +111,21 @@ async fn update_product(req: LuminaRequest, Path(id): Path<i64>, axum::Json(inpu
         .expect("Failed to update product");
 
     if res.rows_affected() > 0 {
-        ApiResponse::with_message(ProductItem { id, name: input.name, price: input.price }, "Product updated").into_response()
+        ApiResponse::with_message(
+            ProductItem {
+                id,
+                name: input.name,
+                price: input.price,
+            },
+            "Product updated",
+        )
+        .into_response()
     } else {
-        (StatusCode::NOT_FOUND, ApiResponse::error("Product not found")).into_response()
+        (
+            StatusCode::NOT_FOUND,
+            ApiResponse::error("Product not found"),
+        )
+            .into_response()
     }
 }
 
@@ -93,7 +140,11 @@ async fn delete_product(req: LuminaRequest, Path(id): Path<i64>) -> impl IntoRes
     if res.rows_affected() > 0 {
         ApiResponse::with_message(serde_json::json!({ "id": id }), "Product deleted").into_response()
     } else {
-        (StatusCode::NOT_FOUND, ApiResponse::error("Product not found")).into_response()
+        (
+            StatusCode::NOT_FOUND,
+            ApiResponse::error("Product not found"),
+        )
+            .into_response()
     }
 }
 
@@ -149,13 +200,15 @@ async fn test_api_crud_workflow() {
         .uri(format!("/api/products/{}", product_id))
         .method("PUT")
         .header("content-type", "application/json")
-        .body(axum::body::Body::from(serde_json::to_string(&serde_json::json!({
-            "name": "Kopi Jawa Super",
-            "price": 20000
-        })).unwrap()))
+        .body(axum::body::Body::from(
+            serde_json::to_string(&serde_json::json!({
+                "name": "Kopi Jawa Super",
+                "price": 20000
+            }))
+            .unwrap(),
+        ))
         .unwrap();
 
-    use tower::ServiceExt;
     let update_res = app.router.clone().oneshot(update_req).await.unwrap();
     let test_update_res = lumina::core::testing::TestResponse::new(update_res).await;
     test_update_res.assert_status(StatusCode::OK);
@@ -176,6 +229,217 @@ async fn test_api_crud_workflow() {
     // 6. Verify Deletion
     let res = app.get(&format!("/api/products/{}", product_id)).await;
     res.assert_status(StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_api_crud_input_validation() {
+    let mut app = TestApp::new().await;
+
+    let db = app.state.db().get_pool();
+    sqlx::query("CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, price INTEGER)")
+        .execute(db)
+        .await
+        .unwrap();
+
+    let api_router = Router::new().post("/products", create_product);
+    let application = lumina::core::application::Application::new().with_api(api_router);
+    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+        tower_sessions::MemoryStore::default(),
+    );
+    app.router = application.build_router(app.state.clone(), session_store);
+
+    // 1. Missing mandatory field "price"
+    let invalid_payload_1 = serde_json::json!({
+        "name": "Teh Hijau"
+    });
+    let res = app.post("/api/products", invalid_payload_1).await;
+    res.assert_status(StatusCode::UNPROCESSABLE_ENTITY);
+
+    // 2. Incorrect data type for "price" (string instead of integer)
+    let invalid_payload_2 = serde_json::json!({
+        "name": "Teh Hijau",
+        "price": "seribu"
+    });
+    let res = app.post("/api/products", invalid_payload_2).await;
+    res.assert_status(StatusCode::UNPROCESSABLE_ENTITY);
+
+    // 3. Malformed JSON payload
+    let req = axum::http::Request::builder()
+        .uri("/api/products")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(axum::body::Body::from("{ invalid_json }"))
+        .unwrap();
+    let res = app.router.clone().oneshot(req).await.unwrap();
+    let test_res = lumina::core::testing::TestResponse::new(res).await;
+    test_res.assert_status(StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_api_crud_not_found_edge_cases() {
+    let mut app = TestApp::new().await;
+
+    let db = app.state.db().get_pool();
+    sqlx::query("CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, price INTEGER)")
+        .execute(db)
+        .await
+        .unwrap();
+
+    let api_router = Router::new()
+        .get("/products/:id", get_product)
+        .put("/products/:id", update_product)
+        .delete("/products/:id", delete_product);
+
+    let application = lumina::core::application::Application::new().with_api(api_router);
+    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+        tower_sessions::MemoryStore::default(),
+    );
+    app.router = application.build_router(app.state.clone(), session_store);
+
+    // 1. GET non-existent product
+    let res = app.get("/api/products/999999").await;
+    res.assert_status(StatusCode::NOT_FOUND);
+
+    // 2. PUT non-existent product
+    let req = axum::http::Request::builder()
+        .uri("/api/products/999999")
+        .method("PUT")
+        .header("content-type", "application/json")
+        .body(axum::body::Body::from(
+            serde_json::to_string(&serde_json::json!({
+                "name": "Non Existent Item",
+                "price": 50000
+            }))
+            .unwrap(),
+        ))
+        .unwrap();
+    let res = app.router.clone().oneshot(req).await.unwrap();
+    let test_res = lumina::core::testing::TestResponse::new(res).await;
+    test_res.assert_status(StatusCode::NOT_FOUND);
+
+    // 3. DELETE non-existent product
+    let req = axum::http::Request::builder()
+        .uri("/api/products/999999")
+        .method("DELETE")
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let res = app.router.clone().oneshot(req).await.unwrap();
+    let test_res = lumina::core::testing::TestResponse::new(res).await;
+    test_res.assert_status(StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_api_crud_pagination() {
+    let mut app = TestApp::new().await;
+
+    let db = app.state.db().get_pool();
+    sqlx::query("CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, price INTEGER)")
+        .execute(db)
+        .await
+        .unwrap();
+
+    // Insert 15 items
+    for i in 1..=15 {
+        sqlx::query("INSERT INTO products (name, price) VALUES (?, ?)")
+            .bind(format!("Product {}", i))
+            .bind(i * 1000)
+            .execute(db)
+            .await
+            .unwrap();
+    }
+
+    let api_router = Router::new().get("/products", list_products);
+    let application = lumina::core::application::Application::new().with_api(api_router);
+    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+        tower_sessions::MemoryStore::default(),
+    );
+    app.router = application.build_router(app.state.clone(), session_store);
+
+    // Page 1, limit 5
+    let res = app.get("/api/products?page=1&limit=5").await;
+    res.assert_status(StatusCode::OK);
+    let data: serde_json::Value = res.json();
+    let items = data["response"].as_array().unwrap();
+    assert_eq!(items.len(), 5);
+    assert_eq!(items[0]["name"], "Product 1");
+    assert_eq!(items[4]["name"], "Product 5");
+
+    // Page 2, limit 5
+    let res = app.get("/api/products?page=2&limit=5").await;
+    res.assert_status(StatusCode::OK);
+    let data: serde_json::Value = res.json();
+    let items = data["response"].as_array().unwrap();
+    assert_eq!(items.len(), 5);
+    assert_eq!(items[0]["name"], "Product 6");
+    assert_eq!(items[4]["name"], "Product 10");
+
+    // Page 3, limit 5
+    let res = app.get("/api/products?page=3&limit=5").await;
+    res.assert_status(StatusCode::OK);
+    let data: serde_json::Value = res.json();
+    let items = data["response"].as_array().unwrap();
+    assert_eq!(items.len(), 5);
+    assert_eq!(items[0]["name"], "Product 11");
+    assert_eq!(items[4]["name"], "Product 15");
+}
+
+#[tokio::test]
+async fn test_api_crud_jwt_auth_middleware() {
+    let mut app = TestApp::new().await;
+
+    let db = app.state.db().get_pool();
+    sqlx::query("CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, price INTEGER)")
+        .execute(db)
+        .await
+        .unwrap();
+
+    let protected_router = Router::new()
+        .get("/products", list_products)
+        .layer(middleware::from_fn(lumina::http::middleware::auth_required));
+
+    let application = lumina::core::application::Application::new().with_api(protected_router);
+    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+        tower_sessions::MemoryStore::default(),
+    );
+    app.router = application.build_router(app.state.clone(), session_store);
+
+    // 1. Unauthenticated request (no Authorization header)
+    let res = app.get("/api/products").await;
+    res.assert_status(StatusCode::UNAUTHORIZED);
+
+    // 2. Invalid Bearer Token
+    let req = axum::http::Request::builder()
+        .uri("/api/products")
+        .method("GET")
+        .header("authorization", "Bearer invalid.token.here")
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let res = app.router.clone().oneshot(req).await.unwrap();
+    let test_res = lumina::core::testing::TestResponse::new(res).await;
+    test_res.assert_status(StatusCode::UNAUTHORIZED);
+
+    // 3. Valid Bearer Token
+    let user = AuthUser::new(
+        1,
+        "admin@lumina.dev".to_string(),
+        "admin".to_string(),
+        vec!["read".to_string(), "write".to_string()],
+        24,
+    );
+    let valid_token = lumina::http::auth::generate_token(&user).unwrap();
+
+    let req = axum::http::Request::builder()
+        .uri("/api/products")
+        .method("GET")
+        .header(
+            "authorization",
+            HeaderValue::from_str(&format!("Bearer {}", valid_token)).unwrap(),
+        )
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let res = app.router.clone().oneshot(req).await.unwrap();
+    let test_res = lumina::core::testing::TestResponse::new(res).await;
+    test_res.assert_status(StatusCode::OK);
 }
 
 #[tokio::test]

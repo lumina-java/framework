@@ -88,7 +88,7 @@ fn unauthorized_json(message: &str) -> Response {
         },
         "response": null
     });
-    axum::response::Json(body).into_response()
+    (axum::http::StatusCode::UNAUTHORIZED, axum::response::Json(body)).into_response()
 }
 
 // ─── Web Auth Middleware ────────────────────────────────────────────────────────

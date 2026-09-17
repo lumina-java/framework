@@ -47,6 +47,64 @@ impl ShouldBroadcast for SampleUserRegisteredEvent {
 }
 
 #[tokio::test]
+async fn test_echo_channel_jwt_authorization() {
+    use lumina::core::auth::AuthUser;
+    use lumina::core::echo::EchoManager;
+    use lumina::http::auth::{generate_token, validate_token};
+
+    std::env::set_var("APP_KEY", "secret-test-key-12345");
+
+    let echo = EchoManager::new();
+
+    // Register JWT authorization handler for private user channels
+    echo.authorize_channel("private-user-*", |channel_name: &str, token_or_socket: Option<&str>| {
+        let token = match token_or_socket {
+            Some(t) => t,
+            None => return false,
+        };
+
+        let auth_user = match validate_token(token) {
+            Ok(user) => user,
+            Err(_) => return false,
+        };
+
+        if let Some(target_user_id) = channel_name.strip_prefix("private-user-") {
+            return auth_user.sub == target_user_id;
+        }
+
+        false
+    });
+
+    // 1. Generate valid JWT token for user ID 42
+    let user_42 = AuthUser::new(42, "user42@example.com".to_string(), "user".to_string(), vec![], 1);
+    let jwt_token_42 = generate_token(&user_42).unwrap();
+
+    // 2. Direct EchoManager verification: Valid channel matching sub=42
+    let req_valid = ChannelAuthRequest {
+        channel_name: "private-user-42".to_string(),
+        socket_id: None,
+        token: Some(jwt_token_42.clone()),
+    };
+    assert!(echo.authenticate_channel(&req_valid).authorized);
+
+    // 3. Direct EchoManager verification: User 42 trying to access user 99's private channel
+    let req_mismatched = ChannelAuthRequest {
+        channel_name: "private-user-99".to_string(),
+        socket_id: None,
+        token: Some(jwt_token_42.clone()),
+    };
+    assert!(!echo.authenticate_channel(&req_mismatched).authorized);
+
+    // 4. Direct EchoManager verification: Invalid token
+    let req_invalid = ChannelAuthRequest {
+        channel_name: "private-user-42".to_string(),
+        socket_id: None,
+        token: Some("invalid.jwt.token".to_string()),
+    };
+    assert!(!echo.authenticate_channel(&req_invalid).authorized);
+}
+
+#[tokio::test]
 async fn test_echo_manager_subscriptions_and_auth() {
     let echo = EchoManager::new();
 
@@ -54,6 +112,7 @@ async fn test_echo_manager_subscriptions_and_auth() {
     let req_public = ChannelAuthRequest {
         channel_name: "public-news".to_string(),
         socket_id: None,
+        token: None,
     };
     let auth_res = echo.authenticate_channel(&req_public);
     assert!(auth_res.authorized);
@@ -66,12 +125,14 @@ async fn test_echo_manager_subscriptions_and_auth() {
     let req_private_valid = ChannelAuthRequest {
         channel_name: "private-user-10".to_string(),
         socket_id: Some("valid-socket".to_string()),
+        token: None,
     };
     assert!(echo.authenticate_channel(&req_private_valid).authorized);
 
     let req_private_invalid = ChannelAuthRequest {
         channel_name: "private-user-10".to_string(),
         socket_id: Some("invalid-socket".to_string()),
+        token: None,
     };
     assert!(!echo.authenticate_channel(&req_private_invalid).authorized);
 }

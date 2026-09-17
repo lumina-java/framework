@@ -32,8 +32,18 @@ pub async fn echo_handler(
 /// Handler untuk otorisasi private / presence channel (`/lumina/echo/auth`)
 pub async fn echo_auth_handler(
     State(state): State<AppState>,
-    Json(payload): Json<ChannelAuthRequest>,
+    headers: axum::http::HeaderMap,
+    Json(mut payload): Json<ChannelAuthRequest>,
 ) -> impl IntoResponse {
+    if payload.token.is_none() {
+        if let Some(auth_header) = headers.get(axum::http::header::AUTHORIZATION) {
+            if let Ok(auth_str) = auth_header.to_str() {
+                if auth_str.starts_with("Bearer ") {
+                    payload.token = Some(auth_str["Bearer ".len()..].to_string());
+                }
+            }
+        }
+    }
     let res = state.echo.authenticate_channel(&payload);
     if res.authorized {
         (StatusCode::OK, Json(res)).into_response()

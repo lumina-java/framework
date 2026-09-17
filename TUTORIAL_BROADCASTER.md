@@ -105,25 +105,51 @@ pub async fn send_notification(req: Request) -> impl IntoResponse {
 
 ---
 
-## 🔒 Langkah 3: Mengatur Otorisasi Channel Private
+## 🔒 Langkah 3: Mengatur Otorisasi Channel Private & Verifikasi JWT
 
-Secara default, channel biasa dapat di-subscribe oleh siapa saja. Namun untuk channel yang diawali `private-` atau `presence-`, Anda dapat mendaftarkan aturan otorisasi di file bootstrap / setup aplikasi Anda:
+Secara default, channel publik dapat di-*subscribe* oleh siapa saja. Namun untuk channel private (diawali `private-` atau `presence-`), client harus melakukan otorisasi via HTTP POST ke endpoint `/lumina/echo/auth` sebelum diperbolehkan mengakses data channel.
+
+Client dapat mengirimkan JWT token melalui:
+1. Field **`token`** atau **`socket_id`** pada payload JSON request: `{"channel_name": "private-user-42", "token": "<jwt_token>"}`
+2. HTTP Header **`Authorization: Bearer <jwt_token>`**
+
+Di sisi backend Rust, Anda dapat melakukan otorisasi channel dengan memverifikasi token JWT menggunakan `lumina::http::auth::validate_token`:
 
 ```rust
 use lumina::core::application::AppState;
+use lumina::http::auth::validate_token;
 
 pub fn configure_broadcaster_auth(state: &AppState) {
     // Mengatur otorisasi untuk channel "private-user-{id}"
-    state.echo.authorize_channel("private-user-*", |channel_name, socket_id| {
-        // Logika verifikasi token / session / user id di sini
-        // Return true jika diizinkan, false jika ditolak
-        if let Some(_id) = socket_id {
-            return true;
+    state.echo.authorize_channel("private-user-*", |channel_name, token_or_socket| {
+        // 1. Ambil JWT token dari request (token dikirim via JSON body atau Header Authorization)
+        let token = match token_or_socket {
+            Some(t) => t,
+            None => return false, // Ditolak jika tidak ada token
+        };
+
+        // 2. Verifikasi & decode JWT token menggunakan modul Auth Lumina
+        let auth_user = match validate_token(token) {
+            Ok(user) => user,
+            Err(_) => return false, // Ditolak jika token invalid, expired, atau signature salah
+        };
+
+        // 3. Ekstrak target user_id dari nama channel (misal: "private-user-42" -> "42")
+        if let Some(target_user_id) = channel_name.strip_prefix("private-user-") {
+            // 4. Verifikasi bahwa ID user pada JWT (sub) cocok dengan ID channel yang diminta
+            return auth_user.sub == target_user_id;
         }
-        true
+
+        false
     });
 }
 ```
+
+### Contoh Alur Verifikasi JWT Otorisasi Channel:
+1. Client melakukan `POST /lumina/echo/auth` dengan body `{"channel_name": "private-user-42", "token": "<token_jwt>"}` atau Header `Authorization: Bearer <token_jwt>`.
+2. Endpoint `/lumina/echo/auth` memanggil callback `authorize_channel`.
+3. Function `validate_token(token)` memverifikasi signature & expiration JWT.
+4. Jika valid, `auth_user.sub` dibandingkan dengan ID channel (`private-user-42`). Jika cocok (`42 == 42`), mengembalikan `true` dan client diizinkan *subscribe*.
 
 ---
 

@@ -17,5 +17,5 @@ pub mod prelude {
 }
 
 
-pub use lumina_macros::lumina_form;
+pub use lumina_macros::{lumina_form, LuminaModel};
 pub use validator;

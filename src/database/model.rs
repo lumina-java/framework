@@ -38,6 +38,96 @@ pub trait Model:
         QueryBuilder::new(pool, Self::TABLE)
     }
 
+    /// Ambil record berdasarkan ID atau return Error.
+    async fn find_or_fail(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
+        Self::find(pool, id).await
+    }
+
+    /// Cari record berdasarkan kriteria, atau buat baru jika tidak ditemukan.
+    async fn first_or_create<K, V>(
+        pool: &DatabasePool,
+        attributes: impl IntoIterator<Item = (K, V)> + Send,
+        values: impl IntoIterator<Item = (K, V)> + Send,
+    ) -> Result<Self, sqlx::Error>
+    where
+        K: AsRef<str>,
+        V: ToString,
+    {
+        let attr_vec: Vec<(String, String)> = attributes
+            .into_iter()
+            .map(|(k, v)| (k.as_ref().to_string(), v.to_string()))
+            .collect();
+
+        let val_vec: Vec<(String, String)> = values
+            .into_iter()
+            .map(|(k, v)| (k.as_ref().to_string(), v.to_string()))
+            .collect();
+
+        let mut builder = Self::query(pool);
+        for (k, v) in &attr_vec {
+            builder = builder.where_eq_str(k, v);
+        }
+
+        if let Some(item) = builder.first().await? {
+            return Ok(item);
+        }
+
+        let mut create_map: Vec<(String, String)> = attr_vec;
+        for (key, val) in val_vec {
+            if !create_map.iter().any(|(existing_k, _)| existing_k == &key) {
+                create_map.push((key, val));
+            }
+        }
+
+        Self::create(pool, create_map).await
+    }
+
+    /// Buat record baru dari key-value pairs secara dinamis.
+    async fn create<K, V>(
+        pool: &DatabasePool,
+        data: impl IntoIterator<Item = (K, V)> + Send,
+    ) -> Result<Self, sqlx::Error>
+    where
+        K: AsRef<str>,
+        V: ToString,
+    {
+        let pairs: Vec<(String, String)> = data
+            .into_iter()
+            .map(|(k, v)| (k.as_ref().to_string(), v.to_string()))
+            .collect();
+
+        if pairs.is_empty() {
+            return Err(sqlx::Error::Decode("No fields provided for create".into()));
+        }
+
+        let keys: Vec<String> = pairs.iter().map(|p| p.0.clone()).collect();
+        let placeholders = vec!["?"; keys.len()].join(", ");
+        let sql = format!(
+            "INSERT INTO {} ({}) VALUES ({})",
+            Self::TABLE,
+            keys.join(", "),
+            placeholders
+        );
+
+        let mut query = sqlx::query(&sql);
+        for pair in &pairs {
+            query = query.bind(&pair.1);
+        }
+
+        let res = query.execute(&pool.pool).await?;
+        let inserted_id = res.last_insert_id().unwrap_or(0);
+
+        if inserted_id != 0 {
+            if let Ok(item) = Self::find(pool, inserted_id as i64).await {
+                return Ok(item);
+            }
+        }
+
+        // Fallback jika driver tidak mengembalikan last_insert_id (misal pada beberapa mode sqlite connection/any)
+        let last_item = Self::query(pool).order_by("id", "DESC").first_or_fail().await?;
+        Ok(last_item)
+    }
+
     async fn has_many<R>(
         pool: &DatabasePool,
         foreign_key: &str,
@@ -64,7 +154,7 @@ pub trait Model:
     {
         R::query(pool)
             .filter(foreign_key, "=", local_id)
-            .first()
+            .first_or_fail()
             .await
     }
 

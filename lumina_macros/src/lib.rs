@@ -105,7 +105,7 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Derive macro untuk mengimplementasikan trait Model secara otomatis.
 /// Ini menghilangkan boilerplate SQL manual untuk operasi CRUD standar.
-#[proc_macro_derive(LuminaModel, attributes(table))]
+#[proc_macro_derive(LuminaModel, attributes(table, primary_key, column))]
 pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
     let name = &input.ident;
@@ -126,18 +126,33 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
         panic!("LuminaModel hanya bisa digunakan pada struct dengan named fields");
     };
 
+    // Cari nama field primary key (default "id" jika tidak ada atribut #[primary_key])
+    let primary_key_field = fields
+        .iter()
+        .find(|f| f.attrs.iter().any(|attr| attr.path().is_ident("primary_key")))
+        .and_then(|f| f.ident.as_ref().map(|i| i.to_string()))
+        .unwrap_or_else(|| "id".to_string());
+
     let field_names: Vec<String> = fields
         .iter()
-        .map(|f| f.ident.as_ref().unwrap().to_string())
+        .map(|f| {
+            // Cek jika ada atribut #[column("...")]
+            f.attrs
+                .iter()
+                .find(|attr| attr.path().is_ident("column"))
+                .and_then(|attr| attr.parse_args::<LitStr>().ok())
+                .map(|lit| lit.value())
+                .unwrap_or_else(|| f.ident.as_ref().unwrap().to_string())
+        })
         .collect();
 
     // Field names untuk SELECT (semua field)
     let select_fields = field_names.join(", ");
 
-    // Field names untuk INSERT (lewati 'id')
+    // Field names untuk INSERT (lewati primary key & timestamp auto)
     let insert_fields: Vec<String> = field_names
         .iter()
-        .filter(|&n| n != "id" && n != "created_at" && n != "updated_at" && n != "deleted_at")
+        .filter(|&n| n != &primary_key_field && n != "created_at" && n != "updated_at" && n != "deleted_at")
         .cloned()
         .collect();
 
@@ -150,27 +165,29 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
         quote! { .bind(&self.#ident) }
     });
 
+    let pk_clause = format!("{} = ?", primary_key_field);
+
     let expanded = quote! {
         #[async_trait::async_trait]
-        impl crate::database::model::Model for #name {
+        impl lumina::database::model::Model for #name {
             const TABLE: &'static str = #table_name;
 
-            async fn find(pool: &crate::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
-                let sql = format!("SELECT {} FROM {} WHERE id = ? AND deleted_at IS NULL", #select_fields, Self::TABLE);
+            async fn find(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
+                let sql = format!("SELECT {} FROM {} WHERE {} AND deleted_at IS NULL", #select_fields, Self::TABLE, #pk_clause);
                 sqlx::query_as::<_, Self>(&sql)
                     .bind(id)
                     .fetch_one(&pool.pool)
                     .await
             }
 
-            async fn all(pool: &crate::database::connection::DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
-                let sql = format!("SELECT {} FROM {} WHERE deleted_at IS NULL ORDER BY id DESC", #select_fields, Self::TABLE);
+            async fn all(pool: &lumina::database::connection::DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
+                let sql = format!("SELECT {} FROM {} WHERE deleted_at IS NULL ORDER BY {} DESC", #select_fields, Self::TABLE, #primary_key_field);
                 sqlx::query_as::<_, Self>(&sql)
                     .fetch_all(&pool.pool)
                     .await
             }
 
-            async fn save(&self, pool: &crate::database::connection::DatabasePool) -> Result<i64, sqlx::Error> {
+            async fn save(&self, pool: &lumina::database::connection::DatabasePool) -> Result<i64, sqlx::Error> {
                 let sql = format!(
                     "INSERT INTO {} ({}) VALUES ({})",
                     Self::TABLE,
@@ -186,8 +203,8 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
                 Ok(result.last_insert_id().unwrap_or(0))
             }
 
-            async fn delete(pool: &crate::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
-                let sql = format!("UPDATE {} SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", Self::TABLE);
+            async fn delete(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
+                let sql = format!("UPDATE {} SET deleted_at = CURRENT_TIMESTAMP WHERE {}", Self::TABLE, #pk_clause);
                 sqlx::query(&sql)
                     .bind(id)
                     .execute(&pool.pool)

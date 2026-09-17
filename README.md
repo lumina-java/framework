@@ -148,7 +148,9 @@ async fn test_homepage_works() {
 
 Untuk panduan detail, tutorial CRUD, konfigurasi middleware, dan referensi API lengkap:
 
-**👉 [Baca DOCUMENTATION.md](./DOCUMENTATION.md)**
+- 📡 **[Tutorial WebSocket Broadcaster (Lumina Echo)](./TUTORIAL_BROADCASTER.md)**
+- 📖 **[Cheat Sheet & Quick Reference](./CHEAT_SHEET.md)**
+- 📦 **[Panduan Instalasi & Persyaratan](./TUTORIAL_INSTALL.md)**
 
 ---
 

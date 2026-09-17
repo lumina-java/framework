@@ -22,10 +22,12 @@ pub trait ShouldBroadcast {
 }
 
 /// Request otorisasi channel private
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ChannelAuthRequest {
     pub channel_name: String,
     pub socket_id: Option<String>,
+    #[serde(default)]
+    pub token: Option<String>,
 }
 
 /// Response otorisasi channel private

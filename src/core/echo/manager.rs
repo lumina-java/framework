@@ -130,7 +130,8 @@ impl EchoManager {
 
     /// Menangani otorisasi request dari client
     pub fn authenticate_channel(&self, req: &ChannelAuthRequest) -> ChannelAuthResponse {
-        let authorized = self.is_authorized(&req.channel_name, req.socket_id.as_deref());
+        let auth_param = req.token.as_deref().or(req.socket_id.as_deref());
+        let authorized = self.is_authorized(&req.channel_name, auth_param);
         let token = if authorized {
             format!("auth-ok:{}", req.channel_name)
         } else {

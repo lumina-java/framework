@@ -107,37 +107,66 @@ pub async fn send_notification(req: Request) -> impl IntoResponse {
 
 ## 🔒 Langkah 3: Mengatur Otorisasi Channel Private & Verifikasi JWT
 
-Secara default, channel publik dapat di-*subscribe* oleh siapa saja. Namun untuk channel private (diawali `private-` atau `presence-`), client harus melakukan otorisasi via HTTP POST ke endpoint `/lumina/echo/auth` sebelum diperbolehkan mengakses data channel.
+Secara default, channel publik dapat di-*subscribe* oleh siapa saja. Namun untuk channel private (diawali `private-` atau `presence-`), client harus memverifikasi hak aksesnya sebelum diperbolehkan menerima pesan dari channel tersebut.
 
-Client dapat mengirimkan JWT token melalui:
-1. Field **`token`** atau **`socket_id`** pada payload JSON request: `{"channel_name": "private-user-42", "token": "<jwt_token>"}`
-2. HTTP Header **`Authorization: Bearer <jwt_token>`**
+### 📩 3 Cara Pengiriman Token JWT dari Client
 
-Di sisi backend Rust, Anda dapat melakukan otorisasi channel dengan memverifikasi token JWT menggunakan `lumina::http::auth::validate_token`:
+Lumina Echo mendukung 3 opsi fleksibel bagi client untuk mengirimkan token JWT:
+
+1. **Query Parameter saat Buka Koneksi WebSocket**:
+   ```text
+   ws://localhost:8000/lumina/echo?token=<jwt_token>
+   ```
+   *Server akan menyimpan token ini pada koneksi aktif dan otomatis menggunakannya saat client mengirimkan pesan `subscribe` ke channel private.*
+
+2. **Payload JSON pada Pesan `subscribe` WebSocket**:
+   ```json
+   {
+     "event": "subscribe",
+     "channel": "private-tenant-100",
+     "token": "<jwt_token>"
+   }
+   ```
+   *Memungkinkan client mengirimkan token secara dinamis langsung dalam payload pesan WebSocket.*
+
+3. **HTTP Auth Endpoint (`/lumina/echo/auth`)**:
+   - Via JSON Request Body: `{"channel_name": "private-tenant-100", "token": "<jwt_token>"}`
+   - Via HTTP Header: `Authorization: Bearer <jwt_token>`
+
+---
+
+### 🛡️ Contoh Konkret: Verifikasi JWT Operator Tenant (`tenant_operator`)
+
+Berikut adalah contoh konkret bagaimana mendaftarkan authorizer untuk channel multi-tenant (`private-tenant-*`) dan memverifikasi token JWT milik `tenant_operator`:
 
 ```rust
 use lumina::core::application::AppState;
 use lumina::http::auth::validate_token;
 
 pub fn configure_broadcaster_auth(state: &AppState) {
-    // Mengatur otorisasi untuk channel "private-user-{id}"
-    state.echo.authorize_channel("private-user-*", |channel_name, token_or_socket| {
-        // 1. Ambil JWT token dari request (token dikirim via JSON body atau Header Authorization)
+    // Registrasi handler otorisasi untuk channel pattern "private-tenant-*"
+    state.echo.authorize_channel("private-tenant-*", |channel_name, token_or_socket| {
+        // 1. Ambil token JWT yang dikirimkan oleh client (via Query Param, WS Payload, atau HTTP Header)
         let token = match token_or_socket {
             Some(t) => t,
-            None => return false, // Ditolak jika tidak ada token
+            None => return false, // Tolak jika tidak ada token
         };
 
-        // 2. Verifikasi & decode JWT token menggunakan modul Auth Lumina
+        // 2. Dekode & verifikasi token JWT menggunakan validate_token
         let auth_user = match validate_token(token) {
             Ok(user) => user,
-            Err(_) => return false, // Ditolak jika token invalid, expired, atau signature salah
+            Err(_) => return false, // Tolak jika token invalid, expired, atau signature tidak cocok
         };
 
-        // 3. Ekstrak target user_id dari nama channel (misal: "private-user-42" -> "42")
-        if let Some(target_user_id) = channel_name.strip_prefix("private-user-") {
-            // 4. Verifikasi bahwa ID user pada JWT (sub) cocok dengan ID channel yang diminta
-            return auth_user.sub == target_user_id;
+        // 3. Verifikasi role user: Harus 'tenant_operator'
+        if auth_user.role != "tenant_operator" {
+            return false;
+        }
+
+        // 4. Ekstrak tenant_id dari suffix channel (misal: "private-tenant-100" -> "100")
+        if let Some(target_tenant_id) = channel_name.strip_prefix("private-tenant-") {
+            // 5. Verifikasi bahwa tenant_id pada token JWT (auth_user.sub) cocok dengan ID channel
+            return auth_user.sub == target_tenant_id;
         }
 
         false
@@ -145,11 +174,12 @@ pub fn configure_broadcaster_auth(state: &AppState) {
 }
 ```
 
-### Contoh Alur Verifikasi JWT Otorisasi Channel:
-1. Client melakukan `POST /lumina/echo/auth` dengan body `{"channel_name": "private-user-42", "token": "<token_jwt>"}` atau Header `Authorization: Bearer <token_jwt>`.
-2. Endpoint `/lumina/echo/auth` memanggil callback `authorize_channel`.
-3. Function `validate_token(token)` memverifikasi signature & expiration JWT.
-4. Jika valid, `auth_user.sub` dibandingkan dengan ID channel (`private-user-42`). Jika cocok (`42 == 42`), mengembalikan `true` dan client diizinkan *subscribe*.
+### ⚙️ Penjelasan Alur Verifikasi Token:
+1. Client membuka koneksi atau melakukan *subscribe* ke channel `private-tenant-100` dengan menyertakan token JWT.
+2. Callback `authorize_channel` menerima nama channel (`private-tenant-100`) dan string token.
+3. `validate_token(token)` memverifikasi `APP_KEY`, expiration time, serta mengembalikan `AuthUser`.
+4. Sistem memeriksa apakah `auth_user.role == "tenant_operator"` dan `auth_user.sub == "100"`.
+5. Jika kedua kriteria terpenuhi, fungsi mengembalikan `true` dan client sukses terhubung ke channel real-time tenant tersebut.
 
 ---
 

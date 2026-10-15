@@ -4,7 +4,7 @@ use crate::core::echo::manager::EchoMessage;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Query, State,
     },
     http::StatusCode,
     response::IntoResponse,
@@ -14,19 +14,26 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use serde::Deserialize;
 use uuid::Uuid;
 
+#[derive(Debug, Deserialize, Default)]
+pub struct WsQueryParams {
+    pub token: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct ClientMessage {
     event: String,
     channel: Option<String>,
+    token: Option<String>,
     data: Option<serde_json::Value>,
 }
 
 pub async fn echo_handler(
     ws: WebSocketUpgrade,
+    Query(params): Query<WsQueryParams>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
+    ws.on_upgrade(move |socket| handle_socket(socket, state, params.token))
 }
 
 /// Handler untuk otorisasi private / presence channel (`/lumina/echo/auth`)
@@ -52,7 +59,7 @@ pub async fn echo_auth_handler(
     }
 }
 
-async fn handle_socket(socket: WebSocket, state: AppState) {
+async fn handle_socket(socket: WebSocket, state: AppState, connection_token: Option<String>) {
     let (mut sender, mut receiver) = socket.split();
     let id = Uuid::new_v4();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<EchoMessage>();
@@ -72,6 +79,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
     // Task untuk menerima pesan dari client (subscribe/unsubscribe)
     let echo_manager = state.echo.clone();
+    let conn_id_str = id.to_string();
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
             if let Message::Text(text) = msg {
@@ -79,7 +87,12 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     match client_msg.event.as_str() {
                         "subscribe" => {
                             if let Some(channel) = client_msg.channel {
-                                if echo_manager.is_authorized(&channel, Some(&id.to_string())) {
+                                let auth_token = client_msg
+                                    .token
+                                    .as_deref()
+                                    .or(connection_token.as_deref())
+                                    .or(Some(&conn_id_str));
+                                if echo_manager.is_authorized(&channel, auth_token) {
                                     echo_manager.subscribe(id, &channel);
                                 }
                             }

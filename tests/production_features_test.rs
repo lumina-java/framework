@@ -105,6 +105,58 @@ async fn test_echo_channel_jwt_authorization() {
 }
 
 #[tokio::test]
+async fn test_tenant_operator_jwt_verification() {
+    use lumina::core::auth::AuthUser;
+    use lumina::core::echo::EchoManager;
+    use lumina::http::auth::{generate_token, validate_token};
+
+    std::env::set_var("APP_KEY", "secret-tenant-key-99999");
+
+    let echo = EchoManager::new();
+
+    // Authorizer for tenant operator private channels: "private-tenant-{tenant_id}"
+    echo.authorize_channel("private-tenant-*", |channel_name: &str, token_or_socket: Option<&str>| {
+        let token = match token_or_socket {
+            Some(t) => t,
+            None => return false,
+        };
+
+        let auth_user = match validate_token(token) {
+            Ok(user) => user,
+            Err(_) => return false,
+        };
+
+        // Check if role is "tenant_operator"
+        if auth_user.role != "tenant_operator" {
+            return false;
+        }
+
+        // Verify that tenant_id in JWT sub matches the channel suffix
+        if let Some(target_tenant_id) = channel_name.strip_prefix("private-tenant-") {
+            return auth_user.sub == target_tenant_id;
+        }
+
+        false
+    });
+
+    // 1. Valid tenant operator for tenant ID 100
+    let operator_100 = AuthUser::new(100, "operator@tenant100.com".to_string(), "tenant_operator".to_string(), vec![], 100);
+    let token_op_100 = generate_token(&operator_100).unwrap();
+
+    // Valid authorization for private-tenant-100
+    assert!(echo.is_authorized("private-tenant-100", Some(&token_op_100)));
+
+    // Reject subscription for private-tenant-200 (different tenant)
+    assert!(!echo.is_authorized("private-tenant-200", Some(&token_op_100)));
+
+    // 2. Regular user (not tenant_operator role) attempting to subscribe to private-tenant-100
+    let regular_user = AuthUser::new(100, "regular@example.com".to_string(), "user".to_string(), vec![], 100);
+    let token_reg_user = generate_token(&regular_user).unwrap();
+
+    assert!(!echo.is_authorized("private-tenant-100", Some(&token_reg_user)));
+}
+
+#[tokio::test]
 async fn test_echo_manager_subscriptions_and_auth() {
     let echo = EchoManager::new();
 

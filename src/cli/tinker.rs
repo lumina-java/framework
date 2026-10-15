@@ -1,6 +1,15 @@
+<<<<<<< HEAD
 use crate::database::connection::DatabasePool;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
+=======
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
+use comfy_table::Table;
+use crate::database::connection::DatabasePool;
+use crate::database::model::Model;
+use crate::app::models::user::User;
+>>>>>>> dev/master
 
 pub async fn run(pool: &DatabasePool) -> Result<(), Box<dyn std::error::Error>> {
     let mut rl = DefaultEditor::new()?;
@@ -19,10 +28,15 @@ pub async fn run(pool: &DatabasePool) -> Result<(), Box<dyn std::error::Error>> 
         match readline {
             Ok(line) => {
                 let input = line.trim();
+<<<<<<< HEAD
                 if input.is_empty() {
                     continue;
                 }
 
+=======
+                if input.is_empty() { continue; }
+
+>>>>>>> dev/master
                 let _ = rl.add_history_entry(input);
 
                 match input {
@@ -35,17 +49,49 @@ pub async fn run(pool: &DatabasePool) -> Result<(), Box<dyn std::error::Error>> 
                         println!("  clear          Clear the terminal screen");
                         println!("  help           Show this help message");
                         println!("  exit/quit      Exit the console");
+<<<<<<< HEAD
                     }
                     "clear" => {
                         print!("{}[2J{}[1;1H", 27 as char, 27 as char);
                     }
                     "User::all" => println!("❌ Command disabled in core framework."),
                     "User::count" => println!("❌ Command disabled in core framework."),
+=======
+                    },
+                    "clear" => {
+                        print!("{}[2J{}[1;1H", 27 as char, 27 as char);
+                    },
+                    "User::all" => {
+                        match User::all(pool).await {
+                            Ok(users) => {
+                                let mut table = Table::new();
+                                table.set_header(vec!["ID", "Name", "Email", "Role"]);
+                                for user in users {
+                                    table.add_row(vec![
+                                        user.id.to_string(),
+                                        user.name,
+                                        user.email,
+                                        user.role,
+                                    ]);
+                                }
+                                println!("{table}");
+                            },
+                            Err(e) => println!("❌ Error: {}", e),
+                        }
+                    },
+                    "User::count" => {
+                        match User::all(pool).await {
+                            Ok(users) => println!("📊 Total users: {}", users.len()),
+                            Err(e) => println!("❌ Error: {}", e),
+                        }
+                    },
+>>>>>>> dev/master
                     cmd if cmd.starts_with("sql ") => {
                         let query = &cmd[4..];
                         println!("🔍 Executing SQL: {}", query);
                         // Untuk raw SQL, kita bisa menggunakan sqlx secara langsung
                         match sqlx::query(query).execute(&pool.pool).await {
+<<<<<<< HEAD
                             Ok(res) => {
                                 println!("✅ Success! Rows affected: {}", res.rows_affected())
                             }
@@ -68,6 +114,25 @@ pub async fn run(pool: &DatabasePool) -> Result<(), Box<dyn std::error::Error>> 
                 println!("CTRL-D");
                 break;
             }
+=======
+                            Ok(res) => println!("✅ Success! Rows affected: {}", res.rows_affected()),
+                            Err(e) => println!("❌ SQL Error: {}", e),
+                        }
+                    },
+                    _ => {
+                        println!("❓ Unknown command: '{}'. Type 'help' for assistance.", input);
+                    }
+                }
+            },
+            Err(ReadlineError::Interrupted) => {
+                println!("CTRL-C");
+                break;
+            },
+            Err(ReadlineError::Eof) => {
+                println!("CTRL-D");
+                break;
+            },
+>>>>>>> dev/master
             Err(err) => {
                 println!("Error: {:?}", err);
                 break;

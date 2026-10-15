@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 use crate::database::connection::DatabasePool;
 use async_trait::async_trait;
+=======
+use async_trait::async_trait;
+use crate::database::connection::DatabasePool;
+>>>>>>> dev/master
 
 /// Trait dasar untuk semua Factory di Lumina.
 /// Factory digunakan untuk men-generate data dummy untuk testing atau seeding.
@@ -24,11 +29,15 @@ pub trait Factory: Send + Sync {
     async fn create(&self, db: &DatabasePool) -> Result<Self::Model, String>;
 
     /// Buat banyak instance model dan simpan ke database.
+<<<<<<< HEAD
     async fn create_many(
         &self,
         db: &DatabasePool,
         count: usize,
     ) -> Result<Vec<Self::Model>, String> {
+=======
+    async fn create_many(&self, db: &DatabasePool, count: usize) -> Result<Vec<Self::Model>, String> {
+>>>>>>> dev/master
         let mut models = Vec::new();
         for _ in 0..count {
             models.push(self.create(db).await?);

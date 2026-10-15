@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 use sqlx::{any::AnyPoolOptions, Any, Pool};
+=======
+use sqlx::{Pool, Any, any::AnyPoolOptions};
+>>>>>>> dev/master
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DatabaseKind {

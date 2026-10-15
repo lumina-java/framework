@@ -40,6 +40,7 @@ services:
     ports:
       - "6379:6379"
 
+<<<<<<< HEAD
   nginx:
     image: nginx:alpine
     container_name: lumina_nginx
@@ -52,5 +53,7 @@ services:
     depends_on:
       - app
 
+=======
+>>>>>>> dev/master
 volumes:
   postgres_data:

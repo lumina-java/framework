@@ -1,8 +1,20 @@
+<<<<<<< HEAD
 use crate::core::application::AppState;
 use crate::core::auth::AuthUser;
 use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
 use axum_csrf::CsrfToken;
 use tower_sessions::Session;
+=======
+use axum::{
+    async_trait,
+    extract::FromRequestParts,
+    http::request::Parts,
+};
+use tower_sessions::Session;
+use axum_csrf::CsrfToken;
+use crate::core::application::AppState;
+use crate::core::auth::AuthUser;
+>>>>>>> dev/master
 
 /// Request — Bundle Extractor untuk menyederhanakan Dependency Injection.
 /// Menyediakan akses cepat ke State, Session, dan CsrfToken dalam satu parameter.
@@ -25,13 +37,19 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
+<<<<<<< HEAD
 
         let session = parts
             .extensions
+=======
+
+        let session = parts.extensions
+>>>>>>> dev/master
             .get::<Session>()
             .cloned()
             .ok_or(crate::core::error::AppError::InternalServerError)?;
 
+<<<<<<< HEAD
         let token = CsrfToken::from_request_parts(parts, state)
             .await
             .map_err(|_| crate::core::error::AppError::InternalServerError)?;
@@ -41,6 +59,13 @@ where
             .extensions
             .get::<AuthUser>()
             .cloned()
+=======
+        let token = CsrfToken::from_request_parts(parts, state).await
+            .map_err(|_| crate::core::error::AppError::InternalServerError)?;
+
+        // Cek user dari extension (Middleware) atau Session
+        let user = parts.extensions.get::<AuthUser>().cloned()
+>>>>>>> dev/master
             .or(session.get::<AuthUser>("user").await.unwrap_or_default());
 
         Ok(Self {
@@ -57,6 +82,26 @@ where
 use axum::extract::FromRef;
 
 impl Request {
+<<<<<<< HEAD
+=======
+    /// Cek apakah request berasal dari HTMX.
+    pub fn is_htmx(&self) -> bool {
+        self.headers.contains_key("HX-Request")
+    }
+
+    /// Ambil target HTMX (HX-Target header).
+    pub fn hx_target(&self) -> Option<String> {
+        self.headers
+            .get("HX-Target")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string())
+    }
+
+    /// Cek apakah request adalah HTMX Boosted.
+    pub fn is_htmx_boosted(&self) -> bool {
+        self.headers.contains_key("HX-Boosted")
+    }
+>>>>>>> dev/master
 
     /// Shortcut untuk mengambil instance DatabasePool.
     pub fn db(&self) -> &crate::database::connection::DatabasePool {
@@ -65,11 +110,15 @@ impl Request {
 
     /// Shortcut untuk mengambil Arc<DatabasePool>.
     pub fn db_arc(&self) -> std::sync::Arc<crate::database::connection::DatabasePool> {
+<<<<<<< HEAD
         self.state
             .db
             .as_ref()
             .expect("Database connection is not available")
             .clone()
+=======
+        self.state.db.as_ref().expect("Database connection is not available").clone()
+>>>>>>> dev/master
     }
 
     /// Shortcut untuk mengambil user yang sedang login.
@@ -89,8 +138,12 @@ impl Request {
 
     /// Shortcut untuk redirect kembali ke halaman asal (Referer).
     pub fn back(&self) -> crate::core::response::Redirect {
+<<<<<<< HEAD
         let referer = self
             .headers
+=======
+        let referer = self.headers
+>>>>>>> dev/master
             .get(axum::http::header::REFERER)
             .and_then(|h| h.to_str().ok())
             .unwrap_or("/");

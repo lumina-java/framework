@@ -1,8 +1,16 @@
+<<<<<<< HEAD
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
+=======
+use std::path::PathBuf;
+use tokio::fs;
+use async_trait::async_trait;
+use std::collections::HashMap;
+use std::sync::Arc;
+>>>>>>> dev/master
 
 #[async_trait]
 pub trait StorageDriver: Send + Sync {
@@ -40,6 +48,7 @@ impl LocalStorage {
 impl StorageDriver for LocalStorage {
     async fn put(&self, path: &str, contents: &[u8]) -> Result<(), String> {
         let full_path = self.root.join(path);
+<<<<<<< HEAD
 
         if let Some(parent) = full_path.parent() {
             fs::create_dir_all(parent)
@@ -50,6 +59,14 @@ impl StorageDriver for LocalStorage {
         fs::write(full_path, contents)
             .await
             .map_err(|e| e.to_string())
+=======
+
+        if let Some(parent) = full_path.parent() {
+            fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
+        }
+
+        fs::write(full_path, contents).await.map_err(|e| e.to_string())
+>>>>>>> dev/master
     }
 
     async fn get(&self, path: &str) -> Result<Vec<u8>, String> {
@@ -67,11 +84,15 @@ impl StorageDriver for LocalStorage {
     }
 
     fn url(&self, path: &str) -> String {
+<<<<<<< HEAD
         format!(
             "{}/{}",
             self.base_url.trim_end_matches('/'),
             path.trim_start_matches('/')
         )
+=======
+        format!("{}/{}", self.base_url.trim_end_matches('/'), path.trim_start_matches('/'))
+>>>>>>> dev/master
     }
 }
 
@@ -91,19 +112,27 @@ impl StorageDriver for S3Storage {
         Err("S3 Driver belum diimplementasikan sepenuhnya.".to_string())
     }
 
+<<<<<<< HEAD
     async fn exists(&self, _path: &str) -> bool {
         false
     }
+=======
+    async fn exists(&self, _path: &str) -> bool { false }
+>>>>>>> dev/master
 
     async fn delete(&self, _path: &str) -> Result<(), String> {
         Err("S3 Driver belum diimplementasikan sepenuhnya.".to_string())
     }
 
     fn url(&self, path: &str) -> String {
+<<<<<<< HEAD
         format!(
             "https://{}.s3.{}.amazonaws.com/{}",
             self.bucket, self.region, path
         )
+=======
+        format!("https://{}.s3.{}.amazonaws.com/{}", self.bucket, self.region, path)
+>>>>>>> dev/master
     }
 }
 
@@ -128,8 +157,12 @@ impl Storage {
 
     /// Ambil disk spesifik.
     pub fn disk(&self, name: &str) -> Arc<dyn StorageDriver> {
+<<<<<<< HEAD
         self.disks
             .get(name)
+=======
+        self.disks.get(name)
+>>>>>>> dev/master
             .cloned()
             .expect(&format!("Storage disk '{}' tidak ditemukan", name))
     }

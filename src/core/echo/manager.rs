@@ -1,9 +1,17 @@
+<<<<<<< HEAD
 use crate::core::echo::broadcaster::{ChannelAuthRequest, ChannelAuthResponse};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
 use uuid::Uuid;
+=======
+use std::collections::{HashMap, HashSet};
+use std::sync::RwLock;
+use tokio::sync::mpsc;
+use uuid::Uuid;
+use serde::{Serialize, Deserialize};
+>>>>>>> dev/master
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EchoMessage {
@@ -12,17 +20,23 @@ pub struct EchoMessage {
     pub data: serde_json::Value,
 }
 
+<<<<<<< HEAD
 pub type AuthorizerFn = Arc<
     dyn Fn(&str, Option<&str>) -> bool + Send + Sync + 'static,
 >;
 
+=======
+>>>>>>> dev/master
 pub struct EchoManager {
     /// Map dari channel_name -> Set of connection_ids
     channels: RwLock<HashMap<String, HashSet<Uuid>>>,
     /// Map dari connection_id -> mpsc sender
     connections: RwLock<HashMap<Uuid, mpsc::UnboundedSender<EchoMessage>>>,
+<<<<<<< HEAD
     /// Channel authorizers untuk private channel (e.g. "private-*")
     authorizers: RwLock<HashMap<String, AuthorizerFn>>,
+=======
+>>>>>>> dev/master
 }
 
 impl EchoManager {
@@ -30,7 +44,10 @@ impl EchoManager {
         Self {
             channels: RwLock::new(HashMap::new()),
             connections: RwLock::new(HashMap::new()),
+<<<<<<< HEAD
             authorizers: RwLock::new(HashMap::new()),
+=======
+>>>>>>> dev/master
         }
     }
 
@@ -90,6 +107,7 @@ impl EchoManager {
             }
         }
     }
+<<<<<<< HEAD
 
     /// Mendaftarkan closure otorisasi untuk channel pattern (misal "private-user-{id}")
     pub fn authorize_channel<F>(&self, channel_pattern: &str, authorizer: F)
@@ -144,4 +162,6 @@ impl EchoManager {
             authorized,
         }
     }
+=======
+>>>>>>> dev/master
 }

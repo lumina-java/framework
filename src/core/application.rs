@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // use crate::app::controllers::error_controller::ErrorController;
 use crate::core::container::Container;
 use crate::core::router::Router;
@@ -20,6 +21,30 @@ use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::services::ServeDir;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 use tower_sessions_sqlx_store::{MySqlStore, PostgresStore, SqliteStore};
+=======
+use axum::{
+    Router as AxumRouter,
+    middleware::{from_fn, from_fn_with_state},
+    extract::State,
+    response::{IntoResponse, Response},
+};
+use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::services::ServeDir;
+use crate::core::router::Router;
+use crate::http::server::Server;
+use crate::http::middleware::logger;
+use crate::core::container::Container;
+use crate::database::{connection::DatabasePool, migration};
+use crate::core::view::ViewEngine;
+use crate::app::controllers::error_controller::ErrorController;
+use std::sync::Arc;
+use tower_sessions::{SessionManagerLayer, Expiry, MemoryStore};
+use crate::core::session::store::LuminaSessionStore;
+use tower_sessions_sqlx_store::{MySqlStore, SqliteStore, PostgresStore};
+use axum_csrf::CsrfLayer;
+use crate::core::security::csrf;
+use time::Duration;
+>>>>>>> dev/master
 
 use axum::extract::FromRef;
 use axum_csrf::CsrfConfig;
@@ -29,7 +54,11 @@ use axum_csrf::CsrfConfig;
 pub struct AppState {
     pub db: Option<Arc<DatabasePool>>,
     pub view: ViewEngine,
+<<<<<<< HEAD
 
+=======
+    pub auth_service: Option<Arc<crate::app::services::auth_service::AuthService>>,
+>>>>>>> dev/master
     /// Pesan error database yang akan ditampilkan di halaman whoops.
     pub db_error: Option<String>,
     pub csrf_config: CsrfConfig,
@@ -50,9 +79,13 @@ impl AppState {
     /// Akses cepat ke Database Pool.
     /// Panik jika database tidak terhubung (seharusnya ditangani oleh db_guard).
     pub fn db(&self) -> &DatabasePool {
+<<<<<<< HEAD
         self.db
             .as_ref()
             .expect("Database connection is not available")
+=======
+        self.db.as_ref().expect("Database connection is not available")
+>>>>>>> dev/master
     }
 
     /// Akses cepat ke CacheManager (in-memory).
@@ -70,14 +103,18 @@ impl FromRef<AppState> for CsrfConfig {
 #[allow(dead_code)]
 pub struct Application {
     container: Container,
+<<<<<<< HEAD
     web_router: Option<Router<AppState>>,
     api_router: Option<Router<AppState>>,
+=======
+>>>>>>> dev/master
 }
 
 impl Application {
     pub fn new() -> Self {
         Self {
             container: Container::new(),
+<<<<<<< HEAD
             web_router: None,
             api_router: None,
         }
@@ -96,12 +133,21 @@ impl Application {
     pub fn build_router(&self, state: AppState, session_store: LuminaSessionStore) -> AxumRouter {
         let kernel = crate::http::kernel::HttpKernel::new();
 
+=======
+        }
+    }
+
+    fn build_router(&self, state: AppState, session_store: LuminaSessionStore) -> AxumRouter {
+        let kernel = crate::http::kernel::HttpKernel::new();
+
+>>>>>>> dev/master
         let session_layer = SessionManagerLayer::new(session_store)
             .with_secure(false) // Set to true in production with HTTPS
             .with_expiry(Expiry::OnInactivity(Duration::minutes(5)));
 
         let csrf_layer = CsrfLayer::new(csrf::config());
 
+<<<<<<< HEAD
         let mut web = self.web_router.clone().unwrap_or_else(|| Router::new());
         web = kernel.middleware_groups(web, "web");
 
@@ -109,10 +155,22 @@ impl Application {
         api = kernel.middleware_groups(api, "api");
 
         let router = Router::new().merge(web).nest("/api", api);
+=======
+        let mut web = crate::web_routes::register(&state.config);
+        web = kernel.middleware_groups(web, "web");
+
+        let mut api = crate::api_routes::register(&state.config);
+        api = kernel.middleware_groups(api, "api");
+
+        let router = Router::new()
+            .merge(web)
+            .nest("/api", api);
+>>>>>>> dev/master
 
         // Terapkan Global Middleware dari Kernel
         let router = kernel.global_middleware(router);
 
+<<<<<<< HEAD
         router
             .into_axum()
             .route(
@@ -153,6 +211,19 @@ impl Application {
                 state.clone(),
                 crate::core::telescope::telescope_middleware,
             ))
+=======
+        router.into_axum()
+            .route("/lumina/echo", axum::routing::get(crate::core::echo::handler::echo_handler))
+            .nest_service("/js", ServeDir::new("resources/js"))
+            .nest_service("/images", ServeDir::new("resources/images"))
+            .nest_service("/storage", tower_http::services::ServeDir::new("storage/app/public"))
+            .fallback(ErrorController::not_found)
+            .with_state(state.clone())
+            // ── Middleware dasar (urutan: dari luar ke dalam) ──────────────
+            .layer(from_fn_with_state(state.clone(), crate::core::rate_limit::rate_limit_middleware))
+            .layer(from_fn_with_state(state.clone(), crate::core::i18n::localization_middleware))
+            .layer(from_fn_with_state(state.clone(), crate::core::telescope::telescope_middleware))
+>>>>>>> dev/master
             .layer(from_fn(logger))
             .layer(CatchPanicLayer::custom(crate::support::debug::handle_panic))
             .layer(from_fn_with_state(state.clone(), db_guard))
@@ -163,6 +234,7 @@ impl Application {
     pub async fn serve(self, addr: &str) {
         // ── 1. Inisialisasi Config & View Engine ───────────────────────────
         let config = Arc::new(crate::core::config::ConfigManager::new());
+<<<<<<< HEAD
         let lang = Arc::new(crate::core::i18n::LangManager::new(
             config.get_or("APP_LOCALE", "en"),
         ));
@@ -173,15 +245,29 @@ impl Application {
         let telescope = Arc::new(crate::core::telescope::TelescopeManager::new());
         let echo = Arc::new(crate::core::echo::EchoManager::new());
 
+=======
+        let lang = Arc::new(crate::core::i18n::LangManager::new(config.get_or("APP_LOCALE", "en")));
+        let view = ViewEngine::new(Some(lang.clone()));
+        let cache = Arc::new(crate::core::cache::CacheManager::new());
+        let events = Arc::new(crate::core::event::EventDispatcher::new());
+        crate::app::providers::event_service_provider::register_events(&events);
+        let telescope = Arc::new(crate::core::telescope::TelescopeManager::new());
+        let echo = Arc::new(crate::core::echo::EchoManager::new());
+
+>>>>>>> dev/master
         let mut socialite = crate::core::auth::socialite::SocialiteManager::new();
         if let (Some(id), Some(secret), Some(url)) = (
             config.get("GOOGLE_CLIENT_ID"),
             config.get("GOOGLE_CLIENT_SECRET"),
             config.get("GOOGLE_REDIRECT_URL"),
         ) {
+<<<<<<< HEAD
             socialite.register(Arc::new(crate::core::auth::socialite::GoogleProvider::new(
                 id, secret, url,
             )));
+=======
+            socialite.register(Arc::new(crate::core::auth::socialite::GoogleProvider::new(id, secret, url)));
+>>>>>>> dev/master
         }
         let socialite = Arc::new(socialite);
 
@@ -193,7 +279,11 @@ impl Application {
         // ── 3. Coba connect ke database ───────────────────────────────────
         let db_url = config.get_db_url();
 
+<<<<<<< HEAD
         let (db_pool, db_error) = match DatabasePool::connect(&db_url).await {
+=======
+        let (db_pool, auth_service, db_error) = match DatabasePool::connect(&db_url).await {
+>>>>>>> dev/master
             Ok(pool) => {
                 // ── 3a. Koneksi sukses → jalankan migrasi ─────────────────
                 println!("🔄 Running migrations...");
@@ -205,7 +295,14 @@ impl Application {
                 }
 
                 let pool_arc = Arc::new(pool);
+<<<<<<< HEAD
                 (Some(pool_arc), None)
+=======
+                let svc = Arc::new(
+                    crate::app::services::auth_service::AuthService::new(pool_arc.clone())
+                );
+                (Some(pool_arc), Some(svc), None)
+>>>>>>> dev/master
             }
             Err(e) => {
                 // ── 3b. Koneksi gagal → server tetap lanjut, catat error ──
@@ -214,17 +311,25 @@ impl Application {
                 eprintln!("╔══════════════════════════════════════════════════════╗");
                 eprintln!("║  ⚠️  DATABASE TIDAK TERSEDIA                         ║");
                 eprintln!("╠══════════════════════════════════════════════════════╣");
+<<<<<<< HEAD
                 let truncated = if msg.len() > 52 {
                     format!("{}...", &msg[..49])
                 } else {
                     msg.clone()
                 };
+=======
+                let truncated = if msg.len() > 52 { format!("{}...", &msg[..49]) } else { msg.clone() };
+>>>>>>> dev/master
                 eprintln!("║  {:<52}  ║", truncated);
                 eprintln!("╠══════════════════════════════════════════════════════╣");
                 eprintln!("║  Server tetap berjalan — buka browser untuk detail.  ║");
                 eprintln!("╚══════════════════════════════════════════════════════╝");
                 eprintln!();
+<<<<<<< HEAD
                 (None, Some(msg))
+=======
+                (None, None, Some(msg))
+>>>>>>> dev/master
             }
         };
 
@@ -234,9 +339,13 @@ impl Application {
             None => {
                 // Fallback jika DB tidak ada (tidak bisa persistent)
                 // Ini butuh penanganan lebih lanjut jika ingin benar-benar fallback ke memory
+<<<<<<< HEAD
                 Arc::new(crate::core::queue::QueueManager::new(
                     sqlx::AnyPool::connect("sqlite::memory:").await.unwrap(),
                 ))
+=======
+                Arc::new(crate::core::queue::QueueManager::new(sqlx::AnyPool::connect("sqlite::memory:").await.unwrap()))
+>>>>>>> dev/master
             }
         };
 
@@ -245,6 +354,7 @@ impl Application {
         // ── 4. Bangun Storage Manager ──────────────────────────────────────
         let default_disk = std::env::var("STORAGE_DISK").unwrap_or_else(|_| "local".to_string());
         let mut storage_manager = crate::core::storage::Storage::new(&default_disk);
+<<<<<<< HEAD
 
         // Disk Lokal
         storage_manager.add_disk(
@@ -264,6 +374,22 @@ impl Application {
                     region: std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
                 }),
             );
+=======
+
+        // Disk Lokal
+        storage_manager.add_disk("local", Arc::new(
+            crate::core::storage::LocalStorage::new("storage/app/public", "/storage")
+        ));
+
+        // Disk S3 (Placeholder config)
+        if let Ok(bucket) = std::env::var("S3_BUCKET") {
+            storage_manager.add_disk("s3", Arc::new(
+                crate::core::storage::S3Storage {
+                    bucket,
+                    region: std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
+                }
+            ));
+>>>>>>> dev/master
         }
 
         // ── 5. Bangun Mailer ──────────────────────────────────────────────
@@ -278,7 +404,11 @@ impl Application {
         let state = AppState {
             db: db_pool.clone(),
             view,
+<<<<<<< HEAD
 
+=======
+            auth_service,
+>>>>>>> dev/master
             db_error,
             csrf_config: csrf::config(),
             storage: Arc::new(storage_manager),
@@ -308,9 +438,13 @@ impl Application {
                     session_store = LuminaSessionStore::MySql(store);
                     println!("💾 Session Store: Persistent (MySQL)");
                 }
+<<<<<<< HEAD
             } else if session_db_url.starts_with("postgres:")
                 || session_db_url.starts_with("postgresql:")
             {
+=======
+            } else if session_db_url.starts_with("postgres:") || session_db_url.starts_with("postgresql:") {
+>>>>>>> dev/master
                 if let Ok(pool) = sqlx::PgPool::connect(&session_db_url).await {
                     let store = PostgresStore::new(pool);
                     let _ = store.migrate().await;
@@ -331,7 +465,11 @@ impl Application {
         tokio::spawn(worker.run(state_arc.clone()));
 
         // ── 6a. Jalankan Task Scheduler ────────────────────────────────────
+<<<<<<< HEAD
         // crate::app::console::kernel::run(state_arc.clone()).await;
+=======
+        crate::app::console::kernel::run(state_arc.clone()).await;
+>>>>>>> dev/master
 
         // ── 7. Serve HTTP ──────────────────────────────────────────────────
         println!("🌐 Listening on http://{}", addr);
@@ -359,7 +497,12 @@ pub async fn db_guard(
         .clone()
         .unwrap_or_else(|| "Unknown database error".to_string());
 
+<<<<<<< HEAD
     // let is_api = ErrorController::is_api_request(&req);
     // ErrorController::render_db_error(&state, &error_msg, is_api).into_response()
     axum::response::Html(format!("<h1>Database Error</h1><p>{}</p>", error_msg)).into_response()
+=======
+    let is_api = ErrorController::is_api_request(&req);
+    ErrorController::render_db_error(&state, &error_msg, is_api).into_response()
+>>>>>>> dev/master
 }

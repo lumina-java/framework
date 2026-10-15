@@ -4,7 +4,11 @@ use syn::{parse_macro_input, Attribute, ItemStruct, LitStr};
 
 /// Attribute macro untuk mendeklarasikan Validasi Form dengan gaya yang lebih manusiawi.
 /// Contoh:
+<<<<<<< HEAD
 /// ```rust,ignore
+=======
+/// ```rust
+>>>>>>> dev/master
 /// #[lumina_form]
 /// pub struct RegisterForm {
 ///     #[rule("required|min:3")]
@@ -37,11 +41,17 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
                                 length_msg = "Field ini wajib diisi".to_string();
                             }
                         } else if rule == "email" {
+<<<<<<< HEAD
                             validate_tokens
                                 .push(quote! { email(message = "Format email tidak valid") });
                         } else if rule == "url" {
                             validate_tokens
                                 .push(quote! { url(message = "Format URL tidak valid") });
+=======
+                            validate_tokens.push(quote! { email(message = "Format email tidak valid") });
+                        } else if rule == "url" {
+                            validate_tokens.push(quote! { url(message = "Format URL tidak valid") });
+>>>>>>> dev/master
                         } else if rule.starts_with("min:") {
                             if let Some(val) = rule.strip_prefix("min:") {
                                 if let Ok(num) = val.parse::<u64>() {
@@ -53,9 +63,13 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             if let Some(val) = rule.strip_prefix("max:") {
                                 if let Ok(num) = val.parse::<u64>() {
                                     max_val = Some(num);
+<<<<<<< HEAD
                                     if length_msg == "Field ini wajib diisi"
                                         || length_msg == "Format panjang karakter tidak sesuai"
                                     {
+=======
+                                    if length_msg == "Field ini wajib diisi" || length_msg == "Format panjang karakter tidak sesuai" {
+>>>>>>> dev/master
                                         length_msg = format!("Maksimal {} karakter", num);
                                     }
                                 }
@@ -72,7 +86,11 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             length_args.push(quote! { max = #max });
                         }
                         length_args.push(quote! { message = #length_msg });
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> dev/master
                         validate_tokens.push(quote! { length(#(#length_args),*) });
                     }
                 }
@@ -105,6 +123,7 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Derive macro untuk mengimplementasikan trait Model secara otomatis.
 /// Ini menghilangkan boilerplate SQL manual untuk operasi CRUD standar.
+<<<<<<< HEAD
 #[proc_macro_derive(LuminaModel, attributes(table, primary_key, column))]
 pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
@@ -114,6 +133,15 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
     let table_name = input
         .attrs
         .iter()
+=======
+#[proc_macro_derive(LuminaModel, attributes(table))]
+pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ItemStruct);
+    let name = &input.ident;
+
+    // Ambil nama tabel dari atribut #[table("...")]
+    let table_name = input.attrs.iter()
+>>>>>>> dev/master
         .find(|attr| attr.path().is_ident("table"))
         .and_then(|attr| attr.parse_args::<LitStr>().ok())
         .map(|lit| lit.value())
@@ -126,6 +154,7 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
         panic!("LuminaModel hanya bisa digunakan pada struct dengan named fields");
     };
 
+<<<<<<< HEAD
     // Cari nama field primary key (default "id" jika tidak ada atribut #[primary_key])
     let primary_key_field = fields
         .iter()
@@ -144,10 +173,15 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
                 .map(|lit| lit.value())
                 .unwrap_or_else(|| f.ident.as_ref().unwrap().to_string())
         })
+=======
+    let field_names: Vec<String> = fields.iter()
+        .map(|f| f.ident.as_ref().unwrap().to_string())
+>>>>>>> dev/master
         .collect();
 
     // Field names untuk SELECT (semua field)
     let select_fields = field_names.join(", ");
+<<<<<<< HEAD
 
     // Field names untuk INSERT (lewati primary key & timestamp auto)
     let insert_fields: Vec<String> = field_names
@@ -156,6 +190,15 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
         .cloned()
         .collect();
 
+=======
+
+    // Field names untuk INSERT (lewati 'id')
+    let insert_fields: Vec<String> = field_names.iter()
+        .filter(|&n| n != "id" && n != "created_at" && n != "updated_at" && n != "deleted_at")
+        .cloned()
+        .collect();
+
+>>>>>>> dev/master
     let insert_placeholders = vec!["?"; insert_fields.len()].join(", ");
     let insert_sql_fields = insert_fields.join(", ");
 
@@ -165,6 +208,7 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
         quote! { .bind(&self.#ident) }
     });
 
+<<<<<<< HEAD
     let pk_clause = format!("{} = ?", primary_key_field);
 
     let expanded = quote! {
@@ -174,37 +218,68 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
 
             async fn find(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
                 let sql = format!("SELECT {} FROM {} WHERE {} AND deleted_at IS NULL", #select_fields, Self::TABLE, #pk_clause);
+=======
+    let expanded = quote! {
+        #[async_trait::async_trait]
+        impl crate::database::model::Model for #name {
+            const TABLE: &'static str = #table_name;
+
+            async fn find(pool: &crate::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
+                let sql = format!("SELECT {} FROM {} WHERE id = ? AND deleted_at IS NULL", #select_fields, Self::TABLE);
+>>>>>>> dev/master
                 sqlx::query_as::<_, Self>(&sql)
                     .bind(id)
                     .fetch_one(&pool.pool)
                     .await
             }
 
+<<<<<<< HEAD
             async fn all(pool: &lumina::database::connection::DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
                 let sql = format!("SELECT {} FROM {} WHERE deleted_at IS NULL ORDER BY {} DESC", #select_fields, Self::TABLE, #primary_key_field);
+=======
+            async fn all(pool: &crate::database::connection::DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
+                let sql = format!("SELECT {} FROM {} WHERE deleted_at IS NULL ORDER BY id DESC", #select_fields, Self::TABLE);
+>>>>>>> dev/master
                 sqlx::query_as::<_, Self>(&sql)
                     .fetch_all(&pool.pool)
                     .await
             }
 
+<<<<<<< HEAD
             async fn save(&self, pool: &lumina::database::connection::DatabasePool) -> Result<i64, sqlx::Error> {
+=======
+            async fn save(&self, pool: &crate::database::connection::DatabasePool) -> Result<i64, sqlx::Error> {
+>>>>>>> dev/master
                 let sql = format!(
                     "INSERT INTO {} ({}) VALUES ({})",
                     Self::TABLE,
                     #insert_sql_fields,
                     #insert_placeholders
                 );
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> dev/master
                 let result = sqlx::query(&sql)
                     #(#insert_bindings)*
                     .execute(&pool.pool)
                     .await?;
+<<<<<<< HEAD
 
                 Ok(result.last_insert_id().unwrap_or(0))
             }
 
             async fn delete(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
                 let sql = format!("UPDATE {} SET deleted_at = CURRENT_TIMESTAMP WHERE {}", Self::TABLE, #pk_clause);
+=======
+
+                Ok(result.last_insert_id().unwrap_or(0))
+            }
+
+            async fn delete(pool: &crate::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
+                let sql = format!("UPDATE {} SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", Self::TABLE);
+>>>>>>> dev/master
                 sqlx::query(&sql)
                     .bind(id)
                     .execute(&pool.pool)

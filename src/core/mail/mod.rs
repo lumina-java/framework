@@ -1,7 +1,14 @@
+<<<<<<< HEAD
 use crate::core::view::ViewEngine;
 use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
+=======
+use async_trait::async_trait;
+use std::sync::Arc;
+use crate::core::view::ViewEngine;
+use serde_json::Value;
+>>>>>>> dev/master
 
 #[async_trait]
 pub trait MailDriver: Send + Sync {
@@ -18,10 +25,14 @@ impl MailDriver for LogDriver {
         println!("📧 [MAIL LOG]");
         println!("To: {}", to);
         println!("Subject: {}", subject);
+<<<<<<< HEAD
         println!(
             "Content (HTML Preview): {}...",
             &html[..std::cmp::min(100, html.len())]
         );
+=======
+        println!("Content (HTML Preview): {}...", &html[..std::cmp::min(100, html.len())]);
+>>>>>>> dev/master
         println!("--------------------------------------------------");
         Ok(())
     }
@@ -73,7 +84,11 @@ impl<'a> MailBuilder<'a> {
 
     /// Kirim email menggunakan template View.
     pub async fn send(self, template: &str, data: Value) -> Result<(), String> {
+<<<<<<< HEAD
         let mut ctx = crate::core::blade::BladeContext::new();
+=======
+        let mut ctx = tera::Context::new();
+>>>>>>> dev/master
         if let Some(obj) = data.as_object() {
             for (k, v) in obj {
                 ctx.insert(k, v);
@@ -86,9 +101,13 @@ impl<'a> MailBuilder<'a> {
 
     /// Kirim email dengan body raw (biasanya untuk testing).
     pub async fn send_raw(self, body: &str) -> Result<(), String> {
+<<<<<<< HEAD
         self.mailer
             .driver
             .send(&self.to, &self.subject, body.to_string())
             .await
+=======
+        self.mailer.driver.send(&self.to, &self.subject, body.to_string()).await
+>>>>>>> dev/master
     }
 }

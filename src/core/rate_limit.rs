@@ -1,13 +1,22 @@
 use axum::{
     body::Body,
     extract::State,
+<<<<<<< HEAD
     http::{HeaderValue, Request, StatusCode},
+=======
+    http::{Request, StatusCode, HeaderValue},
+>>>>>>> dev/master
     middleware::Next,
     response::{IntoResponse, Response},
 };
 
+<<<<<<< HEAD
 use crate::core::application::AppState;
 use serde::Serialize;
+=======
+use serde::Serialize;
+use crate::core::application::AppState;
+>>>>>>> dev/master
 
 /// Konfigurasi Rate Limiter yang bisa diatur via .env
 #[derive(Clone, Debug)]
@@ -20,10 +29,14 @@ pub struct RateLimitConfig {
 
 impl RateLimitConfig {
     pub fn new(max_requests: u32, window_seconds: u64) -> Self {
+<<<<<<< HEAD
         Self {
             max_requests,
             window_seconds,
         }
+=======
+        Self { max_requests, window_seconds }
+>>>>>>> dev/master
     }
 
     /// Baca konfigurasi dari environment variables:
@@ -75,7 +88,11 @@ struct RateLimitError {
 /// Middleware Rate Limiter berbasis IP menggunakan CacheManager (moka) yang sudah ada.
 ///
 /// Cara penggunaan sebagai global middleware:
+<<<<<<< HEAD
 /// ```rust,ignore
+=======
+/// ```ignore
+>>>>>>> dev/master
 /// // Di application.rs atau route builder:
 /// use lumina::core::rate_limit::{RateLimitConfig, rate_limit_middleware};
 /// use axum::middleware;
@@ -101,12 +118,24 @@ pub async fn rate_limit_with_config(
 ) -> Response {
     // Ekstrak IP dari header X-Forwarded-For atau X-Real-IP (untuk behind proxy)
     // Fallback ke "unknown" jika tidak ada
+<<<<<<< HEAD
     let client_ip = req
         .headers()
         .get("X-Forwarded-For")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.split(',').next())
         .or_else(|| req.headers().get("X-Real-IP").and_then(|v| v.to_str().ok()))
+=======
+    let client_ip = req.headers()
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .or_else(|| {
+            req.headers()
+                .get("X-Real-IP")
+                .and_then(|v| v.to_str().ok())
+        })
+>>>>>>> dev/master
         .unwrap_or("unknown")
         .trim()
         .to_string();
@@ -120,6 +149,7 @@ pub async fn rate_limit_with_config(
     let cache = state.cache();
 
     // Ambil entry yang ada dari cache
+<<<<<<< HEAD
     let mut entry: RateLimitEntry =
         cache
             .get::<RateLimitEntry>(&cache_key)
@@ -128,6 +158,15 @@ pub async fn rate_limit_with_config(
                 count: 0,
                 window_start_secs: now_secs,
             });
+=======
+    let mut entry: RateLimitEntry = cache
+        .get::<RateLimitEntry>(&cache_key)
+        .await
+        .unwrap_or(RateLimitEntry {
+            count: 0,
+            window_start_secs: now_secs,
+        });
+>>>>>>> dev/master
 
     // Cek apakah window sudah expired (reset counter)
     let window_expired = now_secs.saturating_sub(entry.window_start_secs) >= config.window_seconds;
@@ -139,8 +178,12 @@ pub async fn rate_limit_with_config(
     }
 
     // Hitung sisa waktu window (untuk header Retry-After)
+<<<<<<< HEAD
     let window_remaining = config
         .window_seconds
+=======
+    let window_remaining = config.window_seconds
+>>>>>>> dev/master
         .saturating_sub(now_secs.saturating_sub(entry.window_start_secs));
     let requests_remaining = config.max_requests.saturating_sub(entry.count);
 
@@ -162,6 +205,7 @@ pub async fn rate_limit_with_config(
             retry_after: window_remaining,
         });
 
+<<<<<<< HEAD
         let mut response = (StatusCode::TOO_MANY_REQUESTS, axum::Json(error_body)).into_response();
 
         // Tambahkan rate limit headers
@@ -175,15 +219,31 @@ pub async fn rate_limit_with_config(
             "Retry-After",
             HeaderValue::from_str(&window_remaining.to_string()).unwrap(),
         );
+=======
+        let mut response = (
+            StatusCode::TOO_MANY_REQUESTS,
+            axum::Json(error_body),
+        ).into_response();
+
+        // Tambahkan rate limit headers
+        let headers = response.headers_mut();
+        headers.insert("X-RateLimit-Limit", HeaderValue::from_str(&config.max_requests.to_string()).unwrap());
+        headers.insert("X-RateLimit-Remaining", HeaderValue::from_static("0"));
+        headers.insert("Retry-After", HeaderValue::from_str(&window_remaining.to_string()).unwrap());
+>>>>>>> dev/master
 
         return response;
     }
 
     // Increment counter dan simpan kembali
     entry.count += 1;
+<<<<<<< HEAD
     cache
         .put(&cache_key, &entry, config.window_seconds + 5)
         .await;
+=======
+    cache.put(&cache_key, &entry, config.window_seconds + 5).await;
+>>>>>>> dev/master
 
     // Lanjutkan ke handler berikutnya
     let mut response = next.run(req).await;
@@ -192,8 +252,12 @@ pub async fn rate_limit_with_config(
     let headers = response.headers_mut();
     headers.insert(
         "X-RateLimit-Limit",
+<<<<<<< HEAD
         HeaderValue::from_str(&config.max_requests.to_string())
             .unwrap_or(HeaderValue::from_static("60")),
+=======
+        HeaderValue::from_str(&config.max_requests.to_string()).unwrap_or(HeaderValue::from_static("60")),
+>>>>>>> dev/master
     );
     headers.insert(
         "X-RateLimit-Remaining",

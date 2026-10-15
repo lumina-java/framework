@@ -1,6 +1,15 @@
 use std::path::Path;
 use tracing_appender::non_blocking::WorkerGuard;
+<<<<<<< HEAD
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+=======
+use tracing_subscriber::{
+    fmt,
+    layer::SubscriberExt,
+    util::SubscriberInitExt,
+    EnvFilter,
+};
+>>>>>>> dev/master
 
 /// Setup logger Lumina dengan dukungan:
 /// - File logging rolling harian ke `storage/logs/`
@@ -19,7 +28,12 @@ pub fn init() -> WorkerGuard {
     // Buat direktori logs jika belum ada
     let log_dir = Path::new("storage/logs");
     if !log_dir.exists() {
+<<<<<<< HEAD
         std::fs::create_dir_all(log_dir).expect("Gagal membuat direktori storage/logs");
+=======
+        std::fs::create_dir_all(log_dir)
+            .expect("Gagal membuat direktori storage/logs");
+>>>>>>> dev/master
     }
 
     // Rolling file appender: satu file baru per hari
@@ -28,7 +42,12 @@ pub fn init() -> WorkerGuard {
 
     // Level filter dari env: LOG_LEVEL=debug,info,warn,error
     let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
+<<<<<<< HEAD
     let env_filter = EnvFilter::try_new(&log_level).unwrap_or_else(|_| EnvFilter::new("info"));
+=======
+    let env_filter = EnvFilter::try_new(&log_level)
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+>>>>>>> dev/master
 
     // Layer 1: stdout (colorful, untuk development)
     let stdout_layer = fmt::layer()

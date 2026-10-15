@@ -33,7 +33,10 @@ COPY --from=builder /usr/src/app/target/release/lumina /app/lumina
 # Copy necessary assets
 COPY resources /app/resources
 COPY database /app/database
+<<<<<<< HEAD
 COPY storage /app/storage
+=======
+>>>>>>> dev/master
 COPY .env.example /app/.env
 
 # Default environment variables

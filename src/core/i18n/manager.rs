@@ -1,9 +1,17 @@
+<<<<<<< HEAD
 use serde_json::Value;
+=======
+>>>>>>> dev/master
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::sync::RwLock;
+<<<<<<< HEAD
 use tracing::{error, warn};
+=======
+use serde_json::Value;
+use tracing::{warn, error};
+>>>>>>> dev/master
 
 pub struct LangManager {
     /// Cache untuk menyimpan terjemahan yang sudah dimuat.
@@ -52,9 +60,13 @@ impl LangManager {
     fn ensure_loaded(&self, locale: &str, group: &str) {
         {
             let translations = self.translations.read().unwrap();
+<<<<<<< HEAD
             if translations.contains_key(locale)
                 && translations.get(locale).unwrap().contains_key(group)
             {
+=======
+            if translations.contains_key(locale) && translations.get(locale).unwrap().contains_key(group) {
+>>>>>>> dev/master
                 return;
             }
         }
@@ -65,6 +77,7 @@ impl LangManager {
         }
 
         match fs::read_to_string(&path) {
+<<<<<<< HEAD
             Ok(content) => match serde_json::from_str::<Value>(&content) {
                 Ok(value) => {
                     let mut translations = self.translations.write().unwrap();
@@ -75,6 +88,20 @@ impl LangManager {
                 }
                 Err(e) => error!("Gagal parse JSON terjemahan {}: {}", path, e),
             },
+=======
+            Ok(content) => {
+                match serde_json::from_str::<Value>(&content) {
+                    Ok(value) => {
+                        let mut translations = self.translations.write().unwrap();
+                        translations
+                            .entry(locale.to_string())
+                            .or_insert_with(HashMap::new)
+                            .insert(group.to_string(), value);
+                    }
+                    Err(e) => error!("Gagal parse JSON terjemahan {}: {}", path, e),
+                }
+            }
+>>>>>>> dev/master
             Err(e) => warn!("Gagal membaca file terjemahan {}: {}", path, e),
         }
     }

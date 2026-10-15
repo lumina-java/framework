@@ -1,9 +1,18 @@
+<<<<<<< HEAD
 use crate::core::backup::exporter::DatabaseExporter;
 use chrono::Local;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
 use zip::write::FileOptions;
+=======
+use std::fs::{self, File};
+use std::io::{Write, Read};
+use std::path::Path;
+use chrono::Local;
+use zip::write::FileOptions;
+use crate::core::backup::exporter::DatabaseExporter;
+>>>>>>> dev/master
 
 pub struct BackupManager {
     backup_path: String,
@@ -23,7 +32,11 @@ impl BackupManager {
         let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
         let folder_name = format!("backup_{}", timestamp);
         let target_dir = format!("{}/{}", self.backup_path, folder_name);
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> dev/master
         fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
 
         // 1. Backup Database
@@ -63,15 +76,23 @@ impl BackupManager {
             let name = path.strip_prefix(Path::new(src_dir)).unwrap();
 
             if path.is_file() {
+<<<<<<< HEAD
                 zip.start_file(name.to_string_lossy(), options)
                     .map_err(|e| e.to_string())?;
+=======
+                zip.start_file(name.to_string_lossy(), options).map_err(|e| e.to_string())?;
+>>>>>>> dev/master
                 let mut f = File::open(path).map_err(|e| e.to_string())?;
                 let mut buffer = Vec::new();
                 f.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
                 zip.write_all(&buffer).map_err(|e| e.to_string())?;
             } else if !name.as_os_str().is_empty() {
+<<<<<<< HEAD
                 zip.add_directory(name.to_string_lossy(), options)
                     .map_err(|e| e.to_string())?;
+=======
+                zip.add_directory(name.to_string_lossy(), options).map_err(|e| e.to_string())?;
+>>>>>>> dev/master
             }
         }
 

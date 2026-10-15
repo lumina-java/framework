@@ -17,8 +17,7 @@ Thumbs.db
 desktop.ini
 
 # --- Editor / IDE ---
-# .vscode/ (Shared settings are allowed)
-.vscode/*   
+.vscode/
 .idea/
 *.swp
 *.swo
@@ -42,14 +41,9 @@ storage/cache/*
 *.sqlite
 *.exe
 
-# --- Temporary Artifacts ---
-.github/*.md
-
-skill_for_creates/*
-docs/*
-DOCUMENTATION.md
-CEAT_SHEET.md
-skill_for_create*.md
+# --- Storage uploads ---
+storage/app/public/uploads/*
+!storage/app/public/uploads/.gitkeep
 
 # --- Local Test Project ---
 /apptodolist/

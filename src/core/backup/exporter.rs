@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 use std::fs;
 use std::process::Command;
+=======
+use std::process::Command;
+use std::fs;
+>>>>>>> dev/master
 
 pub struct DatabaseExporter;
 
@@ -12,7 +17,11 @@ impl DatabaseExporter {
                 fs::copy(source, output_path)
                     .map(|_| ())
                     .map_err(|e| format!("Gagal copy SQLite file: {}", e))
+<<<<<<< HEAD
             }
+=======
+            },
+>>>>>>> dev/master
             "mysql" => {
                 // Gunakan mysqldump (asumsi terinstall)
                 // Format URL: mysql://user:pass@host:port/db
@@ -24,6 +33,7 @@ impl DatabaseExporter {
                     .map_err(|e| format!("Gagal menjalankan mysqldump: {}", e))?;
 
                 if !output.status.success() {
+<<<<<<< HEAD
                     return Err(format!(
                         "mysqldump error: {}",
                         String::from_utf8_lossy(&output.stderr)
@@ -31,6 +41,12 @@ impl DatabaseExporter {
                 }
                 Ok(())
             }
+=======
+                    return Err(format!("mysqldump error: {}", String::from_utf8_lossy(&output.stderr)));
+                }
+                Ok(())
+            },
+>>>>>>> dev/master
             "postgres" | "postgresql" => {
                 // Gunakan pg_dump (asumsi terinstall)
                 let output = Command::new("pg_dump")
@@ -41,6 +57,7 @@ impl DatabaseExporter {
                     .map_err(|e| format!("Gagal menjalankan pg_dump: {}", e))?;
 
                 if !output.status.success() {
+<<<<<<< HEAD
                     return Err(format!(
                         "pg_dump error: {}",
                         String::from_utf8_lossy(&output.stderr)
@@ -52,6 +69,13 @@ impl DatabaseExporter {
                 "Connection {} tidak didukung untuk backup otomatis",
                 connection
             )),
+=======
+                    return Err(format!("pg_dump error: {}", String::from_utf8_lossy(&output.stderr)));
+                }
+                Ok(())
+            },
+            _ => Err(format!("Connection {} tidak didukung untuk backup otomatis", connection)),
+>>>>>>> dev/master
         }
     }
 }

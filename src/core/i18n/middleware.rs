@@ -1,9 +1,16 @@
+<<<<<<< HEAD
 use crate::core::application::AppState;
+=======
+>>>>>>> dev/master
 use axum::{
     extract::{Request, State},
     middleware::Next,
     response::Response,
 };
+<<<<<<< HEAD
+=======
+use crate::core::application::AppState;
+>>>>>>> dev/master
 
 #[derive(Clone, Debug)]
 pub struct Locale(pub String);
@@ -17,6 +24,7 @@ pub async fn localization_middleware(
 
     // 1. Cek Query Parameter (?lang=id)
     if let Some(query) = req.uri().query() {
+<<<<<<< HEAD
         if let Some(lang) = query
             .split('&')
             .find(|p| p.starts_with("lang="))
@@ -38,6 +46,16 @@ pub async fn localization_middleware(
             .split('-')
             .next()
             .unwrap_or("en");
+=======
+        if let Some(lang) = query.split('&').find(|p| p.starts_with("lang=")).map(|p| &p[5..]) {
+            locale = lang.to_string();
+        }
+    }
+
+    // 2. Cek Accept-Language Header
+    else if let Some(accept_lang) = req.headers().get("accept-language").and_then(|h| h.to_str().ok()) {
+        let primary = accept_lang.split(',').next().unwrap_or("en").split('-').next().unwrap_or("en");
+>>>>>>> dev/master
         locale = primary.to_string();
     }
 

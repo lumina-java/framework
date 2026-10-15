@@ -1,8 +1,15 @@
 [package]
+<<<<<<< HEAD
 name = "lumina-framework"
 version = "0.1.3"
 edition = "2021"
 authors = ["Lumina Java <admin@lumina-java.com>"]
+=======
+name = "lumina"
+version = "0.1.0"
+edition = "2021"
+authors = ["Slamet Sugandi <packercyber@gmail.com>"]
+>>>>>>> dev/master
 description = "A beautiful, fast, and elegant web framework for Rust"
 license = "MIT"
 
@@ -10,6 +17,7 @@ license = "MIT"
 name = "lumina"
 path = "src/lib.rs"
 
+<<<<<<< HEAD
 
 [workspace]
 members = ["lumina_macros", "lumina-cli", "indonesian-script"]
@@ -17,6 +25,17 @@ members = ["lumina_macros", "lumina-cli", "indonesian-script"]
 [dependencies]
 lumina_macros = { path = "lumina_macros", version = "0.1.0" }
 indonesian-script = { path = "indonesian-script", version = "0.1.0" }
+=======
+[[bin]]
+name = "lumina-server"
+path = "src/main.rs"
+
+[workspace]
+members = ["lumina_macros", "lumina-cli"]
+
+[dependencies]
+lumina_macros = { path = "lumina_macros" }
+>>>>>>> dev/master
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["macros", "multipart", "ws"] }
 futures = "0.3"
@@ -31,12 +50,20 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "my
 jsonwebtoken = "9"
 clap = { version = "4", features = ["derive"] }
 chrono = "0.4"
+<<<<<<< HEAD
+=======
+tera = "1.19"
+>>>>>>> dev/master
 regex = "1"
 validator = { version = "0.18", features = ["derive"] }
 bcrypt = "0.15"
 tower-http = { version = "0.5", features = ["catch-panic", "cors", "trace", "fs"] }
 axum-extra = { version = "0.9", features = ["cookie", "cookie-private"] }
+<<<<<<< HEAD
 tower = { version = "0.4", features = ["util"] }
+=======
+tower = "0.4"
+>>>>>>> dev/master
 thiserror = "2.0.18"
 tower-sessions = "0.12"
 tower-sessions-sqlx-store = { version = "0.13", features = ["mysql", "sqlite", "postgres"] }

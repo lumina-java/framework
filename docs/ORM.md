@@ -283,6 +283,57 @@ for post in posts {
 
 ---
 
+### G. Kombinasi Bersamaan: Menggabungkan Macro 1-Baris & Fungsi Kustom dalam 1 Model
+
+Kedua sintaks di atas **100% kompatibel dan dapat digunakan secara bersamaan** dalam satu model yang sama:
+- **Utamakan Macro 1-Baris** untuk relasi standar tanpa filter tambahan.
+- **Gunakan Fungsi Manual (`&Db` & `OrmResult`)** jika membutuhkan filter kustom, pengurutan khusus, batas limit, atau manipulasi data bisnis.
+
+```rust
+use crate::app::prelude::*;
+
+impl User {
+    // ── 1. Relasi Standar (Prioritas Utama: 0 Boilerplate) ───────────
+    has_many!(posts: Post, "user_id");
+    has_one!(profile: Profile, "user_id");
+
+    // ── 2. Relasi Kustom (Logika Spesifik dengan &Db & OrmResult) ────
+    /// Mengambil hanya postingan yang sudah dipublikasikan (status = 'published')
+    pub async fn published_posts(&self, db: &Db) -> OrmResult<Vec<Post>> {
+        Post::query(db)
+            .where_eq("user_id", self.id)
+            .where_eq("status", "published")
+            .latest()
+            .get()
+            .await
+    }
+
+    /// Mengambil postingan terpopuler dengan batas limit tertentu
+    pub async fn top_posts(&self, db: &Db, limit: usize) -> OrmResult<Vec<Post>> {
+        Post::query(db)
+            .where_eq("user_id", self.id)
+            .order_by("views", "DESC")
+            .limit(limit)
+            .get()
+            .await
+    }
+}
+```
+
+**Penggunaan di Controller / Service:**
+```rust
+let user = User::find(req.db(), 1).await?.unwrap();
+
+// Memanggil relasi standar macro 1-baris:
+let all_posts = user.posts(req.db()).await?;
+
+// Memanggil relasi kustom fungsi manual:
+let published = user.published_posts(req.db()).await?;
+let top_3 = user.top_posts(req.db(), 3).await?;
+```
+
+---
+
 ## 5. Paginasi Bergaya Laravel
 
 Lumina menyediakan paginasi otomatis yang mengembalikan struktur data lengkap (items, total, per_page, current_page, last_page):

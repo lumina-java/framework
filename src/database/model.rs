@@ -281,3 +281,107 @@ pub trait Model:
         Ok(())
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  HUMAN ELOQUENT RELATIONSHIP MACROS (Laravel-Style Declarations)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Macro deklarasi relasi Belongs To (N to 1) bergaya Laravel.
+///
+/// # Contoh Penggunaan:
+/// ```rust,ignore
+/// impl Post {
+///     // Sintaks 1 baris manusiawi:
+///     belongs_to!(author: User, user_id);
+/// }
+/// ```
+#[macro_export]
+macro_rules! belongs_to {
+    ($fn_name:ident : $related:ident, $fk:ident) => {
+        pub async fn $fn_name(&self, db: &$crate::database::connection::DatabasePool) -> $crate::database::orm::OrmResult<$related> {
+            self.belongs_to(db, self.$fk).await
+        }
+    };
+    ($fn_name:ident : $related:ident) => {
+        pub async fn $fn_name(&self, db: &$crate::database::connection::DatabasePool) -> $crate::database::orm::OrmResult<$related> {
+            self.belongs_to(db, self.user_id).await
+        }
+    };
+}
+
+/// Macro deklarasi relasi Has Many (1 to N) bergaya Laravel.
+///
+/// # Contoh Penggunaan:
+/// ```rust,ignore
+/// impl User {
+///     // Sintaks 1 baris manusiawi:
+///     has_many!(posts: Post, "user_id");
+///     // Atau otomatis foreign key "user_id":
+///     has_many!(posts: Post);
+/// }
+/// ```
+#[macro_export]
+macro_rules! has_many {
+    ($fn_name:ident : $related:ident, $fk:expr) => {
+        pub async fn $fn_name(&self, db: &$crate::database::connection::DatabasePool) -> $crate::database::orm::OrmResult<Vec<$related>> {
+            self.has_many(db, $fk).await
+        }
+    };
+    ($fn_name:ident : $related:ident) => {
+        pub async fn $fn_name(&self, db: &$crate::database::connection::DatabasePool) -> $crate::database::orm::OrmResult<Vec<$related>> {
+            let fk = format!("{}_id", Self::TABLE.trim_end_matches('s'));
+            self.has_many(db, &fk).await
+        }
+    };
+}
+
+/// Macro deklarasi relasi Has One (1 to 1) bergaya Laravel.
+///
+/// # Contoh Penggunaan:
+/// ```rust,ignore
+/// impl User {
+///     has_one!(profile: Profile, "user_id");
+///     // Atau otomatis:
+///     has_one!(profile: Profile);
+/// }
+/// ```
+#[macro_export]
+macro_rules! has_one {
+    ($fn_name:ident : $related:ident, $fk:expr) => {
+        pub async fn $fn_name(&self, db: &$crate::database::connection::DatabasePool) -> $crate::database::orm::OrmResult<$related> {
+            self.has_one(db, $fk).await
+        }
+    };
+    ($fn_name:ident : $related:ident) => {
+        pub async fn $fn_name(&self, db: &$crate::database::connection::DatabasePool) -> $crate::database::orm::OrmResult<$related> {
+            let fk = format!("{}_id", Self::TABLE.trim_end_matches('s'));
+            self.has_one(db, &fk).await
+        }
+    };
+}
+
+/// Macro deklarasi relasi Belongs To Many (Many to Many / Pivot Table) bergaya Laravel.
+///
+/// # Contoh Penggunaan:
+/// ```rust,ignore
+/// impl Post {
+///     belongs_to_many!(tags: Tag, "post_tag", "post_id", "tag_id");
+///     // Atau otomatis foreign key & related key:
+///     belongs_to_many!(tags: Tag, "post_tag");
+/// }
+/// ```
+#[macro_export]
+macro_rules! belongs_to_many {
+    ($fn_name:ident : $related:ident, $pivot:expr, $fk:expr, $rk:expr) => {
+        pub async fn $fn_name(&self, db: &$crate::database::connection::DatabasePool) -> $crate::database::orm::OrmResult<Vec<$related>> {
+            self.belongs_to_many(db, $pivot, $fk, $rk).await
+        }
+    };
+    ($fn_name:ident : $related:ident, $pivot:expr) => {
+        pub async fn $fn_name(&self, db: &$crate::database::connection::DatabasePool) -> $crate::database::orm::OrmResult<Vec<$related>> {
+            let fk = format!("{}_id", Self::TABLE.trim_end_matches('s'));
+            let rk = format!("{}_id", <$related as $crate::database::model::Model>::TABLE.trim_end_matches('s'));
+            self.belongs_to_many(db, $pivot, &fk, &rk).await
+        }
+    };
+}

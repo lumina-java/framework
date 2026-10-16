@@ -140,70 +140,111 @@ let latest_users = User::latest(db).limit(5).get().await?;
 
 ## 4. Sistem Relasi (Relationships)
 
-Lumina ORM mendukung relasi database lengkap layaknya Eloquent Laravel:
+Lumina ORM mendukung penulisan relasi yang **sangat manusiawi** dengan dua pilihan sintaks:
+1. **Sintaks Deklaratif 1 Baris (`belongs_to!`, `has_many!`, `has_one!`, `belongs_to_many!`)** — *Sangat direkomendasikan karena 0 boilerplate!*
+2. **Sintaks Fungsi Ringkas** menggunakan alias `&Db` dan `OrmResult<T>` (tanpa perlu menulis `sqlx::Error` dan `&DatabasePool`).
+
+---
 
 ### A. One to Many (HasMany)
 Contoh: 1 `User` memiliki banyak `Post`.
 
+#### Opsi 1: Deklaratif 1 Baris (Paling Manusiawi)
 ```rust
 impl User {
-    /// Relasi Has Many: $user->posts()
-    pub async fn posts(&self, db: &DatabasePool) -> Result<Vec<Post>, sqlx::Error> {
+    // Otomatis foreign key "user_id"
+    has_many!(posts: Post);
+    
+    // Atau jika nama foreign key custom:
+    // has_many!(posts: Post, "author_id");
+}
+```
+
+#### Opsi 2: Fungsi Ringkas (dengan `&Db` dan `OrmResult`)
+```rust
+impl User {
+    pub async fn posts(&self, db: &Db) -> OrmResult<Vec<Post>> {
         self.has_many(db, "user_id").await
     }
 }
-
-// Cara Penggunaan:
-let user = User::find(db, 1).await?.unwrap();
-let posts = user.posts(db).await?;
 ```
+
+**Cara Penggunaan di Controller:**
+```rust
+let user = User::find(req.db(), 1).await?.unwrap();
+let posts = user.posts(req.db()).await?;
+```
+
+---
 
 ### B. Belongs To (BelongsTo)
 Contoh: 1 `Post` dimiliki oleh 1 `User`.
 
+#### Opsi 1: Deklaratif 1 Baris (Paling Manusiawi)
 ```rust
 impl Post {
-    /// Relasi Belongs To: $post->author()
-    pub async fn author(&self, db: &DatabasePool) -> Result<User, sqlx::Error> {
+    // Belongs to User via field `self.user_id`
+    belongs_to!(author: User, user_id);
+}
+```
+
+#### Opsi 2: Fungsi Ringkas (dengan `&Db` dan `OrmResult`)
+```rust
+impl Post {
+    pub async fn author(&self, db: &Db) -> OrmResult<User> {
         self.belongs_to(db, self.user_id).await
     }
 }
-
-// Cara Penggunaan:
-let post = Post::find(db, 10).await?.unwrap();
-let author = post.author(db).await?;
 ```
+
+**Cara Penggunaan di Controller:**
+```rust
+let post = Post::find(req.db(), 10).await?.unwrap();
+let author = post.author(req.db()).await?;
+```
+
+---
 
 ### C. One to One (HasOne)
 Contoh: 1 `User` memiliki 1 `Profile`.
 
 ```rust
 impl User {
-    /// Relasi Has One: $user->profile()
-    pub async fn profile(&self, db: &DatabasePool) -> Result<Profile, sqlx::Error> {
-        self.has_one(db, "user_id").await
-    }
+    // Deklaratif 1 baris
+    has_one!(profile: Profile);
+    
+    // Atau manual ringkas:
+    // pub async fn profile(&self, db: &Db) -> OrmResult<Profile> {
+    //     self.has_one(db, "user_id").await
+    // }
 }
-
-// Cara Penggunaan:
-let user = User::find(db, 1).await?.unwrap();
-let profile = user.profile(db).await?;
 ```
 
+**Cara Penggunaan di Controller:**
+```rust
+let user = User::find(req.db(), 1).await?.unwrap();
+let profile = user.profile(req.db()).await?;
+```
+
+---
+
 ### D. Many to Many (BelongsToMany)
-Contoh: 1 `Post` memiliki banyak `Tag`, dan 1 `Tag` dimiliki oleh banyak `Post` via pivot table `post_tag`.
+Contoh: 1 `Post` memiliki banyak `Tag` via pivot table `post_tag`.
 
 ```rust
 impl Post {
-    /// Relasi Belongs To Many: $post->tags()
-    pub async fn tags(&self, db: &DatabasePool) -> Result<Vec<Tag>, sqlx::Error> {
-        self.belongs_to_many(db, "post_tag", "post_id", "tag_id").await
-    }
+    // Deklaratif 1 baris via pivot table
+    belongs_to_many!(tags: Tag, "post_tag");
+    
+    // Atau custom keys:
+    // belongs_to_many!(tags: Tag, "post_tag", "post_id", "tag_id");
 }
+```
 
-// Cara Penggunaan:
-let post = Post::find(db, 10).await?.unwrap();
-let tags = post.tags(db).await?;
+**Cara Penggunaan di Controller:**
+```rust
+let post = Post::find(req.db(), 10).await?.unwrap();
+let tags = post.tags(req.db()).await?;
 ```
 
 ### E. Subquery Relasi (whereHas & whereDoesntHave)

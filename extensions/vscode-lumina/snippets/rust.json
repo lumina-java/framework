@@ -174,42 +174,39 @@
   "Lumina Relationship Has Many": {
     "prefix": ["l-has-many", "lumina.has_many"],
     "body": [
-      "/// Relasi Has Many (1 to N)",
-      "pub async fn ${1:items}(&self, db: &DatabasePool) -> Result<Vec<${2:RelatedModel}>, sqlx::Error> {",
-      "\tself.has_many(db, \"${3:foreign_key_id}\").await",
-      "}"
+      "has_many!(${1:items}: ${2:RelatedModel});"
     ],
-    "description": "Define a HasMany relationship method on Model"
+    "description": "Declare HasMany relationship in 1 line (Laravel-style)"
   },
   "Lumina Relationship Belongs To": {
     "prefix": ["l-belongs-to", "lumina.belongs_to"],
     "body": [
-      "/// Relasi Belongs To (N to 1)",
-      "pub async fn ${1:parent}(&self, db: &DatabasePool) -> Result<${2:ParentModel}, sqlx::Error> {",
-      "\tself.belongs_to(db, self.${3:parent_id}).await",
-      "}"
+      "belongs_to!(${1:parent}: ${2:ParentModel}, ${3:parent_id});"
     ],
-    "description": "Define a BelongsTo relationship method on Model"
+    "description": "Declare BelongsTo relationship in 1 line (Laravel-style)"
   },
   "Lumina Relationship Has One": {
     "prefix": ["l-has-one", "lumina.has_one"],
     "body": [
-      "/// Relasi Has One (1 to 1)",
-      "pub async fn ${1:detail}(&self, db: &DatabasePool) -> Result<${2:RelatedModel}, sqlx::Error> {",
-      "\tself.has_one(db, \"${3:foreign_key_id}\").await",
-      "}"
+      "has_one!(${1:detail}: ${2:RelatedModel});"
     ],
-    "description": "Define a HasOne relationship method on Model"
+    "description": "Declare HasOne relationship in 1 line (Laravel-style)"
   },
   "Lumina Relationship Belongs To Many": {
     "prefix": ["l-belongs-to-many", "lumina.belongs_to_many"],
     "body": [
-      "/// Relasi Many to Many via Pivot Table",
-      "pub async fn ${1:tags}(&self, db: &DatabasePool) -> Result<Vec<${2:RelatedModel}>, sqlx::Error> {",
-      "\tself.belongs_to_many(db, \"${3:pivot_table}\", \"${4:foreign_key}\", \"${5:related_key}\").await",
+      "belongs_to_many!(${1:tags}: ${2:RelatedModel}, \"${3:pivot_table}\");"
+    ],
+    "description": "Declare BelongsToMany (Many-to-Many) relationship in 1 line via pivot table"
+  },
+  "Lumina Relationship Function (Manual)": {
+    "prefix": ["l-rel-fn", "lumina.rel_fn"],
+    "body": [
+      "pub async fn ${1:author}(&self, db: &Db) -> OrmResult<${2:User}> {",
+      "\tself.belongs_to(db, self.${3:user_id}).await",
       "}"
     ],
-    "description": "Define a BelongsToMany (Many-to-Many) relationship method on Model"
+    "description": "Define relationship as a clean method with &Db and OrmResult"
   },
   "Lumina Query Builder Where Has": {
     "prefix": ["l-where-has", "lumina.where_has"],

@@ -259,6 +259,16 @@ pub struct TestTag {
     pub deleted_at: Option<String>,
 }
 
+impl TestUser {
+    has_many!(posts: TestPost, "user_id");
+    has_one!(profile: TestProfile, "user_id");
+}
+
+impl TestPost {
+    belongs_to!(author: TestUser, user_id);
+    belongs_to_many!(tags: TestTag, "test_post_tag", "post_id", "tag_id");
+}
+
 #[tokio::test]
 async fn test_eloquent_relationships() {
     let pool = DatabasePool::connect("sqlite:file:memdb_relations?mode=memory&cache=shared")
@@ -347,23 +357,23 @@ async fn test_eloquent_relationships() {
     //  TEST RELATIONSHIPS
     // =========================================================================
 
-    // A. Has Many: u1.has_many::<TestPost>
-    let u1_posts = u1.has_many::<TestPost>(&pool, "user_id").await.unwrap();
+    // A. Has Many: u1.has_many::<TestPost> & macro method u1.posts(&pool)
+    let u1_posts = u1.posts(&pool).await.unwrap();
     assert_eq!(u1_posts.len(), 2);
     assert_eq!(u1_posts[0].title, "Belajar Rust Lumina");
     assert_eq!(u1_posts[1].title, "Eloquent di Rust");
 
-    // B. Belongs To: p1.belongs_to::<TestUser>
-    let author = p1.belongs_to::<TestUser>(&pool, p1.user_id).await.unwrap();
+    // B. Belongs To: p1.belongs_to::<TestUser> & macro method p1.author(&pool)
+    let author = p1.author(&pool).await.unwrap();
     assert_eq!(author.id, u1.id);
     assert_eq!(author.name, "Ahmad");
 
-    // C. Has One: u1.has_one::<TestProfile>
-    let profile = u1.has_one::<TestProfile>(&pool, "user_id").await.unwrap();
+    // C. Has One: u1.has_one::<TestProfile> & macro method u1.profile(&pool)
+    let profile = u1.profile(&pool).await.unwrap();
     assert_eq!(profile.bio, "Software Engineer");
 
-    // D. Belongs To Many: p1.belongs_to_many::<TestTag>
-    let post_tags = p1.belongs_to_many::<TestTag>(&pool, "test_post_tag", "post_id", "tag_id").await.unwrap();
+    // D. Belongs To Many: p1.belongs_to_many::<TestTag> & macro method p1.tags(&pool)
+    let post_tags = p1.tags(&pool).await.unwrap();
     assert_eq!(post_tags.len(), 2);
 
     // E. Subquery Relationship: where_has (User who has posts)

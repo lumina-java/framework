@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::{any::AnyArguments, Arguments, FromRow};
 use std::marker::PhantomData;
 
+/// Result alias ramah developer untuk operasi database & ORM (menggantikan Result<T, sqlx::Error>)
+pub type OrmResult<T> = Result<T, sqlx::Error>;
+
 /// Struct untuk menampung hasil pagination bergaya Laravel LengthAwarePaginator.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LengthAwarePaginator<T> {

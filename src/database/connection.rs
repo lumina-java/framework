@@ -14,6 +14,9 @@ pub struct DatabasePool {
     pub kind: DatabaseKind,
 }
 
+/// Alias ringkas & manusiawi untuk DatabasePool
+pub type Db = DatabasePool;
+
 impl DatabasePool {
     /// Buat koneksi pool baru dari `database_url`.
     pub async fn connect(database_url: &str) -> Result<Self, sqlx::Error> {

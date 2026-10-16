@@ -1,9 +1,10 @@
 {
   "name": "lumina-vscode",
-  "displayName": "Lumina Framework Templates",
-  "description": "Syntax highlighting and snippets for Lumina Framework templates (Blade-like + Tera).",
-  "version": "0.1.0",
+  "displayName": "Lumina Framework (IDE Support & Blade Snippets)",
+  "description": "Official Lumina Framework tooling: Eloquent models, beautiful controllers, RESTful routing, and Blade template syntax highlighting.",
+  "version": "0.2.0",
   "publisher": "lumina",
+  "author": "Slamet Sugandi <packercyber@gmail.com>",
   "engines": {
     "vscode": "^1.75.0"
   },
@@ -35,6 +36,10 @@
       {
         "language": "html",
         "path": "./snippets/lumina.json"
+      },
+      {
+        "language": "rust",
+        "path": "./snippets/rust.json"
       }
     ]
   }

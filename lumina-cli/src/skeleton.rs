@@ -144,11 +144,25 @@ async fn main() {
     // 6. src/app/mod.rs
     fs::write(
         base.join("src/app/mod.rs"),
-        "pub mod controllers;\npub mod models;\npub mod services;\n",
+        r#"pub mod controllers;
+pub mod models;
+pub mod services;
+pub mod requests;
+
+/// Application Prelude Hub — Satu baris import untuk seluruh controller & service:
+/// `use crate::app::prelude::*;`
+pub mod prelude {
+    pub use lumina::prelude::*;
+    pub use crate::app::models::*;
+    pub use crate::app::requests::*;
+}
+"#,
     )
     .ok();
 
-    // 7. src/app/services/mod.rs
+    // 7. src/app/models/mod.rs & requests/mod.rs & services/mod.rs
+    fs::write(base.join("src/app/models/mod.rs"), "// Models module\n").ok();
+    fs::write(base.join("src/app/requests/mod.rs"), "// Requests module\n").ok();
     fs::write(base.join("src/app/services/mod.rs"), "// Services module\n").ok();
 
     // 8. src/app/controllers/mod.rs

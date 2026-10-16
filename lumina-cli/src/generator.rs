@@ -121,6 +121,7 @@ pub fn generate_controller(name: &str) {
 
     let code = format!(
         r#"use lumina::prelude::*;
+use crate::app::models::*;
 
 // =========================================================================
 //  {class} CONTROLLER
@@ -245,7 +246,10 @@ impl {class} {{
 
     let path = format!("src/app/models/{}.rs", lower);
     fs::write(&path, &code).ok();
-    append_to_file("src/app/models/mod.rs", &format!("pub mod {};\n", lower));
+    append_to_file(
+        "src/app/models/mod.rs",
+        &format!("pub mod {};\npub use {}::{};\n", lower, lower, class),
+    );
     print_success(&format!("Model: {}", path));
 
     // Also generate migration

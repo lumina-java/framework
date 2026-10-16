@@ -1,0 +1,174 @@
+{
+  "Lumina Application Prelude Import": {
+    "prefix": ["l-prelude", "lumina.prelude"],
+    "body": [
+      "use crate::app::prelude::*;"
+    ],
+    "description": "Import Lumina Application Prelude (All Models, Requests, LuminaResult, and Request)"
+  },
+  "Lumina Framework Prelude Import": {
+    "prefix": ["l-import", "lumina.import"],
+    "body": [
+      "use lumina::prelude::*;",
+      "use crate::app::models::*;"
+    ],
+    "description": "Import Lumina core prelude and application models"
+  },
+  "Lumina Controller": {
+    "prefix": ["l-ctrl", "lumina.controller"],
+    "body": [
+      "use lumina::prelude::*;",
+      "use crate::app::models::*;",
+      "",
+      "pub struct ${1:Resource}Controller;",
+      "",
+      "impl ${1:Resource}Controller {",
+      "\t/// GET /${2:resources} — List all records",
+      "\tpub async fn index(req: Request) -> LuminaResult {",
+      "\t\tlet data = ${1:Resource}::all(req.db()).await?;",
+      "\t\treq.ok(data)",
+      "\t}",
+      "",
+      "\t/// GET /${2:resources}/paged — Paginated list (?page=1&per_page=10)",
+      "\tpub async fn paginate(req: Request) -> LuminaResult {",
+      "\t\tlet (page, per_page) = req.pagination();",
+      "\t\tlet paginator = ${1:Resource}::paginate(req.db(), page, per_page).await?;",
+      "\t\treq.paginate(paginator)",
+      "\t}",
+      "",
+      "\t/// GET /${2:resources}/:id — Show single record",
+      "\tpub async fn show(req: Request) -> LuminaResult {",
+      "\t\tlet id = req.id_or_fail()?;",
+      "\t\tmatch ${1:Resource}::find(req.db(), id).await? {",
+      "\t\t\tSome(item) => req.ok(item),",
+      "\t\t\tNone => req.not_found(\"${1:Resource} tidak ditemukan\"),",
+      "\t\t}",
+      "\t}",
+      "",
+      "\t/// POST /${2:resources} — Create new record",
+      "\tpub async fn store(req: Request, ValidatedJson(mut item): ValidatedJson<${1:Resource}>) -> LuminaResult {",
+      "\t\tlet id = item.save(req.db()).await?;",
+      "\t\titem.id = id;",
+      "\t\treq.created_with(item, \"${1:Resource} berhasil dibuat\")",
+      "\t}",
+      "",
+      "\t/// PUT /${2:resources}/:id — Update record",
+      "\tpub async fn update(req: Request, ValidatedJson(payload): ValidatedJson<${1:Resource}>) -> LuminaResult {",
+      "\t\tlet id = req.id_or_fail()?;",
+      "\t\tlet mut item = match ${1:Resource}::find(req.db(), id).await? {",
+      "\t\t\tSome(i) => i,",
+      "\t\t\tNone => return req.not_found(\"${1:Resource} tidak ditemukan\"),",
+      "\t\t};",
+      "\t\t// item.name = payload.name;",
+      "\t\titem.save(req.db()).await?;",
+      "\t\treq.success(item, \"${1:Resource} berhasil diperbarui\")",
+      "\t}",
+      "",
+      "\t/// DELETE /${2:resources}/:id — Soft delete record",
+      "\tpub async fn destroy(req: Request) -> LuminaResult {",
+      "\t\tlet id = req.id_or_fail()?;",
+      "\t\tif ${1:Resource}::destroy(req.db(), id).await? {",
+      "\t\t\treq.success(serde_json::json!({ \"id\": id }), \"${1:Resource} berhasil dihapus\")",
+      "\t\t} else {",
+      "\t\t\treq.not_found(\"${1:Resource} tidak ditemukan\")",
+      "\t\t}",
+      "\t}",
+      "}"
+    ],
+    "description": "Generate a complete Lumina RESTful Controller with LuminaResult"
+  },
+  "Lumina Action / Handler": {
+    "prefix": ["l-action", "lumina.action"],
+    "body": [
+      "/// ${1:Method} /${2:path}",
+      "pub async fn ${3:action_name}(req: Request) -> LuminaResult {",
+      "\t$0",
+      "\treq.ok(serde_json::json!({ \"status\": \"success\" }))",
+      "}"
+    ],
+    "description": "Generate a single Lumina controller handler returning LuminaResult"
+  },
+  "Lumina Model": {
+    "prefix": ["l-model", "lumina.model"],
+    "body": [
+      "use lumina::prelude::*;",
+      "use serde::{Deserialize, Serialize};",
+      "use sqlx::FromRow;",
+      "",
+      "// =========================================================================",
+      "//  ${1:Model} MODEL (Lumina Eloquent / Active Record)",
+      "// =========================================================================",
+      "",
+      "#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel)]",
+      "#[lumina(table = \"${2:table_name}\")]",
+      "pub struct ${1:Model} {",
+      "\tpub id: i64,",
+      "\tpub ${3:name}: String,",
+      "",
+      "\tpub created_at: Option<String>,",
+      "\tpub updated_at: Option<String>,",
+      "\tpub deleted_at: Option<String>,",
+      "}",
+      "",
+      "impl ${1:Model} {",
+      "\tpub fn new() -> Self {",
+      "\t\tSelf::default()",
+      "\t}",
+      "}"
+    ],
+    "description": "Generate a Lumina Eloquent Active Record model struct"
+  },
+  "Lumina Paginate Action": {
+    "prefix": ["l-paginate", "lumina.paginate"],
+    "body": [
+      "let (page, per_page) = req.pagination();",
+      "let paginator = ${1:Model}::paginate(req.db(), page, per_page).await?;",
+      "req.paginate(paginator)"
+    ],
+    "description": "Paginate records automatically using req.pagination()"
+  },
+  "Lumina Find Record": {
+    "prefix": ["l-find", "lumina.find"],
+    "body": [
+      "match ${1:Model}::find(req.db(), ${2:id}).await? {",
+      "\tSome(${3:item}) => req.ok(${3:item}),",
+      "\tNone => req.not_found(\"${1:Model} tidak ditemukan\"),",
+      "}"
+    ],
+    "description": "Find single record with graceful 404 response"
+  },
+  "Lumina Active Record Save": {
+    "prefix": ["l-save", "lumina.save"],
+    "body": [
+      "${1:item}.save(req.db()).await?;"
+    ],
+    "description": "Save instance to database (INSERT if id == 0, UPDATE if id > 0)"
+  },
+  "Lumina Destroy Record": {
+    "prefix": ["l-destroy", "lumina.destroy"],
+    "body": [
+      "${1:Model}::destroy(req.db(), ${2:id}).await?;"
+    ],
+    "description": "Soft delete a record by ID"
+  },
+  "Lumina Query Builder Where": {
+    "prefix": ["l-where", "lumina.where"],
+    "body": [
+      "${1:Model}::where_eq(req.db(), \"${2:column}\", ${3:value}).get().await?"
+    ],
+    "description": "Query records using where_eq"
+  },
+  "Lumina API Routes Resource": {
+    "prefix": ["l-routes-crud", "lumina.routes.crud"],
+    "body": [
+      "Router::new()",
+      "\t.get(\"/${1:resources}\", ${2:Resource}Controller::index)",
+      "\t.get(\"/${1:resources}/paged\", ${2:Resource}Controller::paginate)",
+      "\t.post(\"/${1:resources}\", ${2:Resource}Controller::store)",
+      "\t.get(\"/${1:resources}/:id\", ${2:Resource}Controller::show)",
+      "\t.put(\"/${1:resources}/:id\", ${2:Resource}Controller::update)",
+      "\t.delete(\"/${1:resources}/:id\", ${2:Resource}Controller::destroy)"
+    ],
+    "description": "Define full RESTful CRUD routes in Router"
+  }
+}

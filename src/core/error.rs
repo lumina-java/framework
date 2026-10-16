@@ -75,3 +75,26 @@ impl From<String> for AppError {
         AppError::Generic(error)
     }
 }
+
+/// Helper extension untuk Option<T> agar menghasilkan HTTP 404 otomatis jika None.
+pub trait OptionExt<T> {
+    /// Mengonversi `Option<T>` menjadi `Result<T, AppError>`.
+    /// Jika `Some(val)`, mengembalikan `Ok(val)`.
+    /// Jika `None`, langsung mengembalikan `Err(AppError::NotFound(message))` (HTTP 404).
+    ///
+    /// # Contoh di Controller:
+    /// ```rust,ignore
+    /// let user = User::find(req.db(), id).await?.or_404("User tidak ditemukan")?;
+    /// req.ok(user)
+    /// ```
+    fn or_404(self, message: &str) -> Result<T, AppError>;
+}
+
+impl<T> OptionExt<T> for Option<T> {
+    fn or_404(self, message: &str) -> Result<T, AppError> {
+        match self {
+            Some(val) => Ok(val),
+            None => Err(AppError::NotFound(message.to_string())),
+        }
+    }
+}

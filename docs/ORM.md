@@ -57,18 +57,23 @@ pub struct User {
 Lumina menyediakan dua gaya: **Static Model API** dan **Active Record Instance API**.
 
 ### A. Mengambil Data (Read)
+*(Di Rust, tipe data otomatis terdeteksi tanpa perlu mengetik `: Option<User>` atau `: Vec<User>`)*
+
 ```rust
-// Ambil semua data (aktif/bukan soft deleted)
-let users: Vec<User> = User::all(db).await?;
+// 1. Ambil semua data
+let users = User::all(db).await?;
 
-// Ambil record berdasarkan ID (mengembalikan Option<User>)
-let user: Option<User> = User::find(db, 1).await?;
+// 2. Ambil record atau 404 otomatis (Paling Manusiawi untuk Controller)
+let user = User::find(db, 1).await?.or_404("User tidak ditemukan")?;
 
-// Ambil record berdasarkan ID atau lempar Error (Laravel: findOrFail)
-let user: User = User::find_or_fail(db, 1).await?;
+// 3. Ambil record berdasarkan ID (Laravel: findOrFail)
+let user = User::find_or_fail(db, 1).await?;
 
-// Hitung total record aktif
-let total: i64 = User::count(db).await?;
+// 4. Ambil record opsional (jika ingin cek manual dengan if let Some)
+let maybe_user = User::find(db, 1).await?;
+
+// 5. Hitung total record aktif
+let total = User::count(db).await?;
 ```
 
 ### B. Membuat & Memperbarui Data (Create & Update)
@@ -119,14 +124,15 @@ let users = User::query(db)
     .get()
     .await?;
 
-// First Record
-let first_user: Option<User> = User::query(db)
+// Ambil record pertama (atau 404 otomatis)
+let user = User::query(db)
     .where_eq("email", "budi@example.com")
     .first()
-    .await?;
+    .await?
+    .or_404("User tidak ditemukan")?;
 
-// First or Fail
-let first_user: User = User::query(db)
+// Ambil record pertama (Laravel: firstOrFail)
+let user = User::query(db)
     .where_eq("email", "budi@example.com")
     .first_or_fail()
     .await?;

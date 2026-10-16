@@ -341,6 +341,7 @@ my_app/
 Untuk panduan dan referensi teknis yang lebih mendalam:
 
 - 📖 **[DOCUMENTATION.md](./DOCUMENTATION.md)** — Dokumentasi komprehensif seluruh modul core.
+- 💎 **[docs/ORM.md](./docs/ORM.md)** — Panduan Lengkap Lumina Eloquent ORM & Relationships.
 - 🚀 **[TUTORIAL_INSTALL.md](./TUTORIAL_INSTALL.md)** — Panduan instalasi dan persiapan sistem.
 - 📡 **[TUTORIAL_BROADCASTER.md](./TUTORIAL_BROADCASTER.md)** — Panduan real-time WebSocket broadcasting dengan Lumina Echo.
 - ⚡ **[CHEAT_SHEET.md](./CHEAT_SHEET.md)** — Snippet cepat sintaks controller, query ORM, dan helper.

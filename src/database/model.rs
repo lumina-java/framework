@@ -74,6 +74,26 @@ pub trait Model:
         Self::query(pool).oldest()
     }
 
+    /// Shortcut query WHERE EXISTS relasi (Laravel: Model::whereHas)
+    fn where_has<'a>(
+        pool: &'a DatabasePool,
+        relation_table: &'a str,
+        foreign_key: &'a str,
+        local_key: &'a str,
+    ) -> QueryBuilder<'a, Self> {
+        Self::query(pool).where_has(relation_table, foreign_key, local_key)
+    }
+
+    /// Shortcut query WHERE NOT EXISTS relasi (Laravel: Model::whereDoesntHave)
+    fn where_doesnt_have<'a>(
+        pool: &'a DatabasePool,
+        relation_table: &'a str,
+        foreign_key: &'a str,
+        local_key: &'a str,
+    ) -> QueryBuilder<'a, Self> {
+        Self::query(pool).where_doesnt_have(relation_table, foreign_key, local_key)
+    }
+
     /// Hitung total record aktif di database
     async fn count(pool: &DatabasePool) -> Result<i64, sqlx::Error> {
         Self::query(pool).count().await

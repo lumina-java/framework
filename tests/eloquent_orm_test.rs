@@ -216,3 +216,164 @@ async fn test_beautiful_controller_routes() {
     let res = app.delete("/api/contacts/1").await;
     res.assert_status(axum::http::StatusCode::OK);
 }
+
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel, PartialEq)]
+#[lumina(table = "test_users")]
+pub struct TestUser {
+    pub id: i64,
+    pub name: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub deleted_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel, PartialEq)]
+#[lumina(table = "test_posts")]
+pub struct TestPost {
+    pub id: i64,
+    pub user_id: i64,
+    pub title: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub deleted_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel, PartialEq)]
+#[lumina(table = "test_profiles")]
+pub struct TestProfile {
+    pub id: i64,
+    pub user_id: i64,
+    pub bio: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub deleted_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel, PartialEq)]
+#[lumina(table = "test_tags")]
+pub struct TestTag {
+    pub id: i64,
+    pub name: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub deleted_at: Option<String>,
+}
+
+#[tokio::test]
+async fn test_eloquent_relationships() {
+    let pool = DatabasePool::connect("sqlite:file:memdb_relations?mode=memory&cache=shared")
+        .await
+        .unwrap();
+
+    // 1. Create tables
+    sqlx::query(
+        r#"
+        CREATE TABLE test_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TEXT
+        );
+        CREATE TABLE test_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TEXT
+        );
+        CREATE TABLE test_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            bio TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TEXT
+        );
+        CREATE TABLE test_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TEXT
+        );
+        CREATE TABLE test_post_tag (
+            post_id INTEGER NOT NULL,
+            tag_id INTEGER NOT NULL,
+            PRIMARY KEY (post_id, tag_id)
+        );
+        "#,
+    )
+    .execute(&pool.pool)
+    .await
+    .unwrap();
+
+    // 2. Insert Users
+    let mut u1 = TestUser { name: "Ahmad".to_string(), ..Default::default() };
+    u1.id = u1.save(&pool).await.unwrap();
+
+    let mut u2 = TestUser { name: "Zul".to_string(), ..Default::default() };
+    u2.id = u2.save(&pool).await.unwrap();
+
+    // 3. Insert Posts for User 1
+    let mut p1 = TestPost { user_id: u1.id, title: "Belajar Rust Lumina".to_string(), ..Default::default() };
+    p1.id = p1.save(&pool).await.unwrap();
+
+    let mut p2 = TestPost { user_id: u1.id, title: "Eloquent di Rust".to_string(), ..Default::default() };
+    p2.id = p2.save(&pool).await.unwrap();
+
+    // 4. Insert Profile for User 1
+    let mut prof = TestProfile { user_id: u1.id, bio: "Software Engineer".to_string(), ..Default::default() };
+    prof.id = prof.save(&pool).await.unwrap();
+
+    // 5. Insert Tags for Post 1
+    let mut t1 = TestTag { name: "Rust".to_string(), ..Default::default() };
+    t1.id = t1.save(&pool).await.unwrap();
+
+    let mut t2 = TestTag { name: "Web Framework".to_string(), ..Default::default() };
+    t2.id = t2.save(&pool).await.unwrap();
+
+    sqlx::query("INSERT INTO test_post_tag (post_id, tag_id) VALUES (?, ?), (?, ?)")
+        .bind(p1.id)
+        .bind(t1.id)
+        .bind(p1.id)
+        .bind(t2.id)
+        .execute(&pool.pool)
+        .await
+        .unwrap();
+
+    // =========================================================================
+    //  TEST RELATIONSHIPS
+    // =========================================================================
+
+    // A. Has Many: u1.has_many::<TestPost>
+    let u1_posts = u1.has_many::<TestPost>(&pool, "user_id").await.unwrap();
+    assert_eq!(u1_posts.len(), 2);
+    assert_eq!(u1_posts[0].title, "Belajar Rust Lumina");
+    assert_eq!(u1_posts[1].title, "Eloquent di Rust");
+
+    // B. Belongs To: p1.belongs_to::<TestUser>
+    let author = p1.belongs_to::<TestUser>(&pool, p1.user_id).await.unwrap();
+    assert_eq!(author.id, u1.id);
+    assert_eq!(author.name, "Ahmad");
+
+    // C. Has One: u1.has_one::<TestProfile>
+    let profile = u1.has_one::<TestProfile>(&pool, "user_id").await.unwrap();
+    assert_eq!(profile.bio, "Software Engineer");
+
+    // D. Belongs To Many: p1.belongs_to_many::<TestTag>
+    let post_tags = p1.belongs_to_many::<TestTag>(&pool, "test_post_tag", "post_id", "tag_id").await.unwrap();
+    assert_eq!(post_tags.len(), 2);
+
+    // E. Subquery Relationship: where_has (User who has posts)
+    let users_with_posts = TestUser::where_has(&pool, "test_posts", "user_id", "id").get().await.unwrap();
+    assert_eq!(users_with_posts.len(), 1);
+    assert_eq!(users_with_posts[0].name, "Ahmad");
+
+    // F. Subquery Relationship: where_doesnt_have (User without posts)
+    let users_without_posts = TestUser::where_doesnt_have(&pool, "test_posts", "user_id", "id").get().await.unwrap();
+    assert_eq!(users_without_posts.len(), 1);
+    assert_eq!(users_without_posts[0].name, "Zul");
+}
+

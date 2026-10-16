@@ -252,6 +252,28 @@ where
         self
     }
 
+    /// Tambahkan klausa WHERE EXISTS untuk relasi (Laravel: whereHas).
+    /// Contoh: `query.where_has("posts", "user_id", "id")`
+    pub fn where_has(mut self, relation_table: &str, foreign_key: &str, local_key: &str) -> Self {
+        let prefix = if self.wheres.is_empty() { "" } else { "AND " };
+        self.wheres.push(format!(
+            "{}EXISTS (SELECT 1 FROM {} WHERE {}.{} = {}.{} AND {}.deleted_at IS NULL)",
+            prefix, relation_table, relation_table, foreign_key, self.table, local_key, relation_table
+        ));
+        self
+    }
+
+    /// Tambahkan klausa WHERE NOT EXISTS untuk relasi (Laravel: whereDoesntHave).
+    /// Contoh: `query.where_doesnt_have("posts", "user_id", "id")`
+    pub fn where_doesnt_have(mut self, relation_table: &str, foreign_key: &str, local_key: &str) -> Self {
+        let prefix = if self.wheres.is_empty() { "" } else { "AND " };
+        self.wheres.push(format!(
+            "{}NOT EXISTS (SELECT 1 FROM {} WHERE {}.{} = {}.{} AND {}.deleted_at IS NULL)",
+            prefix, relation_table, relation_table, foreign_key, self.table, local_key, relation_table
+        ));
+        self
+    }
+
     /// Debugging: Mengambil string SQL yang dihasilkan.
     pub fn to_sql(&self) -> String {
         self.build_sql()

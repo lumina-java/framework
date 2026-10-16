@@ -170,5 +170,52 @@
       "\t.delete(\"/${1:resources}/:id\", ${2:Resource}Controller::destroy)"
     ],
     "description": "Define full RESTful CRUD routes in Router"
+  },
+  "Lumina Relationship Has Many": {
+    "prefix": ["l-has-many", "lumina.has_many"],
+    "body": [
+      "/// Relasi Has Many (1 to N)",
+      "pub async fn ${1:items}(&self, db: &DatabasePool) -> Result<Vec<${2:RelatedModel}>, sqlx::Error> {",
+      "\tself.has_many(db, \"${3:foreign_key_id}\").await",
+      "}"
+    ],
+    "description": "Define a HasMany relationship method on Model"
+  },
+  "Lumina Relationship Belongs To": {
+    "prefix": ["l-belongs-to", "lumina.belongs_to"],
+    "body": [
+      "/// Relasi Belongs To (N to 1)",
+      "pub async fn ${1:parent}(&self, db: &DatabasePool) -> Result<${2:ParentModel}, sqlx::Error> {",
+      "\tself.belongs_to(db, self.${3:parent_id}).await",
+      "}"
+    ],
+    "description": "Define a BelongsTo relationship method on Model"
+  },
+  "Lumina Relationship Has One": {
+    "prefix": ["l-has-one", "lumina.has_one"],
+    "body": [
+      "/// Relasi Has One (1 to 1)",
+      "pub async fn ${1:detail}(&self, db: &DatabasePool) -> Result<${2:RelatedModel}, sqlx::Error> {",
+      "\tself.has_one(db, \"${3:foreign_key_id}\").await",
+      "}"
+    ],
+    "description": "Define a HasOne relationship method on Model"
+  },
+  "Lumina Relationship Belongs To Many": {
+    "prefix": ["l-belongs-to-many", "lumina.belongs_to_many"],
+    "body": [
+      "/// Relasi Many to Many via Pivot Table",
+      "pub async fn ${1:tags}(&self, db: &DatabasePool) -> Result<Vec<${2:RelatedModel}>, sqlx::Error> {",
+      "\tself.belongs_to_many(db, \"${3:pivot_table}\", \"${4:foreign_key}\", \"${5:related_key}\").await",
+      "}"
+    ],
+    "description": "Define a BelongsToMany (Many-to-Many) relationship method on Model"
+  },
+  "Lumina Query Builder Where Has": {
+    "prefix": ["l-where-has", "lumina.where_has"],
+    "body": [
+      "${1:Model}::where_has(req.db(), \"${2:relation_table}\", \"${3:foreign_key}\", \"${4:id}\").get().await?"
+    ],
+    "description": "Filter records by relationship existence (whereHas)"
   }
 }

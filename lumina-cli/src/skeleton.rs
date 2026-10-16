@@ -205,7 +205,7 @@ impl WelcomeController {
             return req.json(json!({
                 "name": "Lumina Framework",
                 "tagline": "The High-Performance Rust Backend for Modern APIs",
-                "version": "0.1.3",
+                "version": "0.1.5",
                 "rust_edition": "2021",
                 "engine": "Axum 0.7 + Tokio Async",
                 "environment": "local",
@@ -227,7 +227,7 @@ impl WelcomeController {
         req.view("welcome")
             .with("title", "Lumina Framework - High Performance Rust Backend")
             .with("app_name", "Lumina Framework")
-            .with("version", "0.1.3")
+            .with("version", "0.1.5")
             .with("rust_edition", "2021")
             .with("db_driver", &db_info.0)
             .with("db_status", db_info.1)
@@ -307,7 +307,7 @@ async fn api_index() -> impl IntoResponse {
     Json(json!({
         "framework": "Lumina Framework",
         "tagline": "The High-Performance Rust Backend for Modern APIs",
-        "version": "0.1.3",
+        "version": "0.1.5",
         "status": "online",
         "endpoints": {
             "health": "/api/health",

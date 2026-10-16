@@ -353,6 +353,26 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
                 <Self as lumina::database::model::Model>::latest(pool)
             }
 
+            /// Shortcut WHERE EXISTS relasi (Laravel: Model::whereHas)
+            pub fn where_has<'a>(
+                pool: &'a lumina::database::connection::DatabasePool,
+                relation_table: &'a str,
+                foreign_key: &'a str,
+                local_key: &'a str,
+            ) -> lumina::database::orm::QueryBuilder<'a, Self> {
+                <Self as lumina::database::model::Model>::where_has(pool, relation_table, foreign_key, local_key)
+            }
+
+            /// Shortcut WHERE NOT EXISTS relasi (Laravel: Model::whereDoesntHave)
+            pub fn where_doesnt_have<'a>(
+                pool: &'a lumina::database::connection::DatabasePool,
+                relation_table: &'a str,
+                foreign_key: &'a str,
+                local_key: &'a str,
+            ) -> lumina::database::orm::QueryBuilder<'a, Self> {
+                <Self as lumina::database::model::Model>::where_doesnt_have(pool, relation_table, foreign_key, local_key)
+            }
+
             /// Paginasi data langsung dari model (Laravel: Model::paginate(15))
             pub async fn paginate(
                 pool: &lumina::database::connection::DatabasePool,
@@ -375,6 +395,50 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
             /// Soft delete instance record ini (Laravel: $model->delete())
             pub async fn delete(&self, pool: &lumina::database::connection::DatabasePool) -> Result<bool, sqlx::Error> {
                 <Self as lumina::database::model::Model>::delete(pool, self.#primary_key_ident).await
+            }
+
+            /// Relasi Has Many (Laravel: $this->hasMany(Post::class, 'user_id'))
+            pub async fn has_many<R>(&self, pool: &lumina::database::connection::DatabasePool, foreign_key: &str) -> Result<Vec<R>, sqlx::Error>
+            where
+                R: lumina::database::model::Model,
+            {
+                <Self as lumina::database::model::Model>::has_many::<R>(pool, foreign_key, self.#primary_key_ident).await
+            }
+
+            /// Relasi Has One (Laravel: $this->hasOne(Profile::class, 'user_id'))
+            pub async fn has_one<R>(&self, pool: &lumina::database::connection::DatabasePool, foreign_key: &str) -> Result<R, sqlx::Error>
+            where
+                R: lumina::database::model::Model,
+            {
+                <Self as lumina::database::model::Model>::has_one::<R>(pool, foreign_key, self.#primary_key_ident).await
+            }
+
+            /// Relasi Belongs To (Laravel: $this->belongsTo(User::class, 'user_id'))
+            pub async fn belongs_to<R>(&self, pool: &lumina::database::connection::DatabasePool, foreign_key_id: i64) -> Result<R, sqlx::Error>
+            where
+                R: lumina::database::model::Model,
+            {
+                <Self as lumina::database::model::Model>::belongs_to::<R>(pool, foreign_key_id).await
+            }
+
+            /// Relasi Belongs To Many (Laravel: $this->belongsToMany(Tag::class, 'post_tag', 'post_id', 'tag_id'))
+            pub async fn belongs_to_many<R>(
+                &self,
+                pool: &lumina::database::connection::DatabasePool,
+                pivot_table: &str,
+                foreign_key: &str,
+                related_key: &str,
+            ) -> Result<Vec<R>, sqlx::Error>
+            where
+                R: lumina::database::model::Model,
+            {
+                <Self as lumina::database::model::Model>::belongs_to_many::<R>(
+                    pool,
+                    pivot_table,
+                    foreign_key,
+                    related_key,
+                    self.#primary_key_ident,
+                ).await
             }
         }
     };

@@ -17,6 +17,11 @@ Di dalam file `.rs`:
 | `l-find` | `match Model::find(req.db(), id).await?` | Pencarian record dengan 404 otomatis |
 | `l-save` | `item.save(req.db()).await?;` | Active record INSERT/UPDATE |
 | `l-destroy` | `Model::destroy(req.db(), id).await?;` | Soft delete record |
+| `l-has-many` | `self.has_many(db, "foreign_key").await` | Relasi One-to-Many (1 to N) |
+| `l-belongs-to`| `self.belongs_to(db, self.parent_id).await` | Relasi Belongs-To (N to 1) |
+| `l-has-one` | `self.has_one(db, "foreign_key").await` | Relasi One-to-One (1 to 1) |
+| `l-belongs-to-many` | `self.belongs_to_many(db, "pivot", ...).await` | Relasi Many-to-Many via pivot |
+| `l-where-has`| `Model::where_has(db, "posts", "user_id", "id")` | Filter relasi (whereHas) |
 | `l-routes-crud`| `Router::new().get(...).post(...)` | Definisi RESTful router |
 
 ### 2. Blade + Tera Template Support (`.blade.rs`)

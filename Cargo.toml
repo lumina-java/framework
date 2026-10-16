@@ -1,6 +1,6 @@
 [package]
 name = "lumina-framework"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 authors = ["Lumina Java <admin@lumina-java.com>"]
 description = "A beautiful, fast, and elegant web framework for Rust"

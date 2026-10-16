@@ -1,17 +1,8 @@
 use axum::Router as ax_router;
-<<<<<<< HEAD
 use axum::{handler::Handler, routing};
 
 /// Lumina Router — fluent builder API yang membungkus axum::Router.
 #[derive(Clone)]
-=======
-use axum::{
-    handler::Handler,
-    routing,
-};
-
-/// Lumina Router — fluent builder API yang membungkus axum::Router.
->>>>>>> dev/master
 pub struct Router<S = ()> {
     inner: ax_router<S>,
     prefix: String,
@@ -47,15 +38,11 @@ where
         if self.prefix.is_empty() {
             return path.to_string();
         }
-<<<<<<< HEAD
         format!(
             "{}/{}",
             self.prefix.trim_end_matches('/'),
             path.trim_start_matches('/')
         )
-=======
-        format!("{}/{}", self.prefix.trim_end_matches('/'), path.trim_start_matches('/'))
->>>>>>> dev/master
     }
 
     /// Daftarkan route GET.
@@ -115,20 +102,12 @@ where
 
     /// Grup route dengan prefix dan kustomisasi (seperti middleware).
     /// Contoh:
-<<<<<<< HEAD
     /// ```rust,ignore
-=======
-    /// ```ignore
->>>>>>> dev/master
     /// router.group("/admin", |r| {
     ///     r.get("/dashboard", dashboard_handler)
     /// })
     /// ```
-<<<<<<< HEAD
     pub fn group<F>(mut self, prefix: &str, f: F) -> Self
-=======
-    pub fn group<F>(mut self, prefix: &str, f: F) -> Self
->>>>>>> dev/master
     where
         F: FnOnce(Router<S>) -> Router<S>,
     {
@@ -155,15 +134,10 @@ where
     where
         L: tower::Layer<axum::routing::Route> + Clone + Send + 'static,
         L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
-<<<<<<< HEAD
         <L::Service as tower::Service<axum::extract::Request>>::Response:
             axum::response::IntoResponse + 'static,
         <L::Service as tower::Service<axum::extract::Request>>::Error:
             Into<std::convert::Infallible> + 'static,
-=======
-        <L::Service as tower::Service<axum::extract::Request>>::Response: axum::response::IntoResponse + 'static,
-        <L::Service as tower::Service<axum::extract::Request>>::Error: Into<std::convert::Infallible> + 'static,
->>>>>>> dev/master
         <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
     {
         self.inner = self.inner.layer(layer);
@@ -175,15 +149,10 @@ where
     where
         L: tower::Layer<axum::routing::Route> + Clone + Send + 'static,
         L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
-<<<<<<< HEAD
         <L::Service as tower::Service<axum::extract::Request>>::Response:
             axum::response::IntoResponse + 'static,
         <L::Service as tower::Service<axum::extract::Request>>::Error:
             Into<std::convert::Infallible> + 'static,
-=======
-        <L::Service as tower::Service<axum::extract::Request>>::Response: axum::response::IntoResponse + 'static,
-        <L::Service as tower::Service<axum::extract::Request>>::Error: Into<std::convert::Infallible> + 'static,
->>>>>>> dev/master
         <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
     {
         self.layer(layer)

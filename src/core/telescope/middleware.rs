@@ -1,19 +1,11 @@
-<<<<<<< HEAD
 use crate::core::application::AppState;
 use crate::core::telescope::entry::RequestContent;
-=======
->>>>>>> dev/master
 use axum::{
     extract::{Request, State},
     middleware::Next,
     response::Response,
 };
 use std::time::Instant;
-<<<<<<< HEAD
-=======
-use crate::core::application::AppState;
-use crate::core::telescope::entry::RequestContent;
->>>>>>> dev/master
 
 pub async fn telescope_middleware(
     State(state): State<AppState>,
@@ -29,27 +21,17 @@ pub async fn telescope_middleware(
     let start = Instant::now();
     let method = req.method().to_string();
     let uri = req.uri().to_string();
-<<<<<<< HEAD
 
     // IP detection (simple version)
     let ip = req
         .headers()
-=======
-
-    // IP detection (simple version)
-    let ip = req.headers()
->>>>>>> dev/master
         .get("x-forwarded-for")
         .and_then(|h| h.to_str().ok())
         .unwrap_or("127.0.0.1")
         .to_string();
 
     let response = next.run(req).await;
-<<<<<<< HEAD
 
-=======
-
->>>>>>> dev/master
     let duration = start.elapsed().as_millis();
     let status = response.status().as_u16();
 

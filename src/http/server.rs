@@ -1,11 +1,6 @@
-<<<<<<< HEAD
 use axum::{serve, Router};
 use tokio::net::TcpListener;
 use tokio::signal;
-=======
-use axum::{Router, serve};
-use tokio::net::TcpListener;
->>>>>>> dev/master
 
 pub struct Server {
     addr: String,
@@ -24,15 +19,11 @@ impl Server {
         println!("🔥 HTTP Server running on http://{}", self.addr);
 
         serve(listener, router)
-<<<<<<< HEAD
             .with_graceful_shutdown(shutdown_signal())
-=======
->>>>>>> dev/master
             .await
             .expect("❌ Server error");
     }
 }
-<<<<<<< HEAD
 
 async fn shutdown_signal() {
     let ctrl_c = async {
@@ -59,5 +50,3 @@ async fn shutdown_signal() {
 
     println!("🛑 Graceful shutdown signal received, shutting down server gracefully...");
 }
-=======
->>>>>>> dev/master

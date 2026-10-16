@@ -25,18 +25,28 @@ pub fn create_full_skeleton(base: &Path, name: &str) {
         "storage/app/public",
         "storage/cache",
         "public",
+        "tests",
     ];
     for folder in folders {
         fs::create_dir_all(base.join(folder)).ok();
     }
 
     // 2. Cargo.toml
+    let lib_name = name.replace("-", "_");
     let cargo_toml = format!(
         r#"[package]
 name = "{}"
 version = "0.1.0"
 edition = "2021"
 default-run = "{}-server"
+
+[lib]
+name = "{}"
+path = "src/lib.rs"
+
+[[bin]]
+name = "{}-server"
+path = "src/main.rs"
 
 [dependencies]
 lumina = {{ package = "lumina-framework", path = "../framework" }}
@@ -47,17 +57,14 @@ serde_json = "1"
 dotenv = "0.15"
 tera = "1.19"
 async-trait = "0.1"
-sqlx = {{ version = "0.8", features = ["runtime-tokio", "sqlite", "any", "macros"] }}
-
-[[bin]]
-name = "{}-server"
-path = "src/main.rs"
+chrono = {{ version = "0.4", features = ["serde"] }}
+sqlx = {{ version = "0.8", features = ["runtime-tokio", "postgres", "mysql", "sqlite", "any", "macros", "chrono"] }}
 "#,
-        name, name, name
+        name, name, lib_name, name
     );
     fs::write(base.join("Cargo.toml"), cargo_toml).ok();
 
-    // 3. .env.example
+    // 3. .env.example & .env
     let env_example = r#"# ─── LUMINA FRAMEWORK CONFIGURATION ──────────────────────────────────────────
 
 # Application Settings
@@ -71,33 +78,25 @@ APP_KEY=lumina-super-secret-key-change-me-in-production
 LOG_LEVEL=info
 LOG_TO_FILE=true
 
-# OAuth2 (Socialite)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URL=http://127.0.0.1:8000/auth/google/callback
-
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
-GITHUB_REDIRECT_URL=http://127.0.0.1:8000/auth/github/callback
-
-# Database Configuration (Laravel Style)
+# Database Configuration (Multi-Driver: sqlite / postgres / mysql)
 DB_CONNECTION=sqlite
 DB_HOST=127.0.0.1
-DB_PORT=3306
+DB_PORT=5432
 DB_DATABASE=./database.sqlite
 DB_USERNAME=root
 DB_PASSWORD=
 
-# Atau gunakan URL eksplisit (jika DATABASE_URL ada, maka variabel DB_* diabaikan)
+# Atau gunakan URL eksplisit:
 # DATABASE_URL=sqlite:./database.sqlite
+# DATABASE_URL=postgres://postgres:password@127.0.0.1:5432/my_db
+# DATABASE_URL=mysql://root:password@127.0.0.1:3306/my_db
 
 # Rate Limiting
 RATE_LIMIT_MAX=60
 RATE_LIMIT_WINDOW=60
 
 # Storage Settings
-# Batas maksimal upload file dalam satuan Megabyte
-UPLOAD_MAX_SIZE_MB=2
+UPLOAD_MAX_SIZE_MB=5
 
 # Session Configuration
 JWT_SECRET=lumina-jwt-secret-key-change-me-in-production
@@ -107,86 +106,139 @@ JWT_SECRET=lumina-jwt-secret-key-change-me-in-production
     fs::write(base.join(".env.example"), env_example).ok();
     fs::write(base.join(".env"), env_example).ok();
 
-    // 4. src/main.rs
+    // 4. src/lib.rs (Enables modular code & integration tests in tests/)
+    let lib_rs = r#"pub mod app;
+pub mod routes;
+"#;
+    fs::write(base.join("src/lib.rs"), lib_rs).ok();
+
+    // 5. src/main.rs
     let main_rs = r#"mod app;
 mod routes;
 
 use lumina::prelude::*;
 
 //                  LUMINA FRAMEWORK APPLICATION ENTRYPOINT
-// This is the core entrypoint of your Lumina application.
-// Here, we load environment variables, register routes, and launch the server.
+// High-performance, elegant Rust web backend & API engine.
 
 #[tokio::main]
 async fn main() {
-    // 1. Load configuration from the .env file
+    // 1. Load configuration from .env file
     dotenv::dotenv().ok();
 
-    // 2. Initialize the application engine and web router
+    // 2. Initialize the application engine with Web & API routes
     let app = Application::new()
-        .with_web(routes::web::router());
+        .with_web(routes::web::router())
+        .with_api(routes::api::router());
 
-    println!("✨ Welcome to the Lumina Framework");
-    println!("🚀 Starting server at http://127.0.0.1:8000");
+    println!("⚡ Welcome to Lumina Framework");
+    println!("🚀 Server running at http://127.0.0.1:8000");
+    println!("📖 API Endpoints ready at http://127.0.0.1:8000/api");
 
-    // 3. Serve the application
+    // 3. Launch HTTP server
     app.serve("127.0.0.1:8000").await;
 }
 "#;
     fs::write(base.join("src/main.rs"), main_rs).ok();
 
-    // 5. src/app/mod.rs
+    // 6. src/app/mod.rs
     fs::write(
         base.join("src/app/mod.rs"),
-        "pub mod controllers;\npub mod models;\n",
+        "pub mod controllers;\npub mod models;\npub mod services;\n",
     )
     .ok();
 
-    // 6. src/app/controllers/mod.rs
+    // 7. src/app/services/mod.rs
+    fs::write(base.join("src/app/services/mod.rs"), "// Services module\n").ok();
+
+    // 8. src/app/controllers/mod.rs
     fs::write(
         base.join("src/app/controllers/mod.rs"),
         "pub mod welcome_controller;\n",
     )
     .ok();
 
-    // 7. src/app/controllers/welcome_controller.rs
+    // 9. src/app/controllers/welcome_controller.rs (Dual-Mode Response: HTML + Lumen JSON)
     let welcome_ctrl = r#"use lumina::prelude::*;
+use serde_json::json;
 
 //                        WELCOME CONTROLLER
-// Selamat datang di Controller! Controller berfungsi untuk memproses request
-// dan mengembalikan response (biasanya berupa halaman web HTML).
-//
-// Lumina dirancang agar sangat elegan ("beautiful"). Kamu hanya butuh
-// memanggil parameter `req: Request` untuk mengakses segalanya!
+// Controller halaman utama aplikasi Lumina.
+// Mendukung Dual-Mode Response:
+// 1. Browser Request (Accept: text/html) -> Mengembalikan Dashboard HTML modern ala Laravel.
+// 2. API / cURL Request (Accept: application/json atau ?format=json) -> Mengembalikan JSON ala Lumen!
 
 pub struct WelcomeController;
 
 impl WelcomeController {
-    /// Fungsi ini menangani halaman utama ("/")
+    /// Halaman Utama ("/") - Dual Mode Response
     pub async fn index(req: Request) -> impl IntoResponse {
-        // Render halaman semudah di Laravel: `return view('welcome')->with(...)`
-        req.view("welcome.blade.rs")
-            .with("title", "Welcome to Lumina")
+        // Cek informasi koneksi database aktif
+        let db_info = if let Some(pool) = &req.state.db {
+            let driver = format!("{:?}", pool.kind);
+            let is_ok = sqlx::query("SELECT 1").execute(&pool.pool).await.is_ok();
+            (driver, if is_ok { "connected" } else { "disconnected" })
+        } else {
+            ("SQLite".to_string(), "not connected")
+        };
+
+        // 1. Jika request meminta JSON (via Header Accept: application/json atau ?format=json)
+        // Mengembalikan spesifikasi framework ala Lumen microframework!
+        let wants_json = req.wants_json() 
+            || req.header("accept").map(|a| a.contains("json")).unwrap_or(false);
+
+        if wants_json {
+            return req.json(json!({
+                "name": "Lumina Framework",
+                "tagline": "The High-Performance Rust Backend for Modern APIs",
+                "version": "0.1.3",
+                "rust_edition": "2021",
+                "engine": "Axum 0.7 + Tokio Async",
+                "environment": "local",
+                "database": {
+                    "driver": db_info.0,
+                    "status": db_info.1
+                },
+                "documentation": "https://github.com/lumina-java/framework",
+                "endpoints": {
+                    "home": "/",
+                    "health": "/health",
+                    "api_index": "/api",
+                    "api_health": "/api/health"
+                }
+            }));
+        }
+
+        // 2. Jika diakses via Web Browser biasa, render Blade HTML Dashboard
+        req.view("welcome")
+            .with("title", "Lumina Framework - High Performance Rust Backend")
             .with("app_name", "Lumina Framework")
-            .with("version", "0.1.0")
+            .with("version", "0.1.3")
+            .with("rust_edition", "2021")
+            .with("db_driver", &db_info.0)
+            .with("db_status", db_info.1)
+            .with("docs_url", "https://github.com/lumina-java/framework")
             .render(&req)
             .await
+            .into_response()
     }
 
     /// Menampilkan Halaman Login ("/login")
     pub async fn login(req: Request) -> impl IntoResponse {
-        req.view("auth/login.blade.rs")
+        req.view("auth.login")
             .with("title", "Login - Lumina")
             .render(&req)
             .await
+            .into_response()
     }
 
     /// Menampilkan Halaman Register ("/register")
     pub async fn register(req: Request) -> impl IntoResponse {
-        req.view("auth/register.blade.rs")
+        req.view("auth.register")
             .with("title", "Register - Lumina")
             .render(&req)
             .await
+            .into_response()
     }
 }
 "#;
@@ -196,37 +248,90 @@ impl WelcomeController {
     )
     .ok();
 
-    // 8. routes/mod.rs & routes/web.rs
+    // 10. src/routes/mod.rs, web.rs & api.rs
     fs::create_dir_all(base.join("src/routes")).ok();
-    fs::write(base.join("src/routes/mod.rs"), "pub mod web;\n").ok();
+    fs::write(
+        base.join("src/routes/mod.rs"),
+        "pub mod api;\npub mod web;\n",
+    )
+    .ok();
 
     let web_routes = r#"use lumina::prelude::*;
 use crate::app::controllers::welcome_controller::WelcomeController;
 
 //                            WEB ROUTING
-// Di sinilah kamu mendaftarkan semua URL (route) web untuk aplikasimu.
-// Konsepnya sama persis seperti `Route::get()` di Laravel!
-//
-// Cukup panggil method `.get()`, `.post()`, `.put()`, atau `.delete()`
-// dan hubungkan dengan fungsi yang ada di dalam Controller kamu.
+// Rute untuk web browser (HTML views, Blade templates, auth UI).
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        // Saat user mengakses URL "/" (halaman depan), panggil WelcomeController::index
+        // Halaman Utama Lumina (Dual Mode: HTML Dashboard di browser / JSON di API)
         .get("/", WelcomeController::index)
         
-        // Rute untuk halaman autentikasi (Login & Register)
+        // Rute autentikasi
         .get("/login", WelcomeController::login)
         .get("/register", WelcomeController::register)
-
-
-        // 👇 CONTOH MENAMBAH RUTE BARU:
-        // .get("/halo", WelcomeController::halo)
 }
 "#;
     fs::write(base.join("src/routes/web.rs"), web_routes).ok();
 
-    // 9. resources/views/layouts/app.blade.rs
+    let api_routes = r#"use lumina::prelude::*;
+use serde_json::json;
+
+//                            API ROUTING
+// Rute di sini otomatis diprefix dengan "/api" oleh Application engine.
+// Sangat ideal untuk membangun RESTful API, Microservices, dan Webhooks.
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .get("/", api_index)
+        .get("/health", api_health)
+        .get("/v1", api_v1_index)
+}
+
+/// Endpoint: GET /api
+async fn api_index() -> impl IntoResponse {
+    Json(json!({
+        "framework": "Lumina Framework",
+        "tagline": "The High-Performance Rust Backend for Modern APIs",
+        "version": "0.1.3",
+        "status": "online",
+        "endpoints": {
+            "health": "/api/health",
+            "v1": "/api/v1"
+        }
+    }))
+}
+
+/// Endpoint: GET /api/health
+async fn api_health(State(state): State<AppState>) -> impl IntoResponse {
+    let db_status = if let Some(pool) = &state.db {
+        if sqlx::query("SELECT 1").execute(&pool.pool).await.is_ok() {
+            "connected"
+        } else {
+            "error"
+        }
+    } else {
+        "disabled"
+    };
+
+    Json(json!({
+        "status": "ok",
+        "database": db_status,
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
+/// Endpoint: GET /api/v1
+async fn api_v1_index() -> impl IntoResponse {
+    Json(json!({
+        "version": "v1",
+        "message": "Lumina API v1 is ready. Register your controllers in src/routes/api.rs!"
+    }))
+}
+"#;
+    fs::write(base.join("src/routes/api.rs"), api_routes).ok();
+
+    // 11. resources/views/layouts/app.blade.rs
     let layout = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -236,7 +341,7 @@ pub fn router() -> Router<AppState> {
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -245,10 +350,22 @@ pub fn router() -> Router<AppState> {
         .heading-font {
             font-family: 'Space Grotesk', sans-serif;
         }
+        .mono-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
         .glass-nav {
-            background: rgba(17, 24, 39, 0.7);
-            backdrop-filter: blur(12px);
+            background: rgba(10, 15, 30, 0.75);
+            backdrop-filter: blur(16px);
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-card {
+            background: rgba(17, 24, 39, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-card:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+            box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.2);
         }
     </style>
 </head>
@@ -259,15 +376,23 @@ pub fn router() -> Router<AppState> {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16 items-center">
                 <div class="flex items-center space-x-3">
-                    <div class="w-9 h-9 bg-gradient-to-tr from-indigo-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                        <span class="text-white font-bold heading-font text-lg">L</span>
-                    </div>
-                    <span class="text-xl font-bold tracking-tight text-white heading-font">Lumina</span>
+                    <a href="/" class="flex items-center space-x-3">
+                        <div class="w-9 h-9 bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                            <span class="text-white font-black heading-font text-xl">⚡</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xl font-bold tracking-tight text-white heading-font">Lumina</span>
+                            <span class="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Backend</span>
+                        </div>
+                    </a>
                 </div>
                 <div class="flex items-center space-x-6">
-                    <a href="/" class="text-slate-300 hover:text-indigo-400 font-medium transition">Home</a>
-                    <a href="/login" class="text-slate-300 hover:text-indigo-400 font-medium transition">Login</a>
-                    <a href="/register" class="bg-indigo-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/30 transition-all">Get Started</a>
+                    <a href="/api" target="_blank" class="text-slate-300 hover:text-indigo-400 font-medium text-sm transition flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        API Endpoints
+                    </a>
+                    <a href="https://github.com/lumina-java/framework" target="_blank" class="text-slate-300 hover:text-indigo-400 font-medium text-sm transition">Docs</a>
+                    <a href="https://github.com/lumina-java/framework" target="_blank" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/20 transition-all">GitHub Repo</a>
                 </div>
             </div>
         </div>
@@ -275,15 +400,17 @@ pub fn router() -> Router<AppState> {
 
     <!-- Main Content Slot -->
     <main class="flex-grow">
-        {% block content %}{% endblock %}
+        @yield('content')
     </main>
 
     <!-- Footer Segment -->
-    <footer class="border-t border-slate-900 bg-black/40 py-8">
+    <footer class="border-t border-slate-900 bg-black/60 py-8">
         <div class="max-w-7xl mx-auto px-4 text-center text-slate-500 text-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div>&copy; 2026 Lumina Framework. All rights reserved.</div>
-            <div class="flex items-center gap-1 text-slate-400">
-                Engineered with <span class="text-red-500">❤️</span> in Rust for elegant speed.
+            <div class="flex items-center gap-2">
+                <span>&copy; 2026 <strong>Lumina Framework</strong>. All rights reserved.</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-slate-400">
+                Engineered with <span class="text-red-500">❤️</span> in <strong>Rust</strong> (Axum 0.7 + Tokio) for ultra-fast APIs.
             </div>
         </div>
     </footer>
@@ -293,107 +420,222 @@ pub fn router() -> Router<AppState> {
 "#;
     fs::write(base.join("resources/views/layouts/app.blade.rs"), layout).ok();
 
-    // 10. resources/views/welcome.blade.rs
-    let welcome = r#"{% extends "layouts/app.blade.rs" %}
+    // 12. resources/views/welcome.blade.rs (Laravel / Lumen Backend Homepage)
+    let welcome = r#"@extends('layouts.app')
 
-{% block content %}
-<div class="relative overflow-hidden pt-20 pb-32">
+@section('content')
+<div class="relative overflow-hidden pt-12 pb-24">
     <!-- Ambient Glow Effects -->
-    <div class="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none"></div>
-    <div class="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-pink-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+    <div class="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-indigo-600/15 rounded-full blur-[140px] pointer-events-none"></div>
+    <div class="absolute top-[20%] right-[-10%] w-[45vw] h-[45vw] bg-pink-600/10 rounded-full blur-[140px] pointer-events-none"></div>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <!-- Hero Section -->
         <div class="text-center max-w-4xl mx-auto">
-            <span class="inline-flex items-center gap-1.5 py-1 px-3 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 mb-8 uppercase tracking-wider">
-                ⚡ Premium Developer Experience
-            </span>
-            <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-8 heading-font leading-tight">
-                The <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">Elegance</span> of Rust<br> meets Laravel ease.
+            <div class="inline-flex items-center gap-2 py-1 px-3.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 mb-6 uppercase tracking-wider shadow-inner">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>Lumina v{{ version }} • High-Performance Rust Backend Engine</span>
+            </div>
+            <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-6 heading-font leading-tight">
+                The <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400">Elegance</span> of Laravel.<br>
+                The <span class="text-white underline decoration-indigo-500 decoration-wavy decoration-2">Raw Speed</span> of Rust.
             </h1>
-            <p class="text-lg md:text-xl text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed">
-                Lumina is a highly ergonomic web framework designed for developers who love lightning-fast performance, strict type safety, and beautiful expressive code. Focus on your business logic, let us handle the rest.
+            <p class="text-lg md:text-xl text-slate-400 max-w-3xl mx-auto mb-10 leading-relaxed">
+                Lumina is a developer-first Rust web framework specifically built for modern <strong>Backend APIs</strong>, microservices, and enterprise applications. Enjoy seamless routing, unified database pooling, and rapid scaffolding.
             </p>
             <div class="flex flex-wrap justify-center gap-4">
-                <a href="/register" class="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-semibold hover:bg-indigo-500 hover:shadow-lg hover:shadow-indigo-500/30 transition-all transform hover:-translate-y-0.5 active:scale-98">
-                    Launch New Account
+                <a href="/api" target="_blank" class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-7 py-3.5 rounded-xl font-bold hover:shadow-lg hover:shadow-indigo-500/25 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+                    <span>🚀 Inspect API Spec</span>
+                    <span class="text-xs bg-black/30 px-2 py-0.5 rounded-md mono-font">GET /api</span>
                 </a>
-                <a href="https://github.com/lumina-java/framework" target="_blank" class="bg-slate-900 text-slate-300 border border-slate-800 px-8 py-4 rounded-2xl font-semibold hover:bg-slate-800 hover:text-white transition-all transform hover:-translate-y-0.5">
-                    Explore Documentation
+                <a href="https://github.com/lumina-java/framework" target="_blank" class="bg-slate-900/80 text-slate-200 border border-slate-800 px-7 py-3.5 rounded-xl font-semibold hover:bg-slate-800 hover:text-white transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+                    <span>📖 Documentation</span>
                 </a>
             </div>
         </div>
 
-        <!-- Step-by-Step Beginner Guide -->
-        <div class="mt-28 bg-slate-900/50 border border-slate-800/80 rounded-3xl backdrop-filter backdrop-blur-sm p-8 md:p-12 text-left shadow-2xl">
-            <h2 class="text-3xl font-bold text-white mb-8 heading-font border-b border-slate-800 pb-4">🚀 Mari Mulai: Buat Halaman Pertamamu!</h2>
-            
-            <div class="space-y-8">
-                <!-- Step 1 -->
-                <div class="flex gap-4">
-                    <div class="w-10 h-10 shrink-0 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-lg">1</div>
-                    <div>
-                        <h3 class="text-xl font-bold text-indigo-300 mb-2">Buat View (HTML)</h3>
-                        <p class="text-slate-400 mb-3 text-sm">Buka folder <code class="bg-slate-800 text-indigo-300 px-2 py-1 rounded">resources/views/</code> dan buat file baru bernama <code class="bg-slate-800 text-indigo-300 px-2 py-1 rounded">halo.blade.rs</code>. Isi dengan kode HTML biasa:</p>
-                        <pre class="bg-black/60 p-4 rounded-xl text-sm text-emerald-300 overflow-x-auto border border-slate-800">
-&lt;h1&gt;Halo, Selamat datang di Lumina!&lt;/h1&gt;</pre>
-                    </div>
+        <!-- Telemetry Status Grid (Laravel / Lumen Health Badges) -->
+        <div class="mt-14 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="glass-card rounded-2xl p-5 text-left">
+                <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Framework Version</div>
+                <div class="text-xl font-bold text-white heading-font flex items-center gap-2">
+                    <span>Lumina {{ version }}</span>
                 </div>
+                <div class="text-xs text-indigo-400 mt-1">Rust {{ rust_edition }} Edition</div>
+            </div>
 
-                <!-- Step 2 -->
-                <div class="flex gap-4">
-                    <div class="w-10 h-10 shrink-0 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-lg">2</div>
-                    <div>
-                        <h3 class="text-xl font-bold text-indigo-300 mb-2">Buat Controller</h3>
-                        <p class="text-slate-400 mb-3 text-sm">Buka file <code class="bg-slate-800 text-indigo-300 px-2 py-1 rounded">src/app/controllers/welcome_controller.rs</code> dan tambahkan fungsi baru ini di dalam <code class="bg-slate-800 text-indigo-300 px-2 py-1 rounded">impl WelcomeController</code>:</p>
-                        <pre class="bg-black/60 p-4 rounded-xl text-sm text-emerald-300 overflow-x-auto border border-slate-800">
-// Fungsi ini akan merender file halo.blade.rs yang baru kita buat
-pub async fn halo(State(state): State&lt;AppState&gt;) -&gt; Html&lt;String&gt; {
-    let ctx = Context::new();
-    Html(state.view.render("halo.blade.rs", &ctx))
-}</pre>
-                    </div>
+            <div class="glass-card rounded-2xl p-5 text-left">
+                <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Runtime Engine</div>
+                <div class="text-xl font-bold text-white heading-font">Axum 0.7</div>
+                <div class="text-xs text-emerald-400 mt-1">Tokio Multi-Threaded Async</div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 text-left">
+                <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Database Driver</div>
+                <div class="text-xl font-bold text-white heading-font flex items-center gap-2">
+                    <span>{{ db_driver }}</span>
+                    <span class="w-2.5 h-2.5 rounded-full {% if db_status == 'connected' %}bg-emerald-400 shadow-sm shadow-emerald-400/50{% else %}bg-amber-400{% endif %}"></span>
                 </div>
+                <div class="text-xs {% if db_status == 'connected' %}text-emerald-400{% else %}text-amber-400{% endif %} mt-1 font-medium capitalize">{{ db_status }}</div>
+            </div>
 
-                <!-- Step 3 -->
-                <div class="flex gap-4">
-                    <div class="w-10 h-10 shrink-0 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-lg">3</div>
-                    <div>
-                        <h3 class="text-xl font-bold text-indigo-300 mb-2">Daftarkan Route</h3>
-                        <p class="text-slate-400 mb-3 text-sm">Buka file <code class="bg-slate-800 text-indigo-300 px-2 py-1 rounded">src/routes/web.rs</code> dan tambahkan URL baru ke router kamu:</p>
-                        <pre class="bg-black/60 p-4 rounded-xl text-sm text-emerald-300 overflow-x-auto border border-slate-800">
-pub fn router() -&gt; Router&lt;AppState&gt; {
-    Router::new()
-        .get("/", WelcomeController::index)
-        // Tambahkan baris ini 👇
-        .get("/halo", WelcomeController::halo)
-}</pre>
-                        <div class="mt-4 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
-                            <p class="text-slate-300 text-sm">🎉 <strong>Selesai!</strong> Sekarang buka <a href="/halo" target="_blank" class="text-indigo-400 font-bold hover:underline">http://localhost:8000/halo</a> di browser kamu!</p>
+            <div class="glass-card rounded-2xl p-5 text-left">
+                <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Environment</div>
+                <div class="text-xl font-bold text-white heading-font">Local</div>
+                <div class="text-xs text-slate-400 mt-1">Debug Mode Active</div>
+            </div>
+        </div>
+
+        <!-- Dual Mode Lumen API Showcase -->
+        <div class="mt-10 bg-slate-950/80 border border-slate-800 rounded-3xl p-6 md:p-8 backdrop-blur-md shadow-2xl text-left">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800/80 pb-5 mb-6">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-pink-500/20 text-pink-300 border border-pink-500/30">Dual-Mode API</span>
+                        <h2 class="text-xl font-bold text-white heading-font">Lumen-Style Headless JSON Response</h2>
+                    </div>
+                    <p class="text-slate-400 text-sm mt-1">Kirim header <code class="mono-font bg-slate-900 text-indigo-300 px-1.5 py-0.5 rounded">Accept: application/json</code> ke URL root (<code class="mono-font text-indigo-300">/</code>) untuk langsung menerima JSON spec.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="/?format=json" target="_blank" class="text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                        <span>Lihat Raw JSON</span>
+                        <span>↗</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Terminal Command -->
+                <div>
+                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">1. Coba Request via Terminal / cURL:</div>
+                    <div class="bg-black/90 rounded-2xl p-4 border border-slate-800 mono-font text-sm text-slate-300 relative group">
+                        <div class="flex items-center justify-between text-xs text-slate-500 pb-2 border-b border-slate-800/60 mb-3">
+                            <span>bash terminal</span>
+                            <span class="text-emerald-400 font-semibold">GET /</span>
+                        </div>
+                        <div class="overflow-x-auto text-pink-400 select-all">
+                            curl -H "Accept: application/json" http://127.0.0.1:8000/
                         </div>
                     </div>
                 </div>
+
+                <!-- JSON Response Preview -->
+                <div>
+                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">2. JSON Response yang Dihasilkan:</div>
+                    <pre class="bg-black/90 rounded-2xl p-4 border border-slate-800 mono-font text-xs text-emerald-400 overflow-x-auto leading-relaxed">
+{
+  <span class="text-slate-400">"name"</span>: <span class="text-amber-300">"Lumina Framework"</span>,
+  <span class="text-slate-400">"version"</span>: <span class="text-amber-300">"{{ version }}"</span>,
+  <span class="text-slate-400">"engine"</span>: <span class="text-amber-300">"Axum 0.7 + Tokio Async"</span>,
+  <span class="text-slate-400">"database"</span>: {
+    <span class="text-slate-400">"driver"</span>: <span class="text-amber-300">"{{ db_driver }}"</span>,
+    <span class="text-slate-400">"status"</span>: <span class="text-amber-300">"{{ db_status }}"</span>
+  },
+  <span class="text-slate-400">"documentation"</span>: <span class="text-amber-300">"https://github.com/lumina-java/framework"</span>
+}</pre>
+                </div>
             </div>
         </div>
+
+        <!-- Backend Capabilities Feature Cards -->
+        <div class="mt-14 grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+            <div class="glass-card rounded-3xl p-7 transition duration-300">
+                <div class="w-12 h-12 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center text-2xl mb-5">
+                    🛣️
+                </div>
+                <h3 class="text-xl font-bold text-white heading-font mb-2">Dedicated API Routing</h3>
+                <p class="text-slate-400 text-sm leading-relaxed mb-4">
+                    Pisahkan rute API dan Web dengan mudah. File <code class="mono-font bg-slate-900 text-indigo-300 px-1 rounded">src/routes/api.rs</code> otomatis diprefix dengan <code class="mono-font text-indigo-300">/api</code> lengkap dengan middleware CORS & Rate Limiter.
+                </p>
+                <a href="/api/health" target="_blank" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                    Cek /api/health <span>&rarr;</span>
+                </a>
+            </div>
+
+            <div class="glass-card rounded-3xl p-7 transition duration-300">
+                <div class="w-12 h-12 bg-pink-500/10 border border-pink-500/20 text-pink-400 rounded-2xl flex items-center justify-center text-2xl mb-5">
+                    🗄️
+                </div>
+                <h3 class="text-xl font-bold text-white heading-font mb-2">Unified Multi-DB Pool</h3>
+                <p class="text-slate-400 text-sm leading-relaxed mb-4">
+                    Gunakan SQLite untuk development lokal cepat tanpa setup, lalu beralih ke <strong>PostgreSQL</strong> atau <strong>MySQL</strong> di production cukup dengan mengubah file <code class="mono-font bg-slate-900 text-indigo-300 px-1 rounded">.env</code>.
+                </p>
+                <span class="text-xs font-semibold text-pink-400 flex items-center gap-1">
+                    PostgreSQL • MySQL • SQLite
+                </span>
+            </div>
+
+            <div class="glass-card rounded-3xl p-7 transition duration-300">
+                <div class="w-12 h-12 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-2xl flex items-center justify-center text-2xl mb-5">
+                    🪄
+                </div>
+                <h3 class="text-xl font-bold text-white heading-font mb-2">Active Record Models</h3>
+                <p class="text-slate-400 text-sm leading-relaxed mb-4">
+                    Tulis model database semudah di Laravel Eloquent dengan makro sakti <code class="mono-font bg-slate-900 text-indigo-300 px-1 rounded">#[derive(LuminaModel)]</code>. Otomatis menyediakan <code class="mono-font text-indigo-300">all()</code>, <code class="mono-font text-indigo-300">find(id)</code>, dan CRUD.
+                </p>
+                <a href="https://github.com/lumina-java/framework#models" target="_blank" class="text-xs font-semibold text-purple-400 hover:text-purple-300 flex items-center gap-1">
+                    Pelajari Makro Model <span>&rarr;</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Quick Start Guide -->
+        <div class="mt-14 bg-slate-900/40 border border-slate-800 rounded-3xl p-8 md:p-10 text-left">
+            <h3 class="text-2xl font-bold text-white heading-font mb-6 flex items-center gap-3">
+                <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-black">⚡</span>
+                <span>Cara Cepat Membuat API Endpoint Baru:</span>
+            </h3>
+
+            <div class="space-y-6">
+                <div class="flex gap-4">
+                    <div class="w-8 h-8 shrink-0 bg-indigo-500/20 text-indigo-300 rounded-full flex items-center justify-center font-bold text-sm border border-indigo-500/30">1</div>
+                    <div class="flex-grow">
+                        <div class="text-white font-semibold mb-1">Daftarkan rute di <code class="mono-font bg-slate-950 text-indigo-300 px-2 py-0.5 rounded text-sm">src/routes/api.rs</code></div>
+                        <pre class="bg-black/80 p-3.5 rounded-xl text-xs mono-font text-slate-300 overflow-x-auto border border-slate-800/80 mt-2">
+pub fn router() -> Router&lt;AppState&gt; {
+    Router::new()
+        .get("/products", get_products)
+}</pre>
+                    </div>
+                </div>
+
+                <div class="flex gap-4">
+                    <div class="w-8 h-8 shrink-0 bg-indigo-500/20 text-indigo-300 rounded-full flex items-center justify-center font-bold text-sm border border-indigo-500/30">2</div>
+                    <div class="flex-grow">
+                        <div class="text-white font-semibold mb-1">Kembalikan respons JSON dengan mudah:</div>
+                        <pre class="bg-black/80 p-3.5 rounded-xl text-xs mono-font text-slate-300 overflow-x-auto border border-slate-800/80 mt-2">
+async fn get_products() -> impl IntoResponse {
+    Json(serde_json::json!({
+        "status": "success",
+        "data": ["Rust", "Axum", "Lumina"]
+    }))
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
-{% endblock %}
+@endsection
 "#;
     fs::write(base.join("resources/views/welcome.blade.rs"), welcome).ok();
 
-    // 11. resources/views/auth/login.blade.rs
-    let login = r#"{% extends "layouts/app.blade.rs" %}
+    // 13. resources/views/auth/login.blade.rs & register.blade.rs
+    let login = r#"@extends('layouts.app')
 
-{% block content %}
+@section('content')
 <div class="min-h-[75vh] flex items-center justify-center px-4 relative">
     <div class="absolute w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none"></div>
 
     <div class="max-w-md w-full bg-slate-900/60 border border-slate-800/80 rounded-3xl p-10 backdrop-filter backdrop-blur-md shadow-2xl relative z-10">
         <div class="text-center mb-8">
             <h2 class="text-3xl font-extrabold heading-font text-white">Welcome Back</h2>
-            <p class="text-slate-400 mt-2">Enter your credentials to manage your account</p>
+            <p class="text-slate-400 mt-2 text-sm">Enter your credentials to manage your account</p>
         </div>
         
         <form action="/login" method="POST" class="space-y-6">
+            @csrf
             <div>
                 <label class="block text-sm font-semibold text-slate-300 mb-2">Email Address</label>
                 <input type="email" name="email" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="you@example.com" required>
@@ -412,24 +654,24 @@ pub fn router() -&gt; Router&lt;AppState&gt; {
         </p>
     </div>
 </div>
-{% endblock %}
+@endsection
 "#;
     fs::write(base.join("resources/views/auth/login.blade.rs"), login).ok();
 
-    // 12. resources/views/auth/register.blade.rs
-    let register = r#"{% extends "layouts/app.blade.rs" %}
+    let register = r#"@extends('layouts.app')
 
-{% block content %}
+@section('content')
 <div class="min-h-[75vh] flex items-center justify-center px-4 relative">
     <div class="absolute w-[400px] h-[400px] bg-pink-500/5 rounded-full blur-[100px] pointer-events-none"></div>
 
     <div class="max-w-md w-full bg-slate-900/60 border border-slate-800/80 rounded-3xl p-10 backdrop-filter backdrop-blur-md shadow-2xl relative z-10">
         <div class="text-center mb-8">
             <h2 class="text-3xl font-extrabold heading-font text-white">Create Account</h2>
-            <p class="text-slate-400 mt-2">Get started with the Lumina ecosystem</p>
+            <p class="text-slate-400 mt-2 text-sm">Get started with the Lumina ecosystem</p>
         </div>
         
         <form action="/register" method="POST" class="space-y-6">
+            @csrf
             <div>
                 <label class="block text-sm font-semibold text-slate-300 mb-2">Full Name</label>
                 <input type="text" name="name" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="John Doe" required>
@@ -452,7 +694,7 @@ pub fn router() -&gt; Router&lt;AppState&gt; {
         </p>
     </div>
 </div>
-{% endblock %}
+@endsection
 "#;
     fs::write(
         base.join("resources/views/auth/register.blade.rs"),
@@ -460,7 +702,7 @@ pub fn router() -&gt; Router&lt;AppState&gt; {
     )
     .ok();
 
-    // 13. database/migrations/0001_create_users_table.sql
+    // 14. database/migrations/0001_create_users_table.sql
     let migration = r#"-- Users Table Migration
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -478,7 +720,7 @@ CREATE TABLE IF NOT EXISTS users (
     )
     .ok();
 
-    // 14. src/app/models/mod.rs & user.rs
+    // 15. src/app/models/mod.rs & user.rs
     fs::write(base.join("src/app/models/mod.rs"), "pub mod user;\n").ok();
 
     let user_model = r#"#![allow(dead_code)]
@@ -488,12 +730,9 @@ use sqlx::FromRow;
 use lumina::prelude::*;
 
 //                            USER MODEL
-// Selamat datang di Model! Di Laravel, ini adalah class Eloquent (seperti `User extends Model`).
-// Lumina membuat database di Rust menjadi sangat indah dan simpel.
-
-// Cukup tambahkan `#[derive(LuminaModel)]`, dan Lumina otomatis membuatkan
-// fungsi sakti seperti `User::find(id)`, `User::all()`, `$user.save()`, dll
-// tanpa kamu perlu menulis SQL mentah sedikitpun! 🪄
+// Di Laravel, ini adalah class Eloquent (`User extends Model`).
+// Cukup tambahkan `#[derive(LuminaModel)]` untuk mendapatkan fungsi CRUD otomatis:
+// `User::find(id)`, `User::all()`, dll.
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel)]
 #[table("users")]
 pub struct User {
@@ -508,7 +747,6 @@ pub struct User {
 }
 
 impl User {
-    /// Membuat object User baru yang kosong (seperti `$user = new User()`)
     pub fn new() -> Self {
         Self::default()
     }
@@ -516,118 +754,79 @@ impl User {
 "#;
     fs::write(base.join("src/app/models/user.rs"), user_model).ok();
 
-    // 15. Auto-generate comprehensive, educational README.md
+    // 16. Auto-generate comprehensive README.md
     let readme = format!(
-        r#"# ⚡ Selamat Datang di Project Lumina Baru Kamu: {}
+        r#"# ⚡ Welcome to Your Lumina Backend Application: {}
 
-Selamat! Kamu telah berhasil membuat project baru dengan **Lumina Framework** — framework web berbasis Rust yang super cepat, aman, namun memiliki sintaks elegan dan semudah **Laravel**.
+Selamat! Anda telah berhasil menginisialisasi project baru dengan **Lumina Framework** — Web & RESTful API framework modern berbasis Rust (Axum 0.7 & Tokio Async) yang memadukan kecepatan komputasi sistem Rust dengan elegansi dan ergonomi sintaks **Laravel** dan **Lumen**.
 
 ---
 
-## 🚀 Panduan Menjalankan Project (Sangat Mudah!)
+## 🚀 Menjalankan Server Lokal (Quick Start)
 
-Secara default, project ini menggunakan database **SQLite** (file lokal). Artinya, **kamu tidak perlu repot menginstall database apapun** di komputer kamu untuk langsung mencoba framework ini!
+Secara default, project ini menggunakan database **SQLite** (file lokal). Anda dapat langsung menjalankan server tanpa perlu setup database external:
 
-Cukup ketik perintah ini di terminal kamu:
 ```bash
 cargo run
 ```
 
-Tunggu proses kompilasi Rust (hanya lama di awal), lalu buka browser dan kunjungi:
-👉 **[http://localhost:8000](http://localhost:8000)**
-
-Boom! Website kamu sudah berjalan! 🎉
+Akses di browser atau API client Anda:
+- 🌐 **Web Dashboard (Laravel Style)**: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- ⚡ **Lumen-Style Headless JSON Spec**:
+  ```bash
+  curl -H "Accept: application/json" http://127.0.0.1:8000/
+  ```
+- 🩺 **Health Check Endpoint**: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+- 🛣️ **REST API Base Path**: [http://127.0.0.1:8000/api](http://127.0.0.1:8000/api)
 
 ---
 
-## 🗄️ Mengubah Database ke MySQL
+## 🗄️ Beralih ke PostgreSQL atau MySQL
 
-Kalau kamu sudah siap mendeploy aplikasi atau ingin beralih ke MySQL, mengubahnya sangatlah gampang, persis seperti di Laravel.
+Lumina mendukung multi-driver database secara native. Cukup sesuaikan variabel di `.env`:
 
-**Langkah-langkah ganti ke MySQL:**
-1. Buka file `.env` di folder project ini.
-2. Cari bagian `# Database Configuration`.
-3. Matikan (hapus atau beri komentar `#`) konfigurasi SQLite.
-4. Ganti baris `DATABASE_URL` agar mengarah ke MySQL kamu.
-
-**Contoh isi `.env` untuk MySQL:**
+### Contoh PostgreSQL:
 ```env
-DB_CONNECTION=mysql
+DB_CONNECTION=postgres
 DB_HOST=127.0.0.1
-DB_PORT=3306
+DB_PORT=5432
 DB_DATABASE=nama_db_kamu
-DB_USERNAME=root
-DB_PASSWORD=password_rahasia
-
-# Variabel ini yang paling penting dan dibaca langsung oleh sistem:
-DATABASE_URL=mysql://root:password_rahasia@127.0.0.1:3306/nama_db_kamu
+DB_USERNAME=postgres
+DB_PASSWORD=secret
+DATABASE_URL=postgres://postgres:secret@127.0.0.1:5432/nama_db_kamu
 ```
 
-*Jangan lupa: Buat dulu database kosong bernama `nama_db_kamu` di phpMyAdmin / MySQL kamu!*
-
-Setelah itu, jalankan migrasi agar Lumina membuat tabel di MySQL:
+### Jalankan Migrasi Database:
 ```bash
-cargo lumina migrate
+lumina migrate
 ```
 
 ---
 
-## 📁 Penjelasan Struktur Folder (MVC)
+## 📁 Struktur Folder Proyek
 
-Struktur folder Lumina dibuat agar sangat familiar bagi programmer PHP/JS:
-
-*   **`src/`** — Di sinilah semua kode bahasa Rust kamu berada.
-    *   **`src/routes/web.rs`** — Tempat mendaftarkan URL (seperti `Route::get()`).
-    *   **`src/app/controllers/`** — Tempat menaruh logika aplikasi.
-    *   **`src/app/models/`** — File untuk mengakses database (CRUD).
-*   **`resources/views/`** — Tempat file HTML (dengan sintaks mirip Blade).
-*   **`database/migrations/`** — File SQL untuk membuat tabel database.
+```text
+├── Cargo.toml                  # Konfigurasi dependensi (Axum, Tokio, SQLx, Lumina)
+├── .env                        # Variabel environment (Database, App Secret, Port)
+├── src/
+│   ├── main.rs                 # Application entrypoint & HTTP server bootstrap
+│   ├── lib.rs                  # Module exports (app, routes) untuk modular testing
+│   ├── routes/
+│   │   ├── web.rs              # Route frontend / HTML views
+│   │   └── api.rs              # Route RESTful API (prefix /api)
+│   └── app/
+│       ├── controllers/        # Request handling & responses
+│       ├── models/             # Active Record models (#[derive(LuminaModel)])
+│       └── services/           # Business logic layer
+├── resources/views/            # Blade template views (.blade.rs)
+├── database/migrations/        # Migrasi skema database SQL
+└── tests/                      # Automated integration tests
+```
 
 ---
 
-## 💡 Cara Menambah Halaman Baru (Step-by-Step)
-
-Ingin membuat halaman `/tentang`? Cuma butuh 3 langkah!
-
-### Langkah 1: Buat Tampilan HTML (View)
-Buat file `resources/views/tentang.blade.rs`:
-```html
-{{% extends "layouts/app.blade.rs" %}}
-
-{{% block content %}}
-<div class="max-w-4xl mx-auto px-4 py-20 text-center">
-    <h1 class="text-4xl font-bold text-white">Tentang Kami</h1>
-    <p class="text-slate-400 mt-4">Ini adalah halaman baruku!</p>
-</div>
-{{% endblock %}}
-```
-
-### Langkah 2: Buat Logika (Controller)
-Buka `src/app/controllers/welcome_controller.rs` dan tambahkan fungsi ini ke dalam `impl WelcomeController`:
-```rust
-pub async fn tentang(req: Request) -> impl IntoResponse {{
-    req.view("tentang.blade.rs")
-       .with("title", "Tentang Kami")
-       .render(&req)
-       .await
-}}
-```
-
-### Langkah 3: Daftarkan URL (Route)
-Buka `src/routes/web.rs` dan tambahkan rutenya:
-```rust
-pub fn router() -> Router<AppState> {{
-    Router::new()
-        .get("/", WelcomeController::index)
-        .get("/tentang", WelcomeController::tentang) // <-- Tambahkan baris ini!
-}}
-```
-Jalankan ulang `cargo run` dan buka `http://localhost:8000/tentang`.
-
----
-
-## 🦀 Selamat Belajar Rust dengan Menyenangkan!
-Dengan Lumina, belajar bahasa sistem yang kompleks menjadi ramah dan asyik.
+## 🦀 Selamat Berkarya dengan Lumina Framework!
+Dokumentasi lengkap dan update framework: [github.com/lumina-java/framework](https://github.com/lumina-java/framework)
 "#,
         name
     );

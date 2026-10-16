@@ -1,12 +1,6 @@
-<<<<<<< HEAD
 use crate::core::application::AppState;
 use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
-=======
-use std::sync::Arc;
-use tokio_cron_scheduler::{Job, JobScheduler};
-use crate::core::application::AppState;
->>>>>>> dev/master
 
 /// Lumina Scheduler — wrapper untuk tokio-cron-scheduler.
 /// Memungkinkan penjadwalan tugas (cron jobs) langsung dari aplikasi.
@@ -18,13 +12,9 @@ pub struct Scheduler {
 impl Scheduler {
     /// Buat instance scheduler baru.
     pub async fn new(state: Arc<AppState>) -> Self {
-<<<<<<< HEAD
         let sched = JobScheduler::new()
             .await
             .expect("Gagal menginisialisasi Scheduler");
-=======
-        let sched = JobScheduler::new().await.expect("Gagal menginisialisasi Scheduler");
->>>>>>> dev/master
         Self { sched, state }
     }
 
@@ -39,7 +29,6 @@ impl Scheduler {
             Box::pin(async move {
                 fut.await;
             })
-<<<<<<< HEAD
         })
         .map_err(|e| format!("Cron error: {}", e))?;
 
@@ -47,20 +36,11 @@ impl Scheduler {
             .add(job)
             .await
             .map_err(|e| format!("Scheduler error: {}", e))?;
-=======
-        }).map_err(|e| format!("Cron error: {}", e))?;
-
-        self.sched.add(job).await.map_err(|e| format!("Scheduler error: {}", e))?;
->>>>>>> dev/master
         Ok(())
     }
 
     /// Entry point untuk membuat tugas dengan API yang fluent.
-<<<<<<< HEAD
     pub fn call<F, Fut>(&self, task_fn: F) -> ScheduledTask<'_, F, Fut>
-=======
-    pub fn call<F, Fut>(&self, task_fn: F) -> ScheduledTask<'_, F, Fut>
->>>>>>> dev/master
     where
         F: Fn() -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,

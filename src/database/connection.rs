@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 use sqlx::{any::AnyPoolOptions, Any, Pool};
-=======
-use sqlx::{Pool, Any, any::AnyPoolOptions};
->>>>>>> dev/master
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DatabaseKind {
@@ -48,4 +44,27 @@ impl DatabasePool {
     pub fn get_pool(&self) -> &Pool<Any> {
         &self.pool
     }
+
+    /// Menyesuaikan placeholder query secara otomatis berdasarkan driver database aktif.
+    /// SQLite/MySQL: tetap menggunakan `?`.
+    /// PostgreSQL: mentranslasikan `?` menjadi `$1, $2, $3, ...`.
+    pub fn prepare_sql(&self, sql: &str) -> String {
+        if self.kind == DatabaseKind::Postgres {
+            let mut result = String::with_capacity(sql.len() + 16);
+            let mut idx = 1;
+            for ch in sql.chars() {
+                if ch == '?' {
+                    result.push('$');
+                    result.push_str(&idx.to_string());
+                    idx += 1;
+                } else {
+                    result.push(ch);
+                }
+            }
+            result
+        } else {
+            sql.to_string()
+        }
+    }
 }
+

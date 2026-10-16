@@ -1,18 +1,8 @@
-<<<<<<< HEAD
 // use crate::app::models::user::User;
 use async_trait::async_trait;
 use axum::{extract::FromRequestParts, http::request::Parts};
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
-=======
-use serde::{Serialize, Deserialize};
-use async_trait::async_trait;
-use axum::{
-    extract::FromRequestParts,
-    http::request::Parts,
-};
-use crate::app::models::user::User;
->>>>>>> dev/master
 
 pub mod hash;
 pub mod socialite;
@@ -21,7 +11,6 @@ pub mod socialite;
 /// Berfungsi sebagai Model data JWT sekaligus Custom Extractor (Dependency Injection).
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AuthUser {
-<<<<<<< HEAD
     pub sub: String, // user_id
     pub email: String,
     pub role: String,
@@ -38,39 +27,18 @@ impl AuthUser {
         permissions: Vec<String>,
         hours: usize,
     ) -> Self {
-=======
-    pub sub:         String,   // user_id
-    pub email:       String,
-    pub role:        String,
-    pub permissions: Vec<String>,
-    pub exp:         usize,    // Unix timestamp — kapan token expire
-    pub iat:         usize,    // Unix timestamp — kapan token dibuat
-}
-
-impl AuthUser {
-    pub fn new(user_id: i64, email: String, role: String, permissions: Vec<String>, hours: usize) -> Self {
->>>>>>> dev/master
         use std::time::{SystemTime, UNIX_EPOCH};
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs() as usize;
         Self {
-<<<<<<< HEAD
             sub: user_id.to_string(),
             email,
             role,
             permissions,
             iat: now,
             exp: now + (hours * 3600),
-=======
-            sub:   user_id.to_string(),
-            email,
-            role,
-            permissions,
-            iat:   now,
-            exp:   now + (hours * 3600),
->>>>>>> dev/master
         }
     }
 
@@ -93,12 +61,8 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         // Ambil dari extension yang sudah disuntikkan oleh middleware auth
-<<<<<<< HEAD
         parts
             .extensions
-=======
-        parts.extensions
->>>>>>> dev/master
             .get::<Self>()
             .cloned()
             .ok_or(crate::core::error::AppError::Unauthorized)
@@ -118,20 +82,16 @@ impl Auth {
         self::hash::check(plain, hashed)
     }
 
-<<<<<<< HEAD
     /// Verifikasi apakah password cocok dengan hash.
     pub fn check(plain: &str, hashed: &str) -> bool {
         self::hash::check(plain, hashed)
     }
 
-=======
->>>>>>> dev/master
     /// Hasilkan AuthUser baru.
     pub fn user(user_id: i64, email: String, role: String, permissions: Vec<String>) -> AuthUser {
         AuthUser::new(user_id, email, role, permissions, 24)
     }
 
-<<<<<<< HEAD
     /// Simpan user ke session (Login).
     pub async fn login(session: &Session, auth_user: AuthUser) -> Result<(), tower_sessions::session::Error> {
         // Simpan User object untuk akses cepat via req.user
@@ -147,25 +107,5 @@ impl Auth {
     /// Hapus user dari session (Logout).
     pub async fn logout(session: &Session) {
         session.clear().await;
-=======
-    /// Simpan user ke session (Login) menggunakan Request.
-    pub async fn login(req: &crate::core::request::Request, user_model: User) {
-        let pool = req.db().clone();
-        let permissions = user_model.all_permissions(&pool).await.unwrap_or_default();
-        let auth_user = Self::user(user_model.id, user_model.email, user_model.role, permissions);
-
-        // Simpan User object untuk akses cepat via req.user
-        let _ = req.session.insert("user", auth_user.clone()).await;
-
-        // Simpan JWT untuk divalidasi oleh web_auth_required middleware
-        if let Ok(token) = crate::http::auth::generate_token(&auth_user) {
-            let _ = req.session.insert("jwt", token).await;
-        }
-    }
-
-    /// Hapus user dari session (Logout).
-    pub async fn logout(req: &crate::core::request::Request) {
-        req.session.clear().await;
->>>>>>> dev/master
     }
 }

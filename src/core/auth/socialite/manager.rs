@@ -1,12 +1,6 @@
-<<<<<<< HEAD
 use crate::core::auth::socialite::provider::SocialProvider;
 use std::collections::HashMap;
 use std::sync::Arc;
-=======
-use std::collections::HashMap;
-use std::sync::Arc;
-use crate::core::auth::socialite::provider::SocialProvider;
->>>>>>> dev/master
 
 pub struct SocialiteManager {
     providers: HashMap<String, Arc<dyn SocialProvider>>,

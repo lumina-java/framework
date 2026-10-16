@@ -1,5 +1,4 @@
 use axum::response::IntoResponse;
-<<<<<<< HEAD
 use lumina::core::response::Redirect;
 use lumina::core::view::View;
 use serde_json::json;
@@ -8,16 +7,6 @@ use crate::app::models::user::User;
 use lumina::core::validation::ValidatedForm;
 use lumina::core::request::Request;
 use lumina::lumina_form;
-=======
-use crate::core::response::Redirect;
-use crate::core::view::View;
-use serde_json::json;
-use crate::core::auth::Auth;
-use crate::app::models::user::User;
-use crate::core::validation::ValidatedForm;
-use crate::core::request::Request;
-use lumina_macros::lumina_form;
->>>>>>> dev/master
 
 #[lumina_form]
 pub struct RegisterForm {
@@ -93,15 +82,9 @@ impl AuthController {
         }
 
         // 3. Proses Simpan
-<<<<<<< HEAD
         let hashed_password = lumina::core::auth::hash::make(&form.password);
         
         let result = sqlx::query("INSERT INTO users (name, email, password, role, created_at, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
-=======
-        let hashed_password = crate::core::auth::hash::make(&form.password);
-
-        let result = sqlx::query("INSERT INTO users (name, email, password, role, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())")
->>>>>>> dev/master
             .bind(&form.name).bind(&form.email).bind(&hashed_password).bind("user")
             .execute(&req.state.db().pool).await;
 

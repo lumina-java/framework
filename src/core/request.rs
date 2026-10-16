@@ -1,23 +1,20 @@
-<<<<<<< HEAD
 use crate::core::application::AppState;
 use crate::core::auth::AuthUser;
+use crate::core::error::AppError;
 use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
 use axum_csrf::CsrfToken;
+use std::collections::HashMap;
 use tower_sessions::Session;
-=======
-use axum::{
-    async_trait,
-    extract::FromRequestParts,
-    http::request::Parts,
-};
-use tower_sessions::Session;
-use axum_csrf::CsrfToken;
-use crate::core::application::AppState;
-use crate::core::auth::AuthUser;
->>>>>>> dev/master
+
+/// Type alias untuk controller handler return type yang cantik dan ekspresif.
+/// Menggantikan `Result<impl IntoResponse, AppError>` menjadi hanya `LuminaResult`.
+pub type LuminaResult<T = axum::response::Response> = std::result::Result<T, AppError>;
+
+/// Alias alternatif untuk LuminaResult.
+pub type HttpResult<T = axum::response::Response> = LuminaResult<T>;
 
 /// Request — Bundle Extractor untuk menyederhanakan Dependency Injection.
-/// Menyediakan akses cepat ke State, Session, dan CsrfToken dalam satu parameter.
+/// Menyediakan akses cepat ke State, Session, CSRF, Path Params, Query Params, dan Helper Response dalam satu parameter.
 pub struct Request {
     pub state: AppState,
     pub session: Session,
@@ -25,6 +22,8 @@ pub struct Request {
     pub user: Option<AuthUser>,
     pub headers: axum::http::HeaderMap,
     pub extensions: axum::http::Extensions,
+    pub uri: axum::http::Uri,
+    pub params: HashMap<String, String>,
 }
 
 #[async_trait]
@@ -37,19 +36,13 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
-<<<<<<< HEAD
 
         let session = parts
             .extensions
-=======
-
-        let session = parts.extensions
->>>>>>> dev/master
             .get::<Session>()
             .cloned()
             .ok_or(crate::core::error::AppError::InternalServerError)?;
 
-<<<<<<< HEAD
         let token = CsrfToken::from_request_parts(parts, state)
             .await
             .map_err(|_| crate::core::error::AppError::InternalServerError)?;
@@ -59,14 +52,17 @@ where
             .extensions
             .get::<AuthUser>()
             .cloned()
-=======
-        let token = CsrfToken::from_request_parts(parts, state).await
-            .map_err(|_| crate::core::error::AppError::InternalServerError)?;
-
-        // Cek user dari extension (Middleware) atau Session
-        let user = parts.extensions.get::<AuthUser>().cloned()
->>>>>>> dev/master
             .or(session.get::<AuthUser>("user").await.unwrap_or_default());
+
+        let uri = parts.uri.clone();
+
+        let params = match axum::extract::RawPathParams::from_request_parts(parts, state).await {
+            Ok(raw) => raw
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect::<HashMap<String, String>>(),
+            Err(_) => HashMap::new(),
+        };
 
         Ok(Self {
             state: app_state,
@@ -75,6 +71,8 @@ where
             user,
             headers: parts.headers.clone(),
             extensions: parts.extensions.clone(),
+            uri,
+            params,
         })
     }
 }
@@ -82,26 +80,6 @@ where
 use axum::extract::FromRef;
 
 impl Request {
-<<<<<<< HEAD
-=======
-    /// Cek apakah request berasal dari HTMX.
-    pub fn is_htmx(&self) -> bool {
-        self.headers.contains_key("HX-Request")
-    }
-
-    /// Ambil target HTMX (HX-Target header).
-    pub fn hx_target(&self) -> Option<String> {
-        self.headers
-            .get("HX-Target")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string())
-    }
-
-    /// Cek apakah request adalah HTMX Boosted.
-    pub fn is_htmx_boosted(&self) -> bool {
-        self.headers.contains_key("HX-Boosted")
-    }
->>>>>>> dev/master
 
     /// Shortcut untuk mengambil instance DatabasePool.
     pub fn db(&self) -> &crate::database::connection::DatabasePool {
@@ -110,15 +88,11 @@ impl Request {
 
     /// Shortcut untuk mengambil Arc<DatabasePool>.
     pub fn db_arc(&self) -> std::sync::Arc<crate::database::connection::DatabasePool> {
-<<<<<<< HEAD
         self.state
             .db
             .as_ref()
             .expect("Database connection is not available")
             .clone()
-=======
-        self.state.db.as_ref().expect("Database connection is not available").clone()
->>>>>>> dev/master
     }
 
     /// Shortcut untuk mengambil user yang sedang login.
@@ -138,12 +112,8 @@ impl Request {
 
     /// Shortcut untuk redirect kembali ke halaman asal (Referer).
     pub fn back(&self) -> crate::core::response::Redirect {
-<<<<<<< HEAD
         let referer = self
             .headers
-=======
-        let referer = self.headers
->>>>>>> dev/master
             .get(axum::http::header::REFERER)
             .and_then(|h| h.to_str().ok())
             .unwrap_or("/");
@@ -189,9 +159,238 @@ impl Request {
         None
     }
 
+    /// Mengambil nilai header HTTP sebagai string slice.
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers.get(name).and_then(|v| v.to_str().ok())
+    }
+
+    /// Cek apakah client meminta response berformat JSON (ala Laravel $request->wantsJson()).
+    /// Memeriksa header Accept untuk 'application/json' atau '*/*'.
+    pub fn wants_json(&self) -> bool {
+        if let Some(accept) = self.header("accept") {
+            accept.contains("application/json")
+        } else {
+            false
+        }
+    }
+
+    /// Cek apakah request payload bertipe JSON (Content-Type: application/json).
+    pub fn is_json(&self) -> bool {
+        if let Some(content_type) = self.header("content-type") {
+            content_type.contains("application/json")
+        } else {
+            false
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  PARAMETER & QUERY HELPERS (ALA LARAVEL $request->...)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Ambil nilai path parameter (misal: :id pada route /api/contacts/:id).
+    pub fn param(&self, key: &str) -> Option<&str> {
+        self.params.get(key).map(|s| s.as_str())
+    }
+
+    /// Ambil nilai path parameter dan parse ke tipe data tujuan.
+    pub fn param_as<T: std::str::FromStr>(&self, key: &str) -> Option<T> {
+        self.param(key).and_then(|s| s.parse::<T>().ok())
+    }
+
+    /// Shortcut untuk mengambil ID dari route parameter (misal: :id).
+    pub fn id(&self) -> Option<i64> {
+        self.param_as::<i64>("id")
+    }
+
+    /// Ambil ID dari route parameter atau kembalikan AppError::BadRequest jika tidak ada atau tidak valid.
+    pub fn id_or_fail(&self) -> Result<i64, AppError> {
+        self.id().ok_or_else(|| AppError::BadRequest("Parameter ID wajib diberikan dan harus angka".to_string()))
+    }
+
+    /// Ambil nilai query string berdasarkan nama key (misal: ?search=budi).
+    pub fn query_val(&self, key: &str) -> Option<String> {
+        let q = self.uri.query()?;
+        for pair in q.split('&') {
+            let mut parts = pair.splitn(2, '=');
+            if let Some(k) = parts.next() {
+                if k == key {
+                    let v = parts.next().unwrap_or("");
+                    let decoded = v.replace('+', " ");
+                    return Some(decoded);
+                }
+            }
+        }
+        None
+    }
+
+    /// Ambil nomor halaman dari query parameter `?page=X` (default: 1).
+    pub fn page(&self) -> usize {
+        self.query_val("page")
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(1)
+            .max(1)
+    }
+
+    /// Ambil jumlah per halaman dari query parameter `?per_page=X` atau `?limit=X` (default: default_per_page).
+    pub fn per_page(&self, default_per_page: usize) -> usize {
+        self.query_val("per_page")
+            .or_else(|| self.query_val("limit"))
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(default_per_page)
+            .max(1)
+    }
+
+    /// Shortcut mengambil tuple (page, per_page) untuk paginasi instan ala Laravel.
+    /// Default per_page adalah 10 jika tidak ditentukan di URL (?page=1&per_page=10).
+    pub fn pagination(&self) -> (usize, usize) {
+        (self.page(), self.per_page(10))
+    }
+
+    /// Deserialize seluruh query string ke dalam struct bertipe T.
+    pub fn query<T: serde::de::DeserializeOwned>(&self) -> Result<T, AppError> {
+        let q = self.uri.query().unwrap_or("");
+        serde_urlencoded::from_str(q).map_err(|e| AppError::BadRequest(format!("Format query parameter tidak valid: {}", e)))
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  RESPONSE HELPERS (MENGEMBALIKAN LuminaResult / Ok(Response))
+    // ─────────────────────────────────────────────────────────────────────────
+
     /// Shortcut untuk mengembalikan JSON response secara instan.
-    pub fn json<T: serde::Serialize>(&self, value: T) -> axum::response::Response {
+    pub fn json<T: serde::Serialize>(&self, value: T) -> LuminaResult {
         use axum::response::IntoResponse;
-        axum::Json(value).into_response()
+        Ok(axum::Json(value).into_response())
+    }
+
+    /// Mengembalikan response JSON standar HTTP 200 OK:
+    /// `{ "success": true, "data": ... }`
+    pub fn ok<T: serde::Serialize>(&self, data: T) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok(axum::Json(serde_json::json!({
+            "success": true,
+            "data": data
+        })).into_response())
+    }
+
+    /// Mengembalikan response JSON HTTP 200 OK dengan pesan sukses kustom:
+    /// `{ "success": true, "message": "...", "data": ... }`
+    pub fn success<T: serde::Serialize>(&self, data: T, message: &str) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok(axum::Json(serde_json::json!({
+            "success": true,
+            "message": message,
+            "data": data
+        })).into_response())
+    }
+
+    /// Mengembalikan response JSON HTTP 201 Created:
+    /// `{ "success": true, "data": ... }`
+    pub fn created<T: serde::Serialize>(&self, data: T) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok((
+            axum::http::StatusCode::CREATED,
+            axum::Json(serde_json::json!({
+                "success": true,
+                "data": data
+            }))
+        ).into_response())
+    }
+
+    /// Mengembalikan response JSON HTTP 201 Created dengan pesan:
+    pub fn created_with<T: serde::Serialize>(&self, data: T, message: &str) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok((
+            axum::http::StatusCode::CREATED,
+            axum::Json(serde_json::json!({
+                "success": true,
+                "message": message,
+                "data": data
+            }))
+        ).into_response())
+    }
+
+    /// Mengembalikan response HTTP 204 No Content
+    pub fn no_content(&self) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok(axum::http::StatusCode::NO_CONTENT.into_response())
+    }
+
+    /// Mengembalikan response JSON HTTP 404 Not Found:
+    /// `{ "success": false, "error": "..." }`
+    pub fn not_found(&self, message: &str) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok((
+            axum::http::StatusCode::NOT_FOUND,
+            axum::Json(serde_json::json!({
+                "success": false,
+                "error": message
+            }))
+        ).into_response())
+    }
+
+    /// Mengembalikan response JSON HTTP 400 Bad Request:
+    /// `{ "success": false, "error": "..." }`
+    pub fn bad_request(&self, message: &str) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok((
+            axum::http::StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({
+                "success": false,
+                "error": message
+            }))
+        ).into_response())
+    }
+
+    /// Mengembalikan response JSON HTTP 401 Unauthorized
+    pub fn unauthorized(&self, message: &str) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok((
+            axum::http::StatusCode::UNAUTHORIZED,
+            axum::Json(serde_json::json!({
+                "success": false,
+                "error": message
+            }))
+        ).into_response())
+    }
+
+    /// Mengembalikan response JSON HTTP 403 Forbidden
+    pub fn forbidden(&self, message: &str) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok((
+            axum::http::StatusCode::FORBIDDEN,
+            axum::Json(serde_json::json!({
+                "success": false,
+                "error": message
+            }))
+        ).into_response())
+    }
+
+    /// Mengembalikan response JSON HTTP 422 Unprocessable Entity (Validasi error)
+    pub fn unprocessable<E: serde::Serialize>(&self, errors: E, message: &str) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok((
+            axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+            axum::Json(serde_json::json!({
+                "success": false,
+                "message": message,
+                "errors": errors
+            }))
+        ).into_response())
+    }
+
+    /// Mengembalikan response JSON data paginasi bergaya Laravel:
+    /// `{ "success": true, "data": [...], "meta": { "total": ..., "current_page": ..., "last_page": ..., "per_page": ... } }`
+    pub fn paginate<T: serde::Serialize>(&self, paginator: crate::database::orm::LengthAwarePaginator<T>) -> LuminaResult {
+        use axum::response::IntoResponse;
+        Ok(axum::Json(serde_json::json!({
+            "success": true,
+            "data": paginator.items,
+            "meta": {
+                "total": paginator.total,
+                "current_page": paginator.current_page,
+                "last_page": paginator.last_page,
+                "per_page": paginator.per_page
+            }
+        })).into_response())
     }
 }

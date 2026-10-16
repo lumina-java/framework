@@ -4,11 +4,7 @@ use syn::{parse_macro_input, Attribute, ItemStruct, LitStr};
 
 /// Attribute macro untuk mendeklarasikan Validasi Form dengan gaya yang lebih manusiawi.
 /// Contoh:
-<<<<<<< HEAD
 /// ```rust,ignore
-=======
-/// ```rust
->>>>>>> dev/master
 /// #[lumina_form]
 /// pub struct RegisterForm {
 ///     #[rule("required|min:3")]
@@ -41,17 +37,11 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
                                 length_msg = "Field ini wajib diisi".to_string();
                             }
                         } else if rule == "email" {
-<<<<<<< HEAD
                             validate_tokens
                                 .push(quote! { email(message = "Format email tidak valid") });
                         } else if rule == "url" {
                             validate_tokens
                                 .push(quote! { url(message = "Format URL tidak valid") });
-=======
-                            validate_tokens.push(quote! { email(message = "Format email tidak valid") });
-                        } else if rule == "url" {
-                            validate_tokens.push(quote! { url(message = "Format URL tidak valid") });
->>>>>>> dev/master
                         } else if rule.starts_with("min:") {
                             if let Some(val) = rule.strip_prefix("min:") {
                                 if let Ok(num) = val.parse::<u64>() {
@@ -63,13 +53,9 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             if let Some(val) = rule.strip_prefix("max:") {
                                 if let Ok(num) = val.parse::<u64>() {
                                     max_val = Some(num);
-<<<<<<< HEAD
                                     if length_msg == "Field ini wajib diisi"
                                         || length_msg == "Format panjang karakter tidak sesuai"
                                     {
-=======
-                                    if length_msg == "Field ini wajib diisi" || length_msg == "Format panjang karakter tidak sesuai" {
->>>>>>> dev/master
                                         length_msg = format!("Maksimal {} karakter", num);
                                     }
                                 }
@@ -86,11 +72,7 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             length_args.push(quote! { max = #max });
                         }
                         length_args.push(quote! { message = #length_msg });
-<<<<<<< HEAD
 
-=======
-
->>>>>>> dev/master
                         validate_tokens.push(quote! { length(#(#length_args),*) });
                     }
                 }
@@ -123,29 +105,31 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Derive macro untuk mengimplementasikan trait Model secara otomatis.
 /// Ini menghilangkan boilerplate SQL manual untuk operasi CRUD standar.
-<<<<<<< HEAD
-#[proc_macro_derive(LuminaModel, attributes(table, primary_key, column))]
+#[proc_macro_derive(LuminaModel, attributes(table, primary_key, column, lumina))]
 pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
     let name = &input.ident;
 
-    // Ambil nama tabel dari atribut #[table("...")]
-    let table_name = input
-        .attrs
-        .iter()
-=======
-#[proc_macro_derive(LuminaModel, attributes(table))]
-pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as ItemStruct);
-    let name = &input.ident;
-
-    // Ambil nama tabel dari atribut #[table("...")]
-    let table_name = input.attrs.iter()
->>>>>>> dev/master
-        .find(|attr| attr.path().is_ident("table"))
-        .and_then(|attr| attr.parse_args::<LitStr>().ok())
-        .map(|lit| lit.value())
-        .unwrap_or_else(|| format!("{}s", name.to_string().to_lowercase()));
+    // Ambil nama tabel dari atribut #[table("...")] atau #[lumina(table = "...")]
+    let mut table_name = format!("{}s", name.to_string().to_lowercase());
+    for attr in &input.attrs {
+        if attr.path().is_ident("table") {
+            if let Ok(lit) = attr.parse_args::<LitStr>() {
+                table_name = lit.value();
+            }
+        } else if attr.path().is_ident("lumina") {
+            let _ = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("table") {
+                    let value = meta.value()?;
+                    let s: LitStr = value.parse()?;
+                    table_name = s.value();
+                    Ok(())
+                } else {
+                    Ok(())
+                }
+            });
+        }
+    }
 
     // Ambil nama-nama field untuk query SELECT dan INSERT
     let fields = if let syn::Fields::Named(ref fields) = input.fields {
@@ -154,7 +138,6 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
         panic!("LuminaModel hanya bisa digunakan pada struct dengan named fields");
     };
 
-<<<<<<< HEAD
     // Cari nama field primary key (default "id" jika tidak ada atribut #[primary_key])
     let primary_key_field = fields
         .iter()
@@ -173,15 +156,35 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
                 .map(|lit| lit.value())
                 .unwrap_or_else(|| f.ident.as_ref().unwrap().to_string())
         })
-=======
-    let field_names: Vec<String> = fields.iter()
-        .map(|f| f.ident.as_ref().unwrap().to_string())
->>>>>>> dev/master
         .collect();
 
-    // Field names untuk SELECT (semua field)
-    let select_fields = field_names.join(", ");
-<<<<<<< HEAD
+    let primary_key_ident = syn::Ident::new(&primary_key_field, proc_macro2::Span::call_site());
+
+    // Field names untuk SELECT SQLite / MySQL (CAST timestamp ke TEXT agar selalu cocok dengan Option<String>)
+    let select_fields = field_names
+        .iter()
+        .map(|n| {
+            if n == "created_at" || n == "updated_at" || n == "deleted_at" {
+                format!("CAST({} AS TEXT) as {}", n, n)
+            } else {
+                n.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    // Field names untuk SELECT PostgreSQL (format timestamp dengan to_char agar aman didecode ke Option<String>)
+    let pg_select_fields = field_names
+        .iter()
+        .map(|n| {
+            if n == "created_at" || n == "updated_at" || n == "deleted_at" {
+                format!("to_char({}, 'YYYY-MM-DD HH24:MI:SS') as {}", n, n)
+            } else {
+                n.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
 
     // Field names untuk INSERT (lewati primary key & timestamp auto)
     let insert_fields: Vec<String> = field_names
@@ -190,25 +193,28 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
         .cloned()
         .collect();
 
-=======
-
-    // Field names untuk INSERT (lewati 'id')
-    let insert_fields: Vec<String> = field_names.iter()
-        .filter(|&n| n != "id" && n != "created_at" && n != "updated_at" && n != "deleted_at")
-        .cloned()
-        .collect();
-
->>>>>>> dev/master
     let insert_placeholders = vec!["?"; insert_fields.len()].join(", ");
     let insert_sql_fields = insert_fields.join(", ");
 
-    // Bindings untuk INSERT
-    let insert_bindings = insert_fields.iter().map(|n| {
+    let update_set_clause = insert_fields
+        .iter()
+        .map(|n| format!("{} = ?", n))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    // Bindings untuk INSERT & UPDATE
+    let insert_bindings_pg: Vec<_> = insert_fields.iter().map(|n| {
+        let ident = syn::Ident::new(n, proc_macro2::Span::call_site());
+        quote! { .bind(&self.#ident) }
+    }).collect();
+
+    let insert_bindings_other = insert_bindings_pg.clone();
+
+    let update_bindings = insert_fields.iter().map(|n| {
         let ident = syn::Ident::new(n, proc_macro2::Span::call_site());
         quote! { .bind(&self.#ident) }
     });
 
-<<<<<<< HEAD
     let pk_clause = format!("{} = ?", primary_key_field);
 
     let expanded = quote! {
@@ -217,74 +223,158 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
             const TABLE: &'static str = #table_name;
 
             async fn find(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
-                let sql = format!("SELECT {} FROM {} WHERE {} AND deleted_at IS NULL", #select_fields, Self::TABLE, #pk_clause);
-=======
-    let expanded = quote! {
-        #[async_trait::async_trait]
-        impl crate::database::model::Model for #name {
-            const TABLE: &'static str = #table_name;
-
-            async fn find(pool: &crate::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
-                let sql = format!("SELECT {} FROM {} WHERE id = ? AND deleted_at IS NULL", #select_fields, Self::TABLE);
->>>>>>> dev/master
+                let is_pg = pool.kind == lumina::database::connection::DatabaseKind::Postgres;
+                let select_cols = if is_pg { #pg_select_fields } else { #select_fields };
+                let sql = format!("SELECT {} FROM {} WHERE {} AND deleted_at IS NULL", select_cols, Self::TABLE, #pk_clause);
+                let sql = pool.prepare_sql(&sql);
                 sqlx::query_as::<_, Self>(&sql)
                     .bind(id)
                     .fetch_one(&pool.pool)
                     .await
             }
 
-<<<<<<< HEAD
             async fn all(pool: &lumina::database::connection::DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
-                let sql = format!("SELECT {} FROM {} WHERE deleted_at IS NULL ORDER BY {} DESC", #select_fields, Self::TABLE, #primary_key_field);
-=======
-            async fn all(pool: &crate::database::connection::DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
-                let sql = format!("SELECT {} FROM {} WHERE deleted_at IS NULL ORDER BY id DESC", #select_fields, Self::TABLE);
->>>>>>> dev/master
+                let is_pg = pool.kind == lumina::database::connection::DatabaseKind::Postgres;
+                let select_cols = if is_pg { #pg_select_fields } else { #select_fields };
+                let sql = format!("SELECT {} FROM {} WHERE deleted_at IS NULL ORDER BY {} DESC", select_cols, Self::TABLE, #primary_key_field);
+                let sql = pool.prepare_sql(&sql);
                 sqlx::query_as::<_, Self>(&sql)
                     .fetch_all(&pool.pool)
                     .await
             }
 
-<<<<<<< HEAD
+            /// Simpan record ke database. Jika record memiliki ID > 0, lakukan UPDATE. Jika ID == 0, lakukan INSERT.
             async fn save(&self, pool: &lumina::database::connection::DatabasePool) -> Result<i64, sqlx::Error> {
-=======
-            async fn save(&self, pool: &crate::database::connection::DatabasePool) -> Result<i64, sqlx::Error> {
->>>>>>> dev/master
-                let sql = format!(
-                    "INSERT INTO {} ({}) VALUES ({})",
-                    Self::TABLE,
-                    #insert_sql_fields,
-                    #insert_placeholders
-                );
-<<<<<<< HEAD
-
-=======
-
->>>>>>> dev/master
-                let result = sqlx::query(&sql)
-                    #(#insert_bindings)*
-                    .execute(&pool.pool)
-                    .await?;
-<<<<<<< HEAD
-
-                Ok(result.last_insert_id().unwrap_or(0))
+                if self.#primary_key_ident > 0 {
+                    let sql = format!(
+                        "UPDATE {} SET {}, updated_at = CURRENT_TIMESTAMP WHERE {}",
+                        Self::TABLE,
+                        #update_set_clause,
+                        #pk_clause
+                    );
+                    let sql = pool.prepare_sql(&sql);
+                    sqlx::query(&sql)
+                        #(#update_bindings)*
+                        .bind(self.#primary_key_ident)
+                        .execute(&pool.pool)
+                        .await?;
+                    Ok(self.#primary_key_ident)
+                } else {
+                    let is_pg = pool.kind == lumina::database::connection::DatabaseKind::Postgres;
+                    if is_pg {
+                        let sql = format!(
+                            "INSERT INTO {} ({}) VALUES ({}) RETURNING {}",
+                            Self::TABLE,
+                            #insert_sql_fields,
+                            #insert_placeholders,
+                            #primary_key_field
+                        );
+                        let sql = pool.prepare_sql(&sql);
+                        let row: (i64,) = sqlx::query_as(&sql)
+                            #(#insert_bindings_pg)*
+                            .fetch_one(&pool.pool)
+                            .await?;
+                        Ok(row.0)
+                    } else {
+                        let sql = format!(
+                            "INSERT INTO {} ({}) VALUES ({})",
+                            Self::TABLE,
+                            #insert_sql_fields,
+                            #insert_placeholders
+                        );
+                        let sql = pool.prepare_sql(&sql);
+                        let result = sqlx::query(&sql)
+                            #(#insert_bindings_other)*
+                            .execute(&pool.pool)
+                            .await?;
+                        let inserted_id = result.last_insert_id().unwrap_or(0);
+                        if inserted_id > 0 {
+                            Ok(inserted_id)
+                        } else {
+                            let sql_max = format!("SELECT COALESCE(MAX({}), 0) FROM {}", #primary_key_field, Self::TABLE);
+                            let row: (i64,) = sqlx::query_as(&sql_max).fetch_one(&pool.pool).await.unwrap_or((0,));
+                            Ok(row.0)
+                        }
+                    }
+                }
             }
 
             async fn delete(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
                 let sql = format!("UPDATE {} SET deleted_at = CURRENT_TIMESTAMP WHERE {}", Self::TABLE, #pk_clause);
-=======
-
-                Ok(result.last_insert_id().unwrap_or(0))
-            }
-
-            async fn delete(pool: &crate::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
-                let sql = format!("UPDATE {} SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?", Self::TABLE);
->>>>>>> dev/master
+                let sql = pool.prepare_sql(&sql);
                 sqlx::query(&sql)
                     .bind(id)
                     .execute(&pool.pool)
                     .await?;
                 Ok(true)
+            }
+        }
+
+        impl #name {
+            /// Ambil semua record aktif (Laravel: Model::all())
+            pub async fn all(pool: &lumina::database::connection::DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
+                <Self as lumina::database::model::Model>::all(pool).await
+            }
+
+            /// Ambil satu record berdasarkan ID. Mengembalikan `Ok(Some(item))` jika ada, `Ok(None)` jika tidak ada (Laravel: Model::find(id)).
+            pub async fn find(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<Option<Self>, sqlx::Error> {
+                match <Self as lumina::database::model::Model>::find(pool, id).await {
+                    Ok(item) => Ok(Some(item)),
+                    Err(sqlx::Error::RowNotFound) => Ok(None),
+                    Err(e) => Err(e),
+                }
+            }
+
+            /// Ambil satu record atau error jika tidak ada (Laravel: Model::findOrFail(id))
+            pub async fn find_or_fail(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
+                <Self as lumina::database::model::Model>::find(pool, id).await
+            }
+
+            /// Hapus record berdasarkan primary key (Laravel: Model::destroy(id))
+            pub async fn destroy(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
+                <Self as lumina::database::model::Model>::delete(pool, id).await
+            }
+
+            /// Mulai QueryBuilder dinamis (Laravel: Model::query())
+            pub fn query<'a>(pool: &'a lumina::database::connection::DatabasePool) -> lumina::database::orm::QueryBuilder<'a, Self> {
+                <Self as lumina::database::model::Model>::query(pool)
+            }
+
+            /// Query dengan kondisi WHERE column = value (Laravel: Model::where('col', 'val'))
+            pub fn where_eq<'a, V>(pool: &'a lumina::database::connection::DatabasePool, column: &'a str, value: V) -> lumina::database::orm::QueryBuilder<'a, Self>
+            where
+                V: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
+            {
+                <Self as lumina::database::model::Model>::where_eq(pool, column, value)
+            }
+
+            /// Shortcut untuk ORDER BY created_at DESC (Laravel: Model::latest())
+            pub fn latest<'a>(pool: &'a lumina::database::connection::DatabasePool) -> lumina::database::orm::QueryBuilder<'a, Self> {
+                <Self as lumina::database::model::Model>::latest(pool)
+            }
+
+            /// Paginasi data langsung dari model (Laravel: Model::paginate(15))
+            pub async fn paginate(
+                pool: &lumina::database::connection::DatabasePool,
+                page: usize,
+                per_page: usize,
+            ) -> Result<lumina::database::orm::LengthAwarePaginator<Self>, sqlx::Error> {
+                <Self as lumina::database::model::Model>::paginate(pool, page, per_page).await
+            }
+
+            /// Hitung total record aktif (Laravel: Model::count())
+            pub async fn count(pool: &lumina::database::connection::DatabasePool) -> Result<i64, sqlx::Error> {
+                <Self as lumina::database::model::Model>::count(pool).await
+            }
+
+            /// Simpan perubahan pada instance record ini ke database (Laravel: $model->save())
+            pub async fn save(&self, pool: &lumina::database::connection::DatabasePool) -> Result<i64, sqlx::Error> {
+                <Self as lumina::database::model::Model>::save(self, pool).await
+            }
+
+            /// Soft delete instance record ini (Laravel: $model->delete())
+            pub async fn delete(&self, pool: &lumina::database::connection::DatabasePool) -> Result<bool, sqlx::Error> {
+                <Self as lumina::database::model::Model>::delete(pool, self.#primary_key_ident).await
             }
         }
     };

@@ -1,10 +1,5 @@
-<<<<<<< HEAD
 use crate::database::connection::DatabasePool;
 use async_trait::async_trait;
-=======
-use async_trait::async_trait;
-use crate::database::connection::DatabasePool;
->>>>>>> dev/master
 
 /// Trait yang harus diimplementasikan oleh setiap seeder.
 #[async_trait]
@@ -20,13 +15,9 @@ pub struct DatabaseSeeder {
 
 impl DatabaseSeeder {
     pub fn new() -> Self {
-<<<<<<< HEAD
         Self {
             seeders: Vec::new(),
         }
-=======
-        Self { seeders: Vec::new() }
->>>>>>> dev/master
     }
 
     /// Tambahkan seeder ke daftar eksekusi.

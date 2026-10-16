@@ -1,21 +1,10 @@
 use axum::response::IntoResponse;
-<<<<<<< HEAD
 use serde_json::json;
 use lumina::core::request::Request;
 use crate::app::models::{{snake_name}}::{{name}};
 use crate::app::services::{{snake_name}}_service::{{name}}Service;
 use crate::app::requests::{{snake_name}}_request::{{name}}Request;
 use lumina::core::validation::ValidatedForm;
-=======
-use crate::core::response::Redirect;
-use crate::core::view::View;
-use serde_json::json;
-use crate::core::request::Request;
-use crate::app::models::{{snake_name}}::{{name}};
-use crate::app::services::{{snake_name}}_service::{{name}}Service;
-use crate::app::requests::{{snake_name}}_request::{{name}}Request;
-use crate::core::validation::ValidatedForm;
->>>>>>> dev/master
 
 pub struct {{name}}Controller;
 
@@ -48,7 +37,6 @@ impl {{name}}Controller {
             return req.redirect("/{{snake_name}}s/create").with_error("Invalid CSRF Token").go(&req).await
         }
 
-<<<<<<< HEAD
         let mut item = {{name}}::new();
         {{store_logic}}
 
@@ -57,13 +45,6 @@ impl {{name}}Controller {
             Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data {{name}} berhasil disimpan!").go(&req).await,
             Err(e) => req.redirect("/{{snake_name}}s/create")
                 .with_input(json!({ {{input_map}} }))
-=======
-        let service = {{name}}Service::new(req.db_arc());
-        match service.create(form.name).await {
-            Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data {{name}} berhasil disimpan!").go(&req).await,
-            Err(e) => req.redirect("/{{snake_name}}s/create")
-                .with_input(json!({"name": form.name}))
->>>>>>> dev/master
                 .with_error(&format!("Gagal menyimpan data: {}", e))
                 .go(&req).await
         }
@@ -91,7 +72,6 @@ impl {{name}}Controller {
             return req.redirect(&format!("/{{snake_name}}s/{}/edit", id)).with_error("Invalid CSRF Token").go(&req).await
         }
 
-<<<<<<< HEAD
         let mut item = {{name}}::new();
         {{update_logic}}
 
@@ -100,13 +80,6 @@ impl {{name}}Controller {
             Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data {{name}} berhasil diupdate!").go(&req).await,
             Err(e) => req.redirect(&format!("/{{snake_name}}s/{}/edit", id))
                 .with_input(json!({ {{input_map}} }))
-=======
-        let service = {{name}}Service::new(req.db_arc());
-        match service.update(id, form.name).await {
-            Ok(_) => req.redirect("/{{snake_name}}s").with_success("Data {{name}} berhasil diupdate!").go(&req).await,
-            Err(e) => req.redirect(&format!("/{{snake_name}}s/{}/edit", id))
-                .with_input(json!({"name": form.name}))
->>>>>>> dev/master
                 .with_error(&format!("Gagal update data: {}", e))
                 .go(&req).await
         }

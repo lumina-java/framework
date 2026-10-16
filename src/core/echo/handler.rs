@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 use crate::core::application::AppState;
 use crate::core::echo::broadcaster::ChannelAuthRequest;
 use crate::core::echo::manager::EchoMessage;
@@ -19,33 +18,18 @@ use uuid::Uuid;
 pub struct WsQueryParams {
     pub token: Option<String>,
 }
-=======
-use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, State},
-    response::IntoResponse,
-};
-use futures::{sink::SinkExt, stream::StreamExt};
-use uuid::Uuid;
-use crate::core::application::AppState;
-use crate::core::echo::manager::EchoMessage;
-use serde::Deserialize;
->>>>>>> dev/master
 
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct ClientMessage {
     event: String,
     channel: Option<String>,
-<<<<<<< HEAD
     token: Option<String>,
-=======
->>>>>>> dev/master
     data: Option<serde_json::Value>,
 }
 
 pub async fn echo_handler(
     ws: WebSocketUpgrade,
-<<<<<<< HEAD
     Query(params): Query<WsQueryParams>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
@@ -76,14 +60,6 @@ pub async fn echo_auth_handler(
 }
 
 async fn handle_socket(socket: WebSocket, state: AppState, connection_token: Option<String>) {
-=======
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
-}
-
-async fn handle_socket(socket: WebSocket, state: AppState) {
->>>>>>> dev/master
     let (mut sender, mut receiver) = socket.split();
     let id = Uuid::new_v4();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<EchoMessage>();
@@ -103,10 +79,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
     // Task untuk menerima pesan dari client (subscribe/unsubscribe)
     let echo_manager = state.echo.clone();
-<<<<<<< HEAD
     let conn_id_str = id.to_string();
-=======
->>>>>>> dev/master
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
             if let Message::Text(text) = msg {
@@ -114,7 +87,6 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     match client_msg.event.as_str() {
                         "subscribe" => {
                             if let Some(channel) = client_msg.channel {
-<<<<<<< HEAD
                                 let auth_token = client_msg
                                     .token
                                     .as_deref()
@@ -123,9 +95,6 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                 if echo_manager.is_authorized(&channel, auth_token) {
                                     echo_manager.subscribe(id, &channel);
                                 }
-=======
-                                echo_manager.subscribe(id, &channel);
->>>>>>> dev/master
                             }
                         }
                         "unsubscribe" => {

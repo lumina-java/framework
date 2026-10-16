@@ -1,10 +1,5 @@
-<<<<<<< HEAD
 use crate::core::auth::AuthUser;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-=======
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, Algorithm};
-use crate::core::auth::AuthUser;
->>>>>>> dev/master
 
 /// Generate JWT token dari AuthUser.
 pub fn generate_token(user: &AuthUser) -> Result<String, jsonwebtoken::errors::Error> {

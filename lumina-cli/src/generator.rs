@@ -122,29 +122,63 @@ pub fn generate_controller(name: &str) {
     let code = format!(
         r#"use lumina::prelude::*;
 
+// =========================================================================
+//  {class} CONTROLLER
+// =========================================================================
+
 pub struct {class};
 
 impl {class} {{
-    pub async fn index(State(state): State<AppState>) -> Html<String> {{
-        let mut ctx = Context::new();
-        ctx.insert("title", "{base}");
-        Html(state.view.render("{lower}/index.blade.rs", &ctx))
+    /// GET /{lower} — Ambil semua data
+    pub async fn index(req: Request) -> LuminaResult {{
+        req.ok(serde_json::json!({{
+            "message": "List of {base}",
+            "status": "success"
+        }}))
     }}
 
-    pub async fn create(State(state): State<AppState>) -> Html<String> {{
-        let mut ctx = Context::new();
-        ctx.insert("title", "Create {base}");
-        Html(state.view.render("{lower}/create.blade.rs", &ctx))
+    /// GET /{lower}/paged — Paginasi data otomatis dari ?page=X&per_page=Y
+    pub async fn paginate(req: Request) -> LuminaResult {{
+        let (page, per_page) = req.pagination();
+        req.ok(serde_json::json!({{
+            "page": page,
+            "per_page": per_page,
+            "message": "Paged {base}"
+        }}))
     }}
 
-    pub async fn show(State(state): State<AppState>) -> Html<String> {{
-        let mut ctx = Context::new();
-        Html(state.view.render("{lower}/show.blade.rs", &ctx))
+    /// POST /{lower} — Simpan data baru
+    pub async fn store(req: Request) -> LuminaResult {{
+        req.created(serde_json::json!({{
+            "message": "{base} created successfully"
+        }}))
     }}
 
-    pub async fn edit(State(state): State<AppState>) -> Html<String> {{
-        let mut ctx = Context::new();
-        Html(state.view.render("{lower}/edit.blade.rs", &ctx))
+    /// GET /{lower}/:id — Ambil satu detail data
+    pub async fn show(req: Request) -> LuminaResult {{
+        let id = req.id_or_fail()?;
+        req.ok(serde_json::json!({{
+            "id": id,
+            "message": "{base} detail"
+        }}))
+    }}
+
+    /// PUT /{lower}/:id — Update data
+    pub async fn update(req: Request) -> LuminaResult {{
+        let id = req.id_or_fail()?;
+        req.ok(serde_json::json!({{
+            "id": id,
+            "message": "{base} updated successfully"
+        }}))
+    }}
+
+    /// DELETE /{lower}/:id — Hapus data
+    pub async fn destroy(req: Request) -> LuminaResult {{
+        let id = req.id_or_fail()?;
+        req.ok(serde_json::json!({{
+            "id": id,
+            "message": "{base} deleted successfully"
+        }}))
     }}
 }}
 "#,
@@ -162,7 +196,7 @@ impl {class} {{
 
     print_success(&format!("Controller: {}", path));
     print_hint(&format!(
-        "Register routes in src/routes/web.rs using {}::index etc.",
+        "Register routes in src/routes/api.rs or web.rs using {}::index etc.",
         class_full
     ));
 }
@@ -178,20 +212,22 @@ pub fn generate_model(name: &str) {
     let table = format!("{}s", lower);
 
     let code = format!(
-        r#"#![allow(dead_code)]
-use async_trait::async_trait;
+        r#"use lumina::prelude::*;
 use serde::{{Serialize, Deserialize}};
 use sqlx::FromRow;
-use lumina::database::{{connection::DatabasePool, model::Model}};
 
 // =========================================================================
-//  {class} MODEL
+//  {class} MODEL (Eloquent / Active Record)
 // =========================================================================
 
-#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel)]
+#[lumina(table = "{table}")]
 pub struct {class} {{
     pub id: i64,
-    // TODO: add your fields here
+    // Add custom fields here, e.g.:
+    // pub name: String,
+    // pub description: Option<String>,
+
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
     pub deleted_at: Option<String>,
@@ -200,32 +236,6 @@ pub struct {class} {{
 impl {class} {{
     pub fn new() -> Self {{
         Self::default()
-    }}
-}}
-
-#[async_trait]
-impl Model for {class} {{
-    const TABLE: &'static str = "{table}";
-
-    async fn find(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error> {{
-        Self::query(pool).where_eq("id", id).first().await
-    }}
-
-    async fn all(pool: &DatabasePool) -> Result<Vec<Self>, sqlx::Error> {{
-        Self::query(pool).get().await
-    }}
-
-    async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {{
-        // TODO: implement insert / update logic
-        Ok(self.id)
-    }}
-
-    async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {{
-        sqlx::query("UPDATE {table} SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
-            .bind(id)
-            .execute(&pool.pool)
-            .await?;
-        Ok(true)
     }}
 }}
 "#,

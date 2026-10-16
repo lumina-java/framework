@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 use serde::{Deserialize, Serialize};
-=======
->>>>>>> dev/master
 use serde_json::Value;
 
 pub trait ShouldBroadcast {
@@ -23,7 +20,6 @@ pub trait ShouldBroadcast {
         serde_json::json!({})
     }
 }
-<<<<<<< HEAD
 
 /// Request otorisasi channel private
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -41,5 +37,3 @@ pub struct ChannelAuthResponse {
     pub channel: String,
     pub authorized: bool,
 }
-=======
->>>>>>> dev/master

@@ -29,7 +29,6 @@ pub async fn store(req: Request, ValidatedForm(form): ValidatedForm<MyForm>) -> 
 
 ---
 
-<<<<<<< HEAD
 ## 📡 2. WebSocket & Event Broadcasting (Production Ready)
 
 Fitur WebSocket bawaan untuk fitur real-time seperti obrolan dan notifikasi.
@@ -75,9 +74,6 @@ Lumina menyediakan endpoint pemantauan kesehatan serta keamanan produksi bawaan:
 ---
 
 ## 🔐 4. Autentikasi & Keamanan (Facade Auth)
-=======
-## 🔐 2. Autentikasi & Keamanan (Facade Auth)
->>>>>>> dev/master
 
 Hindari path panjang, gunakan Facade `Auth`.
 
@@ -99,11 +95,7 @@ let user = Auth::user(id, email, role);
 
 ---
 
-<<<<<<< HEAD
 ## 🔗 5. ORM & Relasi Database
-=======
-## 🔗 3. ORM & Relasi Database
->>>>>>> dev/master
 
 Gunakan Trait `Model` untuk interaksi database yang elegan.
 
@@ -125,11 +117,7 @@ let users = User::query(db).with("posts").get().await?;
 
 ---
 
-<<<<<<< HEAD
 ## 🚀 6. Redirect, Flash & CSRF
-=======
-## 🚀 4. Redirect, Flash & CSRF
->>>>>>> dev/master
 
 Sistem feedback user yang sangat ringkas.
 
@@ -150,11 +138,7 @@ Redirect::back(&req_parts)
 
 ---
 
-<<<<<<< HEAD
 ## 🐞 7. Debugging Pro
-=======
-## 🐞 5. Debugging Pro
->>>>>>> dev/master
 
 Jangan biarkan bug bersembunyi.
 
@@ -162,21 +146,11 @@ Jangan biarkan bug bersembunyi.
 // Dump and Die (Browser akan menampilkan data dengan cantik dan berhenti di situ)
 crate::dd!(variabel_anda);
 
-<<<<<<< HEAD
-=======
-// 🚀 HTMX (Zero-Mouse UI)
-// Lumina otomatis mendukung partial rendering di layout.blade.rs
-// Cukup gunakan hx-boost="true" pada tag body.
->>>>>>> dev/master
 ```
 
 ---
 
-<<<<<<< HEAD
 ## ⌨️ 8. CLI Tools (Keyboardholic)
-=======
-## ⌨️ 6. CLI Tools (Keyboardholic)
->>>>>>> dev/master
 
 | Perintah | Fungsi |
 | :--- | :--- |
@@ -187,14 +161,4 @@ crate::dd!(variabel_anda);
 
 ---
 
-<<<<<<< HEAD
-=======
-## 💡 Saran Pengembangan Berikutnya (Next Skills)
-
-1.  **Validation Macros**: Deklarasi validasi non-teknis `required|email|unique`.
-2.  **Global Middleware Groups**: Kemudahan registrasi middleware dalam grup (web, api, auth).
-3.  **Lumina Blueprint**: CLI yang lebih pintar untuk generate seluruh CRUD sekaligus.
-4.  **Task Scheduling**: Menjalankan cron jobs bergaya Laravel.
-
->>>>>>> dev/master
 > **Dokumentasi Lengkap:** [DOCUMENTATION.md](./DOCUMENTATION.md)

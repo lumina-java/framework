@@ -525,89 +525,118 @@ impl HomeController {
 
 ---
 
-## Model & Database
+## Model & Lumina Eloquent ORM
 
-### Model Trait
+Lumina hadir dengan **ORM Mandiri (Eloquent / Active Record)** yang anggun dan ekspresif. Anda tidak perlu lagi menulis raw SQL query string atau melakukan konversi parameter manual (`?` vs `$1`). Lumina menangani cross-database query (PostgreSQL, SQLite, MySQL) secara transparan!
 
-Setiap model mengimplementasikan trait `Model` dari `crate::database::model`:
+### Mendeklarasikan Model (`#[derive(LuminaModel)]`)
+
+Cukup tambahkan derive `LuminaModel` pada struct model Anda:
 
 ```rust
-use async_trait::async_trait;
-use serde::{Serialize, Deserialize};
+use lumina::prelude::*;
+use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use crate::database::{connection::DatabasePool, model::Model};
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel)]
+#[lumina(table = "products")]
 pub struct Product {
-    pub id:    i64,
-    pub name:  String,
-    pub price: f64,
+    pub id: i64,
+    pub name: String,
+    pub price: i64,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub deleted_at: Option<String>,
 }
 
-#[async_trait]
-impl Model for Product {
-    const TABLE: &'static str = "products";
-
-    async fn find(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
-        sqlx::query_as::<_, Product>(
-            "SELECT id, name, price FROM products WHERE id = ? AND deleted_at IS NULL"
-        )
-        .bind(id)
-        .fetch_one(&pool.pool)
-        .await
-    }
-
-    async fn all(pool: &DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
-        sqlx::query_as::<_, Product>(
-            "SELECT id, name, price FROM products WHERE deleted_at IS NULL ORDER BY id ASC"
-        )
-        .fetch_all(&pool.pool)
-        .await
-    }
-
-    async fn save(&self, pool: &DatabasePool) -> Result<i64, sqlx::Error> {
-        let result = sqlx::query(
-            "INSERT INTO products (name, price) VALUES (?, ?)"
-        )
-        .bind(&self.name)
-        .bind(self.price)
-        .execute(&pool.pool)
-        .await?;
-        Ok(result.last_insert_id().unwrap_or(0))
-    }
-
-    async fn delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
-        sqlx::query(
-            "UPDATE products SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?"
-        )
-        .bind(id)
-        .execute(&pool.pool)
-        .await?;
-        Ok(true)
+impl Product {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 ```
 
-### Menggunakan Model di Controller
+Dengan satu derive di atas, Anda langsung mendapatkan fitur Eloquent lengkap:
+- `Product::all(db).await?` — Ambil semua record aktif (ORDER BY id DESC).
+- `Product::find(db, id).await?` — Mengembalikan `Ok(Some(item))` atau `Ok(None)`.
+- `Product::find_or_fail(db, id).await?` — Mengembalikan record atau error jika tidak ada.
+- `Product::where_eq(db, "name", "Sepatu").first().await?` — Fluent query builder.
+- `Product::latest(db).paginate(page, per_page).await?` — Paginasi bawaan.
+- `Product::count(db).await?` — Hitung total record aktif.
+- `$model.save(db).await?` — Otomatis `INSERT` jika ID == 0, atau `UPDATE` jika ID > 0.
+- `Product::destroy(db, id).await?` / `$model.delete(db).await?` — Soft delete instan.
+
+---
+
+### Controller yang Cantik & Ergonomis (Laravel Style)
+
+Dengan `Request` extractor dan `LuminaResult`, controller Anda menjadi sangat ringkas, bersih, dan ekspresif. Tidak ada lagi signature yang panjang atau konversi status code manual:
 
 ```rust
-use crate::database::model::Model;
+use lumina::prelude::*;
 use crate::app::models::product::Product;
 
-pub async fn index(State(state): State<Arc<AppState>>) -> Json<Value> {
-    match Product::all(&state.db).await {
-        Ok(products) => Json(json!({"status": "success", "data": products})),
-        Err(e)       => Json(json!({"status": "error", "message": e.to_string()})),
-    }
-}
+pub struct ProductController;
 
-pub async fn show(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<i64>
-) -> Json<Value> {
-    match Product::find(&state.db, id).await {
-        Ok(product) => Json(json!({"status": "success", "data": product})),
-        Err(_)      => Json(json!({"status": "error", "message": "Not found"})),
+impl ProductController {
+    /// GET /api/products — Ambil seluruh data
+    pub async fn index(req: Request) -> LuminaResult {
+        let products = Product::all(req.db()).await?;
+        req.ok(products)
+    }
+
+    /// GET /api/products/paged — Paginasi instan (otomatis membaca ?page=X&per_page=Y)
+    pub async fn paginate(req: Request) -> LuminaResult {
+        let (page, per_page) = req.pagination();
+        let paginator = Product::paginate(req.db(), page, per_page).await?;
+        req.paginate(paginator)
+    }
+
+    /// GET /api/products/:id — Detail satu produk (otomatis membaca :id dari route)
+    pub async fn show(req: Request) -> LuminaResult {
+        let id = req.id_or_fail()?;
+        match Product::find(req.db(), id).await? {
+            Some(product) => req.ok(product),
+            None => req.not_found("Produk tidak ditemukan"),
+        }
+    }
+
+    /// POST /api/products — Simpan data baru (Active Record)
+    pub async fn store(req: Request, ValidatedJson(input): ValidatedJson<CreateProductInput>) -> LuminaResult {
+        let mut product = Product {
+            name: input.name,
+            price: input.price,
+            ..Default::default()
+        };
+        let id = product.save(req.db()).await?;
+        product.id = id;
+        req.created_with(product, "Produk berhasil ditambahkan")
+    }
+
+    /// PUT /api/products/:id — Update data
+    pub async fn update(
+        req: Request,
+        ValidatedJson(input): ValidatedJson<UpdateProductInput>,
+    ) -> LuminaResult {
+        let id = req.id_or_fail()?;
+        let mut product = match Product::find(req.db(), id).await? {
+            Some(p) => p,
+            None => return req.not_found("Produk tidak ditemukan"),
+        };
+        product.name = input.name;
+        product.price = input.price;
+        product.save(req.db()).await?;
+        req.success(product, "Produk berhasil diperbarui")
+    }
+
+    /// DELETE /api/products/:id — Hapus data
+    pub async fn destroy(req: Request) -> LuminaResult {
+        let id = req.id_or_fail()?;
+        if Product::destroy(req.db(), id).await? {
+            req.success(serde_json::json!({ "id": id }), "Produk berhasil dihapus")
+        } else {
+            req.not_found("Produk tidak ditemukan")
+        }
     }
 }
 ```

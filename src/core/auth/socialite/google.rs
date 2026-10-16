@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 use crate::core::auth::socialite::provider::{SocialProvider, SocialUser};
 use async_trait::async_trait;
 use oauth2::{
@@ -7,17 +6,6 @@ use oauth2::{
 };
 use reqwest::Client;
 use serde::Deserialize;
-=======
-use async_trait::async_trait;
-use oauth2::{
-    basic::BasicClient,
-    AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl,
-    AuthorizationCode, TokenResponse, Scope,
-};
-use reqwest::Client;
-use serde::Deserialize;
-use crate::core::auth::socialite::provider::{SocialProvider, SocialUser};
->>>>>>> dev/master
 
 pub struct GoogleProvider {
     client: BasicClient,
@@ -56,7 +44,6 @@ impl SocialProvider for GoogleProvider {
     }
 
     fn get_redirect_url(&self) -> String {
-<<<<<<< HEAD
         let (auth_url, _csrf_token) = self
             .client
             .authorize_url(oauth2::CsrfToken::new_random)
@@ -66,12 +53,6 @@ impl SocialProvider for GoogleProvider {
             .add_scope(Scope::new(
                 "https://www.googleapis.com/auth/userinfo.profile".to_string(),
             ))
-=======
-        let (auth_url, _csrf_token) = self.client
-            .authorize_url(oauth2::CsrfToken::new_random)
-            .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.email".to_string()))
-            .add_scope(Scope::new("https://www.googleapis.com/auth/userinfo.profile".to_string()))
->>>>>>> dev/master
             .url();
 
         auth_url.to_string()
@@ -79,12 +60,8 @@ impl SocialProvider for GoogleProvider {
 
     async fn get_user_by_code(&self, code: String) -> Result<SocialUser, String> {
         // Exchange code for token
-<<<<<<< HEAD
         let token_result = self
             .client
-=======
-        let token_result = self.client
->>>>>>> dev/master
             .exchange_code(AuthorizationCode::new(code))
             .request_async(oauth2::reqwest::async_http_client)
             .await
@@ -93,12 +70,8 @@ impl SocialProvider for GoogleProvider {
         let access_token = token_result.access_token().secret();
 
         // Fetch user info from Google API
-<<<<<<< HEAD
         let user_info = self
             .http_client
-=======
-        let user_info = self.http_client
->>>>>>> dev/master
             .get("https://www.googleapis.com/oauth2/v1/userinfo")
             .bearer_auth(access_token)
             .send()

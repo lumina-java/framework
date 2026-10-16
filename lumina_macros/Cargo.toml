@@ -1,7 +1,11 @@
 [package]
 name = "lumina_macros"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
+authors = ["Lumina Java <admin@lumina-java.com>"]
+description = "Procedural macros for Lumina Framework (LuminaModel derive and form validation)"
+license = "MIT"
+repository = "https://github.com/lumina-java/framework"
 
 [lib]
 proc-macro = true

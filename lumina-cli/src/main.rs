@@ -4,7 +4,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::fs;
 use std::path::Path;
 
-<<<<<<< HEAD
 mod generator;
 mod skeleton;
 
@@ -16,17 +15,6 @@ mod skeleton;
     about = "⚡ Lumina Framework CLI — Build fast, build beautiful.",
     long_about = None
 )]
-=======
-#[derive(Parser)]
-#[command(name = "cargo")]
-#[command(bin_name = "cargo")]
-enum Cargo {
-    Lumina(LuminaCli),
-}
-
-#[derive(clap::Args)]
-#[command(author, version, about, long_about = None)]
->>>>>>> dev/master
 struct LuminaCli {
     #[command(subcommand)]
     command: Commands,
@@ -34,7 +22,6 @@ struct LuminaCli {
 
 #[derive(Subcommand)]
 enum Commands {
-<<<<<<< HEAD
     /// Create a new Lumina project from skeleton
     New {
         /// The name of the new project
@@ -111,23 +98,11 @@ enum Commands {
 
 fn main() {
     let args = LuminaCli::parse();
-=======
-    /// Create a new Lumina project
-    New {
-        /// The name of the project
-        name: String,
-    },
-}
-
-fn main() {
-    let Cargo::Lumina(args) = Cargo::parse();
->>>>>>> dev/master
 
     match args.command {
         Commands::New { name } => {
             handle_new_project(&name);
         }
-<<<<<<< HEAD
         Commands::Serve => {
             generator::cmd_serve();
         }
@@ -167,13 +142,10 @@ fn main() {
         Commands::MakeSupervisor => {
             generator::generate_supervisor();
         }
-=======
->>>>>>> dev/master
     }
 }
 
 fn handle_new_project(name: &str) {
-<<<<<<< HEAD
     println!(
         "{}",
         "✨ Welcome to Lumina Framework".bright_purple().bold()
@@ -192,24 +164,6 @@ fn handle_new_project(name: &str) {
 
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-=======
-    println!("{}", "✨ Welcoming you to Lumina Framework".bright_purple().bold());
-    println!("🚀 Creating new project: {}\n", name.bright_blue());
-
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner()
-        .template("{spinner:.green} {msg}")
-        .unwrap());
-
-    pb.set_message("Downloading Lumina skeleton...");
-    pb.enable_steady_tick(std::time::Duration::from_millis(120));
-
-    // Simulation of download (In real world: reqwest::blocking::get(URL))
-    std::thread::sleep(std::time::Duration::from_secs(2));
-
-    pb.set_message("Extracting files...");
-
->>>>>>> dev/master
     let path = Path::new(name);
     if path.exists() {
         pb.finish_with_message("❌ Error: Directory already exists!");
@@ -221,65 +175,13 @@ fn handle_new_project(name: &str) {
         std::process::exit(1);
     }
 
-<<<<<<< HEAD
     pb.set_message("Building project structure...");
     skeleton::create_full_skeleton(path, name);
-=======
-    // In a real implementation, we would extract a ZIP here.
-    // For this demonstration, we'll create the basic structure.
-    create_skeleton(path, name);
->>>>>>> dev/master
 
     pb.finish_with_message("✅ Project created successfully!");
 
     println!("\n{}", "Next steps:".bright_green().bold());
-<<<<<<< HEAD
     println!("  cd {}", name.bright_cyan());
     println!("  lumina serve\n");
     println!("{}", "Happy coding! 🦀".bright_yellow());
-=======
-    println!("  cd {}", name);
-    println!("  cp .env.example .env");
-    println!("  cargo run\n");
-    println!("{}", "Enjoy building something amazing! 🦀".bright_yellow());
-}
-
-fn create_skeleton(base: &Path, name: &str) {
-    // Create folders
-    let folders = ["src", "src/app", "src/core", "resources", "resources/views", "storage"];
-    for folder in folders {
-        fs::create_dir_all(base.join(folder)).ok();
-    }
-
-    // Create Cargo.toml
-    let cargo_toml = format!(
-r#"[package]
-name = "{}"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-lumina = {{ git = "https://github.com/lumina-rust/lumina.git" }}
-tokio = {{ version = "1", features = ["full"] }}
-axum = "0.7"
-"# , name);
-
-    fs::write(base.join("Cargo.toml"), cargo_toml).ok();
-
-    // Create main.rs
-    let main_rs = r#"use lumina::prelude::*;
-
-#[tokio::main]
-async fn main() {
-    let app = Application::new();
-    println!("🚀 Lumina server starting...");
-    app.serve("127.0.0.1:8000").await;
-}
-"#;
-    fs::write(base.join("src/main.rs"), main_rs).ok();
-
-    // Create .env.example
-    let env_example = "APP_NAME=Lumina\nDATABASE_URL=sqlite:database.sqlite\n";
-    fs::write(base.join(".env.example"), env_example).ok();
->>>>>>> dev/master
 }

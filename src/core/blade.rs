@@ -97,13 +97,29 @@ impl BladeEngine {
                     };
                     Self::collect_templates(base_path, &new_prefix, out);
                 } else if file_name.ends_with(".blade.rs") || file_name.ends_with(".html") {
-                    if let Ok(content) = fs::read_to_string(&file_path) {
-                        let template_name = if prefix.is_empty() {
-                            file_name
-                        } else {
-                            format!("{}/{}", prefix, file_name)
-                        };
-                        out.insert(template_name, content);
+                    match fs::read_to_string(&file_path) {
+                        Ok(content) => {
+                            let template_name = if prefix.is_empty() {
+                                file_name.clone()
+                            } else {
+                                format!("{}/{}", prefix, file_name)
+                            };
+                            let normalized = template_name.replace('\\', "/");
+                            out.insert(normalized.clone(), content.clone());
+
+                            if normalized.ends_with(".blade.rs") {
+                                let without_ext = normalized.strip_suffix(".blade.rs").unwrap();
+                                out.insert(without_ext.to_string(), content.clone());
+                                out.insert(without_ext.replace('/', "."), content.clone());
+                            } else if normalized.ends_with(".html") {
+                                let without_ext = normalized.strip_suffix(".html").unwrap();
+                                out.insert(without_ext.to_string(), content.clone());
+                                out.insert(without_ext.replace('/', "."), content.clone());
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to read template {:?}: {}", file_path, e);
+                        }
                     }
                 }
             }
@@ -111,14 +127,27 @@ impl BladeEngine {
     }
 
     pub fn render(&self, template_name: &str, context: &BladeContext) -> String {
-        let mut name = template_name.replace('.', "/");
-        if !name.ends_with(".blade.rs") && !name.ends_with(".html") {
-            name.push_str(".blade.rs");
-        }
+        let clean = template_name.replace('\\', "/");
+        let raw = self.templates.get(&clean)
+            .or_else(|| {
+                if !clean.ends_with(".blade.rs") && !clean.ends_with(".html") {
+                    let with_blade = format!("{}.blade.rs", clean.replace('.', "/"));
+                    self.templates.get(&with_blade)
+                } else {
+                    None
+                }
+            })
+            .or_else(|| {
+                let dotted = clean.replace('/', ".");
+                self.templates.get(&dotted)
+            });
 
-        let raw = match self.templates.get(&name) {
+        let raw = match raw {
             Some(content) => content.clone(),
-            None => return format!("Template error: Template '{}' not found", name),
+            None => {
+                let keys = self.templates.keys().cloned().collect::<Vec<_>>();
+                return format!("Template error: Template '{}' not found. Available templates: {:?}", template_name, keys);
+            }
         };
 
         self.process_template(&raw, context, 0)
@@ -138,12 +167,17 @@ impl BladeEngine {
         // 1. Check for @extends('layout')
         let re_extends = Regex::new(r#"@extends\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
         if let Some(caps) = re_extends.captures(&s) {
-            let layout_name = caps[1].replace('.', "/");
-            let layout_file = if layout_name.ends_with(".blade.rs") || layout_name.ends_with(".html") {
-                layout_name
-            } else {
-                format!("{}.blade.rs", layout_name)
-            };
+            let layout_raw = caps[1].trim().replace('\\', "/");
+            let layout_content = self.templates.get(&layout_raw)
+                .or_else(|| {
+                    let normalized = layout_raw.replace('.', "/");
+                    let file = if normalized.ends_with(".blade.rs") || normalized.ends_with(".html") {
+                        normalized
+                    } else {
+                        format!("{}.blade.rs", normalized)
+                    };
+                    self.templates.get(&file)
+                });
 
             // Extract @section('name') ... @endsection
             let mut sections: HashMap<String, String> = HashMap::new();
@@ -155,7 +189,7 @@ impl BladeEngine {
             }
 
             // Load parent layout template
-            if let Some(parent_content) = self.templates.get(&layout_file) {
+            if let Some(parent_content) = layout_content {
                 let mut layout_processed = parent_content.clone();
                 // Replace @yield('name') with section content
                 let re_yield = Regex::new(r#"@yield\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
@@ -171,16 +205,22 @@ impl BladeEngine {
         // 2. @include('path.subpath')
         let re_include = Regex::new(r#"@include\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
         s = re_include.replace_all(&s, |caps: &regex::Captures| {
-            let path = caps[1].replace('.', "/");
-            let inc_name = if path.ends_with(".blade.rs") || path.ends_with(".html") {
-                path
-            } else {
-                format!("{}.blade.rs", path)
-            };
-            if let Some(inc_content) = self.templates.get(&inc_name) {
+            let path_raw = caps[1].trim().replace('\\', "/");
+            let inc_content = self.templates.get(&path_raw)
+                .or_else(|| {
+                    let normalized = path_raw.replace('.', "/");
+                    let file = if normalized.ends_with(".blade.rs") || normalized.ends_with(".html") {
+                        normalized
+                    } else {
+                        format!("{}.blade.rs", normalized)
+                    };
+                    self.templates.get(&file)
+                });
+
+            if let Some(inc_content) = inc_content {
                 self.process_template(inc_content, context, depth + 1)
             } else {
-                format!("<!-- Include '{}' not found -->", inc_name)
+                format!("<!-- Include '{}' not found -->", path_raw)
             }
         }).to_string();
 

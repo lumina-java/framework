@@ -21,16 +21,12 @@ macro_rules! dd {
     ($val:expr) => {
         let dump_content = format!("{:#?}", $val);
         let location = std::panic::Location::caller();
-<<<<<<< HEAD
         let payload = format!(
             "__LUMINA_DD__\nLocation: {}:{}\n\n{}",
             location.file(),
             location.line(),
             dump_content
         );
-=======
-        let payload = format!("__LUMINA_DD__\nLocation: {}:{}\n\n{}", location.file(), location.line(), dump_content);
->>>>>>> dev/master
         panic!("{}", payload);
     };
 }
@@ -57,14 +53,9 @@ pub fn handle_panic(err: Box<dyn Any + Send + 'static>) -> Response {
         let parts: Vec<&str> = msg.splitn(3, "\n\n").collect();
         let header = parts.get(0).unwrap_or(&"").replace("__LUMINA_DD__\n", "");
         let body = parts.get(1).unwrap_or(&"");
-<<<<<<< HEAD
 
         let html = format!(
             r#"
-=======
-
-        let html = format!(r#"
->>>>>>> dev/master
             <!DOCTYPE html>
             <html lang="en">
             <head>
@@ -166,29 +157,20 @@ pub fn handle_panic(err: Box<dyn Any + Send + 'static>) -> Response {
                 </div>
             </body>
             </html>
-<<<<<<< HEAD
         "#,
             header,
             body,
             chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
         );
-=======
-        "#, header, body, chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
->>>>>>> dev/master
         return Html(html).into_response();
     }
 
     // Standard Panic (Ignition style error page)
     let (err_msg, loc) = thread_panic_info.unwrap_or((msg.clone(), "Unknown location".to_string()));
-<<<<<<< HEAD
 
     let solution = if err_msg.contains("no such table")
         || err_msg.contains("Table") && err_msg.contains("doesn't exist")
     {
-=======
-
-    let solution = if err_msg.contains("no such table") || err_msg.contains("Table") && err_msg.contains("doesn't exist") {
->>>>>>> dev/master
         "Saran: Jalankan migrasi database Anda dengan perintah <code>./lumina migrate</code> atau <code>cargo run -- make:migration</code>."
     } else if err_msg.contains("Connection refused") || err_msg.contains("database connection") {
         "Saran: Pastikan database Anda sudah menyala dan URL koneksi di <code>.env</code> sudah benar."
@@ -198,12 +180,8 @@ pub fn handle_panic(err: Box<dyn Any + Send + 'static>) -> Response {
         "Saran: Periksa kembali baris kode yang menyebabkan panic ini terjadi."
     };
 
-<<<<<<< HEAD
     let html = format!(
         r#"
-=======
-    let html = format!(r#"
->>>>>>> dev/master
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -318,7 +296,6 @@ pub fn handle_panic(err: Box<dyn Any + Send + 'static>) -> Response {
             </div>
         </body>
         </html>
-<<<<<<< HEAD
     "#,
         loc,
         err_msg,
@@ -326,9 +303,5 @@ pub fn handle_panic(err: Box<dyn Any + Send + 'static>) -> Response {
         chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
     );
 
-=======
-    "#, loc, err_msg, solution, chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
-
->>>>>>> dev/master
     Html(html).into_response()
 }

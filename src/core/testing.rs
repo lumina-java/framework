@@ -99,6 +99,29 @@ impl TestApp {
         let response = self.router.clone().oneshot(req).await.unwrap();
         TestResponse::new(response).await
     }
+
+    pub async fn put(&self, uri: &str, body: Value) -> TestResponse {
+        let req = Request::builder()
+            .uri(uri)
+            .method("PUT")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(serde_json::to_string(&body).unwrap()))
+            .unwrap();
+
+        let response = self.router.clone().oneshot(req).await.unwrap();
+        TestResponse::new(response).await
+    }
+
+    pub async fn delete(&self, uri: &str) -> TestResponse {
+        let req = Request::builder()
+            .uri(uri)
+            .method("DELETE")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = self.router.clone().oneshot(req).await.unwrap();
+        TestResponse::new(response).await
+    }
 }
 
 pub struct TestResponse {

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 use crate::database::connection::DatabasePool;
 use serde::{Deserialize, Serialize};
 use sqlx::{any::AnyArguments, Arguments, FromRow};
@@ -13,11 +12,6 @@ pub struct LengthAwarePaginator<T> {
     pub current_page: usize,
     pub last_page: usize,
 }
-=======
-use sqlx::{Arguments, any::AnyArguments, FromRow};
-use std::marker::PhantomData;
-use crate::database::connection::DatabasePool;
->>>>>>> dev/master
 
 /// QueryBuilder — Fluent API untuk membangun SQL query secara dinamis.
 pub struct QueryBuilder<'a, T> {
@@ -27,14 +21,10 @@ pub struct QueryBuilder<'a, T> {
     wheres: Vec<String>,
     args: AnyArguments<'a>,
     limit: Option<usize>,
-<<<<<<< HEAD
     offset: Option<usize>,
     order_by: Option<String>,
     group_by: Option<String>,
     havings: Vec<String>,
-=======
-    order_by: Option<String>,
->>>>>>> dev/master
     joins: Vec<String>,
     eager_with: Vec<String>,
     _marker: PhantomData<T>,
@@ -52,14 +42,10 @@ where
             wheres: Vec::new(),
             args: AnyArguments::default(),
             limit: None,
-<<<<<<< HEAD
             offset: None,
             order_by: None,
             group_by: None,
             havings: Vec::new(),
-=======
-            order_by: None,
->>>>>>> dev/master
             joins: Vec::new(),
             eager_with: Vec::new(),
             _marker: PhantomData,
@@ -93,12 +79,8 @@ where
         V: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
     {
         let prefix = if self.wheres.is_empty() { "" } else { "AND " };
-<<<<<<< HEAD
         self.wheres
             .push(format!("{}{} {} ?", prefix, column, operator));
-=======
-        self.wheres.push(format!("{}{} {} ?", prefix, column, operator));
->>>>>>> dev/master
         let _ = self.args.add(value);
         self
     }
@@ -111,7 +93,6 @@ where
         self.filter(column, "=", value)
     }
 
-<<<<<<< HEAD
     /// Dynamically add a equality condition with owned String or &str column and value
     pub fn where_eq_str(mut self, column: &str, value: &str) -> Self {
         let prefix = if self.wheres.is_empty() { "" } else { "AND " };
@@ -121,8 +102,6 @@ where
         self
     }
 
-=======
->>>>>>> dev/master
     /// Shortcut WHERE column != value
     pub fn where_ne<V>(self, column: &str, value: V) -> Self
     where
@@ -149,12 +128,8 @@ where
     /// Shortcut WHERE column IS NOT NULL
     pub fn where_not_null(mut self, column: &str) -> Self {
         let prefix = if self.wheres.is_empty() { "" } else { "AND " };
-<<<<<<< HEAD
         self.wheres
             .push(format!("{}{} IS NOT NULL", prefix, column));
-=======
-        self.wheres.push(format!("{}{} IS NOT NULL", prefix, column));
->>>>>>> dev/master
         self
     }
 
@@ -164,12 +139,8 @@ where
         V: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
     {
         let prefix = if self.wheres.is_empty() { "" } else { "OR " };
-<<<<<<< HEAD
         self.wheres
             .push(format!("{}{} {} ?", prefix, column, operator));
-=======
-        self.wheres.push(format!("{}{} {} ?", prefix, column, operator));
->>>>>>> dev/master
         let _ = self.args.add(value);
         self
     }
@@ -185,14 +156,9 @@ where
 
         let placeholders = vec!["?"; values.len()].join(", ");
         let prefix = if self.wheres.is_empty() { "" } else { "AND " };
-<<<<<<< HEAD
         self.wheres
             .push(format!("{}{} IN ({})", prefix, column, placeholders));
 
-=======
-        self.wheres.push(format!("{}{} IN ({})", prefix, column, placeholders));
-
->>>>>>> dev/master
         for val in values {
             let _ = self.args.add(val);
         }
@@ -221,7 +187,6 @@ where
         self
     }
 
-<<<<<<< HEAD
     /// Tentukan offset query.
     pub fn offset(mut self, offset: usize) -> Self {
         self.offset = Some(offset);
@@ -287,22 +252,15 @@ where
         self
     }
 
-=======
->>>>>>> dev/master
     /// Debugging: Mengambil string SQL yang dihasilkan.
     pub fn to_sql(&self) -> String {
         self.build_sql()
     }
 
     /// Ambil semua record yang cocok.
-<<<<<<< HEAD
     pub async fn get(self) -> Result<Vec<T>, sqlx::Error>
     where
         T: crate::database::model::Model,
-=======
-    pub async fn get(self) -> Result<Vec<T>, sqlx::Error>
-    where T: crate::database::model::Model
->>>>>>> dev/master
     {
         let sql = self.build_sql();
         let mut items = sqlx::query_as_with::<sqlx::Any, T, _>(&sql, self.args)
@@ -318,7 +276,6 @@ where
     }
 
     /// Ambil record pertama yang cocok.
-<<<<<<< HEAD
     pub async fn first(mut self) -> Result<Option<T>, sqlx::Error> {
         self.limit = Some(1);
         let sql = self.build_sql();
@@ -461,7 +418,6 @@ where
 
         let offset = (page - 1) * per_page;
 
-        // Clone current query builder parameters to calculate total count
         let count_sql = format!(
             "SELECT COUNT(*) FROM {}{}",
             self.table,
@@ -471,6 +427,7 @@ where
                 " WHERE deleted_at IS NULL".to_string()
             }
         );
+        let count_sql = self.pool.prepare_sql(&count_sql);
 
         let total: i64 = sqlx::query_scalar(&count_sql)
             .fetch_one(&self.pool.pool)
@@ -490,6 +447,32 @@ where
             current_page: page,
             last_page: last_page.max(1),
         })
+    }
+
+    /// Soft delete semua record yang cocok dengan kriteria query.
+    pub async fn delete(self) -> Result<u64, sqlx::Error> {
+        let where_clause = if !self.wheres.is_empty() {
+            format!(" WHERE {} AND deleted_at IS NULL", self.wheres.join(" "))
+        } else {
+            " WHERE deleted_at IS NULL".to_string()
+        };
+        let sql = format!("UPDATE {} SET deleted_at = CURRENT_TIMESTAMP{}", self.table, where_clause);
+        let sql = self.pool.prepare_sql(&sql);
+        let res = sqlx::query_with(&sql, self.args).execute(&self.pool.pool).await?;
+        Ok(res.rows_affected())
+    }
+
+    /// Hard delete (permanen) semua record yang cocok dengan kriteria query.
+    pub async fn force_delete(self) -> Result<u64, sqlx::Error> {
+        let where_clause = if !self.wheres.is_empty() {
+            format!(" WHERE {}", self.wheres.join(" "))
+        } else {
+            "".to_string()
+        };
+        let sql = format!("DELETE FROM {}{}", self.table, where_clause);
+        let sql = self.pool.prepare_sql(&sql);
+        let res = sqlx::query_with(&sql, self.args).execute(&self.pool.pool).await?;
+        Ok(res.rows_affected())
     }
 
     /// Check if any matching rows exist.
@@ -540,17 +523,9 @@ where
             .fetch_one(&self.pool.pool)
             .await?;
         Ok(row.0)
-=======
-    pub async fn first(mut self) -> Result<T, sqlx::Error> {
-        self.limit = Some(1);
-        let sql = self.build_sql();
-        sqlx::query_as_with::<sqlx::Any, T, _>(&sql, self.args)
-            .fetch_one(&self.pool.pool)
-            .await
->>>>>>> dev/master
     }
 
-    /// Bangun string SQL.
+    /// Bangun string SQL otomatis disesuaikan dengan driver database.
     fn build_sql(&self) -> String {
         let mut sql = format!("SELECT {} FROM {}", self.select, self.table);
 
@@ -567,7 +542,6 @@ where
             sql.push_str(" WHERE deleted_at IS NULL");
         }
 
-<<<<<<< HEAD
         if let Some(ref group) = self.group_by {
             sql.push_str(&format!(" GROUP BY {}", group));
         }
@@ -577,8 +551,6 @@ where
             sql.push_str(&self.havings.join(" AND "));
         }
 
-=======
->>>>>>> dev/master
         if let Some(ref order) = self.order_by {
             sql.push_str(&format!(" ORDER BY {}", order));
         }
@@ -587,13 +559,10 @@ where
             sql.push_str(&format!(" LIMIT {}", limit));
         }
 
-<<<<<<< HEAD
         if let Some(offset) = self.offset {
             sql.push_str(&format!(" OFFSET {}", offset));
         }
 
-=======
->>>>>>> dev/master
-        sql
+        self.pool.prepare_sql(&sql)
     }
 }

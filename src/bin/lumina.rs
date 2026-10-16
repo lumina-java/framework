@@ -11,15 +11,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-<<<<<<< HEAD
     /// Create a new Lumina project
     #[command(name = "new")]
     New {
         /// Name of the project
         name: String,
     },
-=======
->>>>>>> dev/master
     /// Generate a new controller
     #[command(name = "make:controller")]
     MakeController {
@@ -67,12 +64,9 @@ enum Commands {
     MakeCrud {
         /// Name of the entity (e.g. Patient)
         name: String,
-<<<<<<< HEAD
         /// Fields for the entity (e.g. name:string price:integer)
         #[arg(num_args = 0..)]
         fields: Vec<String>,
-=======
->>>>>>> dev/master
     },
     /// Generate a full Authentication scaffolding (Register, Login, Views)
     #[command(name = "make:auth")]
@@ -124,12 +118,9 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-<<<<<<< HEAD
         Commands::New { name } => {
             cli::handle_new(&name).await;
         }
-=======
->>>>>>> dev/master
         Commands::MakeController { name } => {
             cli::handle_make_controller(&name).await;
         }
@@ -148,19 +139,13 @@ async fn main() {
         Commands::MakeService { name } => {
             cli::handle_make_service(&name).await;
         }
-<<<<<<< HEAD
         Commands::MakeCrud { name, fields } => {
             cli::handle_make_crud(&name, fields).await;
-=======
-        Commands::MakeCrud { name } => {
-            cli::handle_make_crud(&name).await;
->>>>>>> dev/master
         }
         Commands::MakeAuth => {
             cli::handle_make_auth().await;
         }
         Commands::Migrate => {
-<<<<<<< HEAD
             println!("🔄 Running migrations via cargo...");
             let _ = std::process::Command::new("cargo")
                 .arg("run")
@@ -189,18 +174,6 @@ async fn main() {
                 .arg("--")
                 .arg("db:seed")
                 .status();
-=======
-            cli::handle_migrate().await;
-        }
-        Commands::MigrateStatus => {
-            cli::handle_migrate_status().await;
-        }
-        Commands::MigrateRollback => {
-            cli::handle_migrate_rollback().await;
-        }
-        Commands::DbSeed => {
-            cli::handle_db_seed().await;
->>>>>>> dev/master
         }
         Commands::MakeSeeder { name } => {
             cli::handle_make_seeder(&name).await;
@@ -209,16 +182,12 @@ async fn main() {
             cli::handle_make_factory(&name).await;
         }
         Commands::Tinker => {
-<<<<<<< HEAD
             println!("🔍 Starting Tinker via cargo...");
             let _ = std::process::Command::new("cargo")
                 .arg("run")
                 .arg("--")
                 .arg("tinker")
                 .status();
-=======
-            cli::handle_tinker().await;
->>>>>>> dev/master
         }
         Commands::MakeDocker => {
             cli::handle_make_docker().await;
@@ -236,17 +205,9 @@ async fn main() {
             println!("🚀 Starting Lumina Server...");
             let mut child = std::process::Command::new("cargo")
                 .arg("run")
-<<<<<<< HEAD
                 .spawn()
                 .expect("Failed to start server");
 
-=======
-                .arg("--bin")
-                .arg("lumina-server")
-                .spawn()
-                .expect("Failed to start server");
-
->>>>>>> dev/master
             let _ = child.wait();
         }
         Commands::Watch => {
@@ -254,17 +215,10 @@ async fn main() {
             let mut child = std::process::Command::new("cargo")
                 .arg("watch")
                 .arg("-x")
-<<<<<<< HEAD
                 .arg("run")
                 .spawn()
                 .expect("Failed to start cargo-watch. Make sure it's installed: cargo install cargo-watch");
 
-=======
-                .arg("run --bin lumina-server")
-                .spawn()
-                .expect("Failed to start cargo-watch. Make sure it's installed: cargo install cargo-watch");
-
->>>>>>> dev/master
             let _ = child.wait();
         }
     }

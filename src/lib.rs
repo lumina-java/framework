@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 pub mod cli;
 pub mod config;
 pub mod core;
@@ -11,42 +10,21 @@ pub mod prelude {
     pub use crate::core::router::Router;
     pub use crate::http::kernel::HttpKernel;
     // axum re-exports — available in every controller via `use lumina::prelude::*`
-    pub use axum::extract::State;
-    pub use axum::response::Html;
+    pub use axum::extract::{Path, Query, State};
+    pub use axum::response::{Html, IntoResponse, Json, Response};
     pub use axum::Form;
     pub use crate::core::blade::BladeContext as Context;
+    pub use crate::core::error::AppError;
+    pub use crate::core::request::{HttpResult, LuminaResult, Request};
+    pub use crate::core::response::ApiResponse;
+    pub use crate::core::validation::{ValidatedForm, ValidatedJson};
+    pub use crate::database::connection::DatabasePool;
+    pub use crate::database::model::Model;
+    pub use crate::database::orm::{LengthAwarePaginator, QueryBuilder};
+    pub use lumina_macros::{lumina_form, LuminaModel};
 }
-
 
 pub use lumina_macros::{lumina_form, LuminaModel};
 pub use validator;
-=======
-pub mod core;
-pub mod http;
-pub mod app;
-pub mod database;
-pub mod config;
-pub mod support;
-pub mod cli;
+pub use tower_sessions;
 
-// Include route files sebagai bagian dari crate.
-// Teknik #[path] membuat routes/web.rs bisa menggunakan `crate::` paths
-// seolah-olah berada di dalam src/.
-#[path = "../routes/web.rs"]
-pub mod web_routes;
-
-#[path = "../routes/api.rs"]
-pub mod api_routes;
-
-#[path = "../database/seeders/mod.rs"]
-pub mod seeders;
-
-#[path = "../database/factories/mod.rs"]
-pub mod factories;
-
-pub mod prelude {
-    pub use crate::core::application::Application;
-    pub use crate::core::router::Router;
-    pub use crate::http::kernel::HttpKernel;
-}
->>>>>>> dev/master

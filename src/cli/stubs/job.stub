@@ -1,11 +1,6 @@
 use async_trait::async_trait;
-<<<<<<< HEAD
 use lumina::core::queue::Job;
 use lumina::core::application::AppState;
-=======
-use crate::core::queue::Job;
-use crate::core::application::AppState;
->>>>>>> dev/master
 use std::sync::Arc;
 
 #[derive(Debug)]

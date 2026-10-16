@@ -1,8 +1,8 @@
 [package]
 name = "lumina-framework"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
-authors = ["Lumina Java <admin@lumina-java.com>"]
+authors = ["Slamet Sugandi <packercyber@gmail.com>"]
 description = "A beautiful, fast, and elegant web framework for Rust"
 license = "MIT"
 repository = "https://github.com/lumina-java/framework"
@@ -17,8 +17,8 @@ path = "src/lib.rs"
 members = ["lumina_macros", "lumina-cli", "indonesian-script"]
 
 [dependencies]
-lumina_macros = { path = "lumina_macros", version = "0.1.1" }
-indonesian-script = { path = "indonesian-script", version = "0.1.0" }
+lumina_macros = { path = "lumina_macros", version = "0.1.2" }
+indonesian-script = { path = "indonesian-script", version = "0.1.1" }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["macros", "multipart", "ws"] }
 futures = "0.3"

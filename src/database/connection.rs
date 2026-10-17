@@ -1,13 +1,14 @@
 use sqlx::{any::AnyPoolOptions, Any, Pool};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseKind {
     Sqlite,
     Postgres,
     MySql,
+    Mssql,
 }
 
-/// Lumina DatabasePool — wrapper di atas `sqlx::Pool<Any>`.
+/// Lumina DatabasePool — wrapper manusiawi & ringkas di atas `sqlx::Pool<Any>`.
 #[derive(Clone)]
 pub struct DatabasePool {
     pub pool: Pool<Any>,
@@ -19,18 +20,21 @@ pub type Db = DatabasePool;
 
 impl DatabasePool {
     /// Buat koneksi pool baru dari `database_url`.
+    /// Mendukung SQLite, PostgreSQL, MySQL, dan deteksi awal SQL Server (MSSQL).
     pub async fn connect(database_url: &str) -> Result<Self, sqlx::Error> {
         sqlx::any::install_default_drivers();
 
-        // Tentukan jenis database dari URL
+        // Tentukan jenis database dari URL secara intuitif
         let kind = if database_url.starts_with("sqlite:") {
             DatabaseKind::Sqlite
         } else if database_url.starts_with("postgres:") || database_url.starts_with("postgresql:") {
             DatabaseKind::Postgres
         } else if database_url.starts_with("mysql:") {
             DatabaseKind::MySql
+        } else if database_url.starts_with("mssql:") || database_url.starts_with("sqlserver:") {
+            DatabaseKind::Mssql
         } else {
-            // Default atau fallback (misal SQLite)
+            // Default atau fallback (SQLite)
             DatabaseKind::Sqlite
         };
 
@@ -49,24 +53,40 @@ impl DatabasePool {
     }
 
     /// Menyesuaikan placeholder query secara otomatis berdasarkan driver database aktif.
-    /// SQLite/MySQL: tetap menggunakan `?`.
-    /// PostgreSQL: mentranslasikan `?` menjadi `$1, $2, $3, ...`.
+    /// - SQLite / MySQL: tetap menggunakan `?`
+    /// - PostgreSQL: mentranslasikan `?` menjadi `$1, $2, $3, ...`
+    /// - MSSQL (SQL Server): mentranslasikan `?` menjadi `@p1, @p2, @p3, ...`
     pub fn prepare_sql(&self, sql: &str) -> String {
-        if self.kind == DatabaseKind::Postgres {
-            let mut result = String::with_capacity(sql.len() + 16);
-            let mut idx = 1;
-            for ch in sql.chars() {
-                if ch == '?' {
-                    result.push('$');
-                    result.push_str(&idx.to_string());
-                    idx += 1;
-                } else {
-                    result.push(ch);
+        match self.kind {
+            DatabaseKind::Postgres => {
+                let mut result = String::with_capacity(sql.len() + 16);
+                let mut idx = 1;
+                for ch in sql.chars() {
+                    if ch == '?' {
+                        result.push('$');
+                        result.push_str(&idx.to_string());
+                        idx += 1;
+                    } else {
+                        result.push(ch);
+                    }
                 }
+                result
             }
-            result
-        } else {
-            sql.to_string()
+            DatabaseKind::Mssql => {
+                let mut result = String::with_capacity(sql.len() + 16);
+                let mut idx = 1;
+                for ch in sql.chars() {
+                    if ch == '?' {
+                        result.push_str("@p");
+                        result.push_str(&idx.to_string());
+                        idx += 1;
+                    } else {
+                        result.push(ch);
+                    }
+                }
+                result
+            }
+            _ => sql.to_string(),
         }
     }
 }

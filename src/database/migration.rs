@@ -29,6 +29,14 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
                 run_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"
         }
+        DatabaseKind::Mssql => {
+            "IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '_migrations')
+            CREATE TABLE _migrations (
+                id       INT IDENTITY(1,1) PRIMARY KEY,
+                name     NVARCHAR(255) NOT NULL UNIQUE,
+                run_at   DATETIME2 DEFAULT CURRENT_TIMESTAMP
+            )"
+        }
     };
 
     sqlx::query(create_table_sql).execute(pool).await?;
@@ -55,10 +63,10 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
     for entry in files {
         let name = entry.file_name().to_string_lossy().to_string();
 
-        let query_count_sql = if kind == DatabaseKind::Postgres {
-            "SELECT COUNT(1) FROM _migrations WHERE name = $1"
-        } else {
-            "SELECT COUNT(1) FROM _migrations WHERE name = ?"
+        let query_count_sql = match kind {
+            DatabaseKind::Postgres => "SELECT COUNT(1) FROM _migrations WHERE name = $1",
+            DatabaseKind::Mssql => "SELECT COUNT(1) FROM _migrations WHERE name = @p1",
+            _ => "SELECT COUNT(1) FROM _migrations WHERE name = ?",
         };
 
         let count: i64 = sqlx::query_scalar(query_count_sql)
@@ -109,6 +117,17 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
                     sql = sql.replace("TEXT NOT NULL", "VARCHAR(255) NOT NULL");
                 }
             }
+            DatabaseKind::Mssql => {
+                sql = re_autoinc
+                    .replace_all(&sql, "INT IDENTITY(1,1) PRIMARY KEY")
+                    .to_string();
+                sql = re_datetime
+                    .replace_all(&sql, "DATETIME2 DEFAULT CURRENT_TIMESTAMP")
+                    .to_string();
+                if sql.contains("UNIQUE") {
+                    sql = sql.replace("TEXT NOT NULL", "NVARCHAR(255) NOT NULL");
+                }
+            }
             _ => {}
         }
 
@@ -153,10 +172,10 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
             continue; // Jangan tandai sebagai applied
         }
 
-        let insert_sql = if kind == DatabaseKind::Postgres {
-            "INSERT INTO _migrations (name) VALUES ($1)"
-        } else {
-            "INSERT INTO _migrations (name) VALUES (?)"
+        let insert_sql = match kind {
+            DatabaseKind::Postgres => "INSERT INTO _migrations (name) VALUES ($1)",
+            DatabaseKind::Mssql => "INSERT INTO _migrations (name) VALUES (@p1)",
+            _ => "INSERT INTO _migrations (name) VALUES (?)",
         };
         sqlx::query(insert_sql)
             .bind(&name)

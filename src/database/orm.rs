@@ -580,12 +580,25 @@ where
             sql.push_str(&format!(" ORDER BY {}", order));
         }
 
-        if let Some(limit) = self.limit {
-            sql.push_str(&format!(" LIMIT {}", limit));
-        }
+        if self.pool.kind == crate::database::connection::DatabaseKind::Mssql {
+            if self.limit.is_some() || self.offset.is_some() {
+                if self.order_by.is_none() {
+                    sql.push_str(" ORDER BY (SELECT NULL)");
+                }
+                let offset = self.offset.unwrap_or(0);
+                sql.push_str(&format!(" OFFSET {} ROWS", offset));
+                if let Some(limit) = self.limit {
+                    sql.push_str(&format!(" FETCH NEXT {} ROWS ONLY", limit));
+                }
+            }
+        } else {
+            if let Some(limit) = self.limit {
+                sql.push_str(&format!(" LIMIT {}", limit));
+            }
 
-        if let Some(offset) = self.offset {
-            sql.push_str(&format!(" OFFSET {}", offset));
+            if let Some(offset) = self.offset {
+                sql.push_str(&format!(" OFFSET {}", offset));
+            }
         }
 
         self.pool.prepare_sql(&sql)

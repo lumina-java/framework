@@ -23,6 +23,9 @@ pub mod prelude {
     pub use crate::database::orm::{LengthAwarePaginator, OrmResult, QueryBuilder};
     pub use crate::{belongs_to, belongs_to_many, has_many, has_one};
     pub use lumina_macros::{lumina_form, LuminaModel};
+    // middleware helpers
+    pub use axum::middleware::from_fn;
+    pub use crate::http::middleware;
 }
 
 pub use lumina_macros::{lumina_form, LuminaModel};

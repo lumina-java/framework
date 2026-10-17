@@ -1,11 +1,13 @@
 use axum::Router as ax_router;
 use axum::{handler::Handler, routing};
+use std::sync::Arc;
 
 /// Lumina Router — fluent builder API yang membungkus axum::Router.
 #[derive(Clone)]
 pub struct Router<S = ()> {
     inner: ax_router<S>,
     prefix: String,
+    layers: Vec<Arc<dyn Fn(ax_router<S>) -> ax_router<S> + Send + Sync>>,
 }
 
 impl<S> Router<S>
@@ -17,6 +19,7 @@ where
         Self {
             inner: ax_router::new(),
             prefix: String::new(),
+            layers: Vec::new(),
         }
     }
 
@@ -25,6 +28,7 @@ where
         Self {
             inner,
             prefix: String::new(),
+            layers: Vec::new(),
         }
     }
 
@@ -104,7 +108,8 @@ where
     /// Contoh:
     /// ```rust,ignore
     /// router.group("/admin", |r| {
-    ///     r.get("/dashboard", dashboard_handler)
+    ///     r.middleware(from_fn(admin_auth))
+    ///      .get("/dashboard", dashboard_handler)
     /// })
     /// ```
     pub fn group<F>(mut self, prefix: &str, f: F) -> Self
@@ -113,26 +118,27 @@ where
     {
         let sub_router = Router::new();
         let configured_sub = f(sub_router);
-        self.inner = self.inner.nest(prefix, configured_sub.inner);
+        self.inner = self.inner.nest(prefix, configured_sub.into_axum());
         self
     }
 
     /// Gabungkan dengan Router lain.
     pub fn merge(mut self, other: Router<S>) -> Self {
-        self.inner = self.inner.merge(other.inner);
+        self.inner = self.inner.merge(other.into_axum());
         self
     }
 
     /// Nest router lain di bawah prefix tertentu.
     pub fn nest(mut self, prefix: &str, other: Router<S>) -> Self {
-        self.inner = self.inner.nest(prefix, other.inner);
+        self.inner = self.inner.nest(prefix, other.into_axum());
         self
     }
 
     /// Tambahkan middleware (layer) ke router.
+    /// Middleware ini akan diterapkan ke semua route yang ada di router ini saat dibuild.
     pub fn layer<L>(mut self, layer: L) -> Self
     where
-        L: tower::Layer<axum::routing::Route> + Clone + Send + 'static,
+        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
         L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
         <L::Service as tower::Service<axum::extract::Request>>::Response:
             axum::response::IntoResponse + 'static,
@@ -140,14 +146,15 @@ where
             Into<std::convert::Infallible> + 'static,
         <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
     {
-        self.inner = self.inner.layer(layer);
+        self.layers
+            .push(Arc::new(move |router| router.layer(layer.clone())));
         self
     }
 
     /// Alias untuk layer agar lebih familiar bagi pengguna Laravel.
     pub fn middleware<L>(self, layer: L) -> Self
     where
-        L: tower::Layer<axum::routing::Route> + Clone + Send + 'static,
+        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
         L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
         <L::Service as tower::Service<axum::extract::Request>>::Response:
             axum::response::IntoResponse + 'static,
@@ -158,9 +165,43 @@ where
         self.layer(layer)
     }
 
-    /// Konsumsi Router ini menjadi `axum::Router`.
+    /// Tambahkan route-level middleware (hanya berlaku untuk route pada router ini).
+    pub fn route_layer<L>(mut self, layer: L) -> Self
+    where
+        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Response:
+            axum::response::IntoResponse + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Error:
+            Into<std::convert::Infallible> + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
+    {
+        self.layers
+            .push(Arc::new(move |router| router.route_layer(layer.clone())));
+        self
+    }
+
+    /// Alias untuk `route_layer` agar familiar bagi pengguna Laravel.
+    pub fn route_middleware<L>(self, layer: L) -> Self
+    where
+        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Response:
+            axum::response::IntoResponse + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Error:
+            Into<std::convert::Infallible> + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
+    {
+        self.route_layer(layer)
+    }
+
+    /// Konsumsi Router ini menjadi `axum::Router` beserta seluruh layer middleware-nya.
     pub fn into_axum(self) -> ax_router<S> {
-        self.inner
+        let mut inner = self.inner;
+        for layer_fn in self.layers {
+            inner = layer_fn(inner);
+        }
+        inner
     }
 }
 

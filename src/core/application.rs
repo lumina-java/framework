@@ -72,6 +72,9 @@ pub struct Application {
     container: Container,
     web_router: Option<Router<AppState>>,
     api_router: Option<Router<AppState>>,
+    global_middlewares: Vec<Arc<dyn Fn(Router<AppState>) -> Router<AppState> + Send + Sync>>,
+    web_middlewares: Vec<Arc<dyn Fn(Router<AppState>) -> Router<AppState> + Send + Sync>>,
+    api_middlewares: Vec<Arc<dyn Fn(Router<AppState>) -> Router<AppState> + Send + Sync>>,
 }
 
 impl Application {
@@ -80,6 +83,9 @@ impl Application {
             container: Container::new(),
             web_router: None,
             api_router: None,
+            global_middlewares: Vec::new(),
+            web_middlewares: Vec::new(),
+            api_middlewares: Vec::new(),
         }
     }
 
@@ -93,6 +99,68 @@ impl Application {
         self
     }
 
+    /// Tambahkan global middleware ke seluruh request aplikasi (web, api, sub-routes).
+    pub fn with_global_middleware<L>(mut self, layer: L) -> Self
+    where
+        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Response:
+            axum::response::IntoResponse + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Error:
+            Into<std::convert::Infallible> + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
+    {
+        self.global_middlewares
+            .push(Arc::new(move |r| r.layer(layer.clone())));
+        self
+    }
+
+    /// Alias untuk `with_global_middleware` agar praktis.
+    pub fn with_middleware<L>(self, layer: L) -> Self
+    where
+        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Response:
+            axum::response::IntoResponse + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Error:
+            Into<std::convert::Infallible> + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
+    {
+        self.with_global_middleware(layer)
+    }
+
+    /// Tambahkan middleware khusus untuk pipeline Web (semua route di `with_web`).
+    pub fn with_web_middleware<L>(mut self, layer: L) -> Self
+    where
+        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Response:
+            axum::response::IntoResponse + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Error:
+            Into<std::convert::Infallible> + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
+    {
+        self.web_middlewares
+            .push(Arc::new(move |r| r.layer(layer.clone())));
+        self
+    }
+
+    /// Tambahkan middleware khusus untuk pipeline API (semua route di bawah `/api`).
+    pub fn with_api_middleware<L>(mut self, layer: L) -> Self
+    where
+        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        L::Service: tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Response:
+            axum::response::IntoResponse + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Error:
+            Into<std::convert::Infallible> + 'static,
+        <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
+    {
+        self.api_middlewares
+            .push(Arc::new(move |r| r.layer(layer.clone())));
+        self
+    }
+
     pub fn build_router(&self, state: AppState, session_store: LuminaSessionStore) -> AxumRouter {
         let kernel = crate::http::kernel::HttpKernel::new();
 
@@ -103,12 +171,23 @@ impl Application {
         let csrf_layer = CsrfLayer::new(csrf::config());
 
         let mut web = self.web_router.clone().unwrap_or_else(|| Router::new());
+        for mw in &self.web_middlewares {
+            web = mw(web);
+        }
         web = kernel.middleware_groups(web, "web");
 
         let mut api = self.api_router.clone().unwrap_or_else(|| Router::new());
+        for mw in &self.api_middlewares {
+            api = mw(api);
+        }
         api = kernel.middleware_groups(api, "api");
 
-        let router = Router::new().merge(web).nest("/api", api);
+        let mut router = Router::new().merge(web).nest("/api", api);
+
+        // Terapkan custom Global Middleware yang didaftarkan ke Application
+        for mw in &self.global_middlewares {
+            router = mw(router);
+        }
 
         // Terapkan Global Middleware dari Kernel
         let router = kernel.global_middleware(router);

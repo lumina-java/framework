@@ -11,21 +11,22 @@
 2. [Instalasi & Setup](#instalasi--setup)
 3. [Konfigurasi](#konfigurasi)
 4. [Routing](#routing)
-5. [Controller & View](#controller--view)
-6. [Model & Database (ORM)](#model--database-orm)
-7. [Validasi Request](#validasi-request)
-8. [Autentikasi & Facade Auth](#autentikasi--facade-auth)
-9. [Session & Persistence](#session--persistence)
-10. [Debugging (dd!)](#debugging-dd)
-11. [CLI Tools](#cli-tools)
-12. [Eager Loading (N+1 Solution)](#eager-loading-n1-solution)
-13. [HTMX Integration (Zero-Mouse UI)](#htmx-integration-zero-mouse-ui)
-14. [File Upload & Image Manipulation (Advanced)](#file-upload--image-manipulation-advanced)
-15. [Persistent Queue System](#persistent-queue-system)
-16. [Blade Template Syntax](#blade-template-syntax)
-17. [Logging & Debugging](#logging--debugging)
-18. [Rate Limiting](#rate-limiting)
-19. [**CHEAT SHEET (Quick Reference)**](./CHEAT_SHEET.md)
+5. [Middleware & Custom Security Guards](#middleware--custom-security-guards)
+6. [Controller & View](#controller--view)
+7. [Model & Database (ORM)](#model--database-orm)
+8. [Validasi Request](#validasi-request)
+9. [Autentikasi & Facade Auth](#autentikasi--facade-auth)
+10. [Session & Persistence](#session--persistence)
+11. [Debugging (dd!)](#debugging-dd)
+12. [CLI Tools](#cli-tools)
+13. [Eager Loading (N+1 Solution)](#eager-loading-n1-solution)
+14. [HTMX Integration (Zero-Mouse UI)](#htmx-integration-zero-mouse-ui)
+15. [File Upload & Image Manipulation (Advanced)](#file-upload--image-manipulation-advanced)
+16. [Persistent Queue System](#persistent-queue-system)
+17. [Blade Template Syntax](#blade-template-syntax)
+18. [Logging & Debugging](#logging--debugging)
+19. [Rate Limiting](#rate-limiting)
+20. [**CHEAT SHEET (Quick Reference)**](./CHEAT_SHEET.md)
 
 ---
 
@@ -53,27 +54,53 @@ pub async fn index(State(state): State<AppState>, session: Session) -> impl Into
 
 ## Model & Database (ORM)
 
-### Relasi (Relationships)
-Lumina mendukung relasi dasar secara out-of-the-box.
+### 1-Line Relationship Macros (Eloquent & Human-Friendly)
+Lumina menyediakan makro relasi 1-baris yang ekspresif, otomatis menangani type safety dan query:
 
-#### Has Many
 ```rust
-// Di dalam impl User
-pub async fn posts(&self, db: &DatabasePool) -> Result<Vec<Post>, sqlx::Error> {
-    Self::has_many::<Post>(db, "user_id", self.id).await
+use lumina::prelude::*;
+
+#[derive(LuminaModel, Clone, Debug)]
+#[table("posts")]
+pub struct Post {
+    pub id: i64,
+    pub user_id: i64,
+    pub title: String,
 }
-```
 
-#### Belongs To
-```rust
-// Di dalam impl Post
-pub    async fn user(&self, db: &DatabasePool) -> Result<User, sqlx::Error> {
-        Self::belongs_to::<User>(db, self.user_id).await
+impl Post {
+    // Relasi Belongs To: posts.user_id -> users.id
+    belongs_to!(user, User, "user_id");
+}
+
+#[derive(LuminaModel, Clone, Debug)]
+#[table("users")]
+pub struct User {
+    pub id: i64,
+    pub name: String,
+}
+
+impl User {
+    // Relasi Has Many: users.id -> posts.user_id
+    has_many!(posts, Post, "user_id");
+
+    // Relasi Has One
+    has_one!(profile, Profile, "user_id");
+
+    // Fungsi custom concurrent dengan alias &Db dan OrmResult
+    pub async fn active_users(db: &Db) -> OrmResult<Vec<Self>> {
+        Self::query(db).where_eq("is_active", 1).get().await
     }
 }
 ```
 
-> 📖 **Panduan Lengkap:** Untuk tutorial mendalam tentang relasi (HasOne, HasMany, ManyToMany) dan Eager Loading, silakan baca [**Tutorial Database Relationships**](./docs/RELATIONSHIPS.md).
+### Shortcut `or_404` untuk Not Found Exception
+Mengubah `Option<T>` langsung menjadi respon `404 Not Found` JSON atau HTML secara elegan:
+```rust
+let post = Post::find(&db, id).await.or_404("Artikel tidak ditemukan")?;
+```
+
+> 📖 **Panduan Lengkap:** Untuk tutorial mendalam tentang ORM, relasi (HasOne, HasMany, ManyToMany, BelongsToMany), dan Eager Loading, silakan baca [**Tutorial Database ORM**](./docs/ORM.md) dan [**Tutorial Relationships**](./docs/RELATIONSHIPS.md).
 
 ---
 
@@ -294,59 +321,52 @@ JWT_SECRET=your-super-secret-key-min-32-chars
 
 ## Routing
 
-### Web Routes (`routes/web.rs`)
+Lumina Router menyediakan fluent API modern yang membungkus Axum, memungkinkan pendaftaran route web dan API, grouping, serta penyematan middleware secara ringkas dan deklaratif.
 
-Daftarkan route HTML di `routes/web.rs` menggunakan fluent builder API:
+### Web Routes (`src/routes/web.rs`)
+
+Daftarkan route HTML di `src/routes/web.rs` menggunakan fluent builder:
 
 ```rust
-use crate::core::router::Router;
-use crate::app::controllers::home_controller::HomeController;
-use crate::core::application::AppState;
-use std::sync::Arc;
+use lumina::prelude::*;
+use crate::app::controllers::welcome_controller::WelcomeController;
 
-pub fn register() -> Router<Arc<AppState>> {
+pub fn router() -> Router<AppState> {
     Router::new()
-        .get("/",           HomeController::index)
-        .get("/about",      HomeController::about)
-        .get("/users",      UserController::index)
-        .get("/users/:id",  UserController::show)
-        .post("/users",     UserController::store)
-        .put("/users/:id",  UserController::update)
-        .delete("/users/:id", UserController::destroy)
+        .get("/",           WelcomeController::index)
+        .get("/login",      WelcomeController::login)
+        .get("/register",   WelcomeController::register)
 }
 ```
 
-### API Routes (`routes/api.rs`)
+### API Routes (`src/routes/api.rs`)
 
-API routes di-prefix `/api` secara otomatis oleh `Application::build_router`.
+Semua route di `src/routes/api.rs` otomatis diprefix dengan `/api` oleh engine `Application`. Anda dapat mengelompokkan route dengan `.group()` serta menyematkan middleware secara langsung:
 
 ```rust
-use axum::{Router as AxumRouter, routing, middleware::from_fn};
-use crate::http::middleware::auth_required;
+use lumina::prelude::*;
+use crate::app::controllers::api::*;
 
-pub fn register() -> Router<Arc<AppState>> {
-    // Public — tidak butuh token
-    let public = AxumRouter::new()
-        .route("/auth/login",    routing::post(AuthController::api_login))
-        .route("/auth/register", routing::post(AuthController::api_register));
+pub fn router() -> Router<AppState> {
+    Router::new()
+        // Public API
+        .get("/health", api_health)
+        .post("/auth/login", AuthController::api_login)
 
-    // Protected — wajib Bearer token
-    let protected = AxumRouter::new()
-        .route("/auth/me",   routing::get(AuthController::me))
-        .route("/users",     routing::get(ApiController::index))
-        .route("/users/:id", routing::get(ApiController::show))
-        .route_layer(from_fn(auth_required));
-
-    Router::from_axum(
-        AxumRouter::new().merge(public).merge(protected)
-    )
+        // Protected API Group (v1)
+        .group("/v1", |r| {
+            r.middleware(from_fn(middleware::api_auth_with_pairing))
+             .get("/users", UserController::index)
+             .get("/users/:id", UserController::show)
+             .post("/users", UserController::store)
+        })
 }
 ```
 
 ### HTTP Methods yang Didukung
 
-| Method | Builder |
-|--------|---------|
+| Method | Builder Method |
+|---|---|
 | GET | `.get(path, handler)` |
 | POST | `.post(path, handler)` |
 | PUT | `.put(path, handler)` |
@@ -355,16 +375,188 @@ pub fn register() -> Router<Arc<AppState>> {
 
 ### Route Parameters
 
-Gunakan `:param` pada path, lalu ekstrak dengan `Path<T>`:
+Gunakan `:param` pada path, lalu ambil melalui bundle extractor `Request` atau `Path<T>`:
 
 ```rust
-use axum::extract::Path;
+// Cara 1: Menggunakan Request Bundle Extractor (Direkomendasikan)
+pub async fn show(req: Request) -> impl IntoResponse {
+    let id: i64 = req.param("id").unwrap_or_default();
+    // ...
+}
 
-pub async fn show(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<u32>
-) -> Html<String> {
-    // id tersedia sebagai u32
+// Cara 2: Menggunakan Axum Path Extractor
+pub async fn show_alt(Path(id): Path<i64>) -> impl IntoResponse {
+    // ...
+}
+```
+
+---
+
+## Middleware & Custom Security Guards
+
+Lumina Framework menyediakan pipeline middleware berkinerja tinggi berbasis Tower & Axum. Anda dapat membuat custom middleware dengan mudah untuk validasi JWT Bearer token, header khusus (seperti `X-Signature`, `X-Token-Pairing`, `X-Timestamp`), API Key, rate limiting, logging, hingga tenancy context.
+
+Middleware dapat disematkan di 3 level:
+1. **Global Application**: Dijalankan pada SEMUA request aplikasi (Web, API, health check, dll).
+2. **Pipeline (Web vs API)**: Dijalankan khusus pada grup Web (`/`) atau API (`/api`).
+3. **Route & Group Level**: Dijalankan pada route spesifik atau sub-group (misal `/api/v1/secure`).
+
+### 1. Struktur Pembuatan Custom Middleware
+
+Middleware di Lumina adalah fungsi async standar dengan parameter `(req: Request, next: Next) -> Response`:
+
+```rust
+use lumina::http::middleware::{Request, Next, Response, unauthorized_json, get_header};
+
+pub async fn my_custom_api_guard(req: Request, next: Next) -> Response {
+    // 1. Logika Pre-Request (Sebelum controller dipanggil)
+    let api_key = match get_header(&req, "X-Api-Key") {
+        Some(k) if k == "secret-key-123" => k,
+        _ => return unauthorized_json("Akses ditolak: X-Api-Key tidak valid atau tidak ditemukan."),
+    };
+
+    // 2. Teruskan ke handler berikutnya
+    let mut response = next.run(req).await;
+
+    // 3. Logika Post-Request (Sesudah controller selesai)
+    response.headers_mut().insert(
+        "X-Served-By",
+        "Lumina-Engine".parse().unwrap(),
+    );
+
+    response
+}
+```
+
+### 2. Custom Auth API dengan JWT + `X-Signature` & `X-Token-Pairing`
+
+Pada skenario perbankan, fintech, open banking (SNAP BI), atau client mobile, API membutuhkan proteksi ganda: validasi JWT Bearer ditambah header keamanan seperti `X-Signature` dan `X-Token-Pairing`.
+
+Lumina telah menyertakan guard siap pakai di `lumina::http::middleware`:
+
+#### A. Verifikasi JWT Bearer + `X-Token-Pairing` (`api_auth_with_pairing`)
+Memastikan Bearer JWT valid DAN header `X-Token-Pairing` (device/session binding) disertakan:
+
+```rust
+use lumina::prelude::*;
+use lumina::http::middleware::api_auth_with_pairing;
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .group("/mobile", |r| {
+            r.middleware(from_fn(api_auth_with_pairing))
+             .get("/profile", user_profile)
+             .post("/transfer", do_transfer)
+        })
+}
+```
+
+#### B. Verifikasi API Signature & Timestamp (`verify_api_signature`)
+Memvalidasi header `X-Signature` dan `X-Timestamp` (sangat cocok untuk Webhook atau Open API):
+
+```rust
+use lumina::prelude::*;
+use lumina::http::middleware::verify_api_signature;
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .group("/webhooks", |r| {
+            r.middleware(from_fn(verify_api_signature))
+             .post("/bca-notify", bca_webhook_handler)
+        })
+}
+```
+
+#### C. Full Composite Security Guard (`api_secure_guard`)
+Kombinasi lengkap: memvalidasi JWT Bearer + `X-Signature` + `X-Token-Pairing` sekaligus:
+
+```rust
+use lumina::prelude::*;
+use lumina::http::middleware::api_secure_guard;
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .group("/vault", |r| {
+            r.middleware(from_fn(api_secure_guard))
+             .get("/secrets", secret_data_handler)
+        })
+}
+```
+
+### 3. Pendaftaran Middleware di `Application` (`src/main.rs`)
+
+Anda dapat mendaftarkan middleware langsung pada builder `Application`:
+
+```rust
+use lumina::prelude::*;
+use lumina::http::middleware::from_fn;
+
+#[tokio::main]
+async fn main() {
+    dotenv::dotenv().ok();
+
+    let app = Application::new()
+        .with_web(routes::web::router())
+        .with_api(routes::api::router())
+        // 1. Global Middleware: Berjalan di seluruh request (Web, API, health check)
+        .with_global_middleware(from_fn(custom_global_tracker))
+        // 2. Khusus Web Pipeline: Berjalan hanya pada request Web (HTML/Blade)
+        .with_web_middleware(from_fn(web_traffic_logger))
+        // 3. Khusus API Pipeline: Berjalan hanya pada request API (/api/*)
+        .with_api_middleware(from_fn(api_rate_limiter_or_cors));
+
+    app.serve("127.0.0.1:8000").await;
+}
+```
+
+### 4. Pendaftaran Middleware di Routing (`routes/web.rs` & `routes/api.rs`)
+
+#### Route Group Middleware:
+```rust
+use lumina::prelude::*;
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .get("/open", public_ping)
+        
+        // Group route dengan middleware
+        .group("/v1", |r| {
+            r.middleware(from_fn(middleware::api_auth_with_pairing))
+             .get("/orders", list_orders)
+             .post("/orders", create_order)
+        })
+}
+```
+
+#### Route-Level Middleware (`route_middleware`):
+```rust
+Router::new()
+    .get("/reports/export", export_handler)
+    .route_middleware(from_fn(verify_export_permission))
+```
+
+### 5. Helper Response & Header Utility Bawaan Lumina
+
+Lumina menyediakan kumpulan helper ringkas di `lumina::http::middleware` agar kode middleware Anda tetap rapi tanpa boilerplate manual:
+
+| Helper Function | Deskripsi |
+|---|---|
+| `get_header(&req, "Header-Name")` | Mengambil nilai string dari header request (Option<&str>). |
+| `get_bearer_token(&req)` | Mengambil token JWT dari header `Authorization: Bearer <token>`. |
+| `validate_required_headers(&req, &["A", "B"])` | Memastikan semua header wajib tersedia dan tidak kosong. |
+| `unauthorized_json("Pesan")` | Mengembalikan Response HTTP 401 Unauthorized dalam format JSON standar Lumina. |
+| `forbidden_json("Pesan")` | Mengembalikan Response HTTP 403 Forbidden dalam format JSON standar Lumina. |
+| `bad_request_json("Pesan")` | Mengembalikan Response HTTP 400 Bad Request dalam format JSON standar Lumina. |
+| `error_json(StatusCode, "Pesan")` | Mengembalikan Response JSON kustom dengan status code yang ditentukan. |
+
+Format JSON error standar Lumina:
+```json
+{
+  "metaData": {
+    "code": "401",
+    "message": "Token autentikasi tidak ditemukan. Sertakan header: Authorization: Bearer <token>"
+  },
+  "response": null
 }
 ```
 

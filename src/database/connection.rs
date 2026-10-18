@@ -5,6 +5,7 @@ pub enum DatabaseKind {
     Sqlite,
     Postgres,
     MySql,
+    Mssql,
 }
 
 /// Lumina DatabasePool — wrapper di atas `sqlx::Pool<Any>`.
@@ -29,6 +30,8 @@ impl DatabasePool {
             DatabaseKind::Postgres
         } else if database_url.starts_with("mysql:") {
             DatabaseKind::MySql
+        } else if database_url.starts_with("mssql:") || database_url.starts_with("sqlserver:") {
+            DatabaseKind::Mssql
         } else {
             // Default atau fallback (misal SQLite)
             DatabaseKind::Sqlite
@@ -51,22 +54,38 @@ impl DatabasePool {
     /// Menyesuaikan placeholder query secara otomatis berdasarkan driver database aktif.
     /// SQLite/MySQL: tetap menggunakan `?`.
     /// PostgreSQL: mentranslasikan `?` menjadi `$1, $2, $3, ...`.
+    /// MSSQL: mentranslasikan `?` menjadi `@p1, @p2, @p3, ...`.
     pub fn prepare_sql(&self, sql: &str) -> String {
-        if self.kind == DatabaseKind::Postgres {
-            let mut result = String::with_capacity(sql.len() + 16);
-            let mut idx = 1;
-            for ch in sql.chars() {
-                if ch == '?' {
-                    result.push('$');
-                    result.push_str(&idx.to_string());
-                    idx += 1;
-                } else {
-                    result.push(ch);
+        match self.kind {
+            DatabaseKind::Postgres => {
+                let mut result = String::with_capacity(sql.len() + 16);
+                let mut idx = 1;
+                for ch in sql.chars() {
+                    if ch == '?' {
+                        result.push('$');
+                        result.push_str(&idx.to_string());
+                        idx += 1;
+                    } else {
+                        result.push(ch);
+                    }
                 }
+                result
             }
-            result
-        } else {
-            sql.to_string()
+            DatabaseKind::Mssql => {
+                let mut result = String::with_capacity(sql.len() + 16);
+                let mut idx = 1;
+                for ch in sql.chars() {
+                    if ch == '?' {
+                        result.push_str("@p");
+                        result.push_str(&idx.to_string());
+                        idx += 1;
+                    } else {
+                        result.push(ch);
+                    }
+                }
+                result
+            }
+            _ => sql.to_string(),
         }
     }
 }

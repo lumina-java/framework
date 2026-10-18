@@ -29,6 +29,14 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
                 run_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"
         }
+        DatabaseKind::Mssql => {
+            "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='_migrations' AND xtype='U')
+            CREATE TABLE _migrations (
+                id       INT IDENTITY(1,1) PRIMARY KEY,
+                name     NVARCHAR(255) NOT NULL UNIQUE,
+                run_at   DATETIME2 DEFAULT CURRENT_TIMESTAMP
+            )"
+        }
     };
 
     sqlx::query(create_table_sql).execute(pool).await?;

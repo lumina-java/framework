@@ -1,6 +1,6 @@
 [package]
 name = "lumina-framework"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 authors = ["Lumina Java <admin@lumina-java.com>"]
 description = "A beautiful, fast, and elegant web framework for Rust"
@@ -30,7 +30,7 @@ async-trait = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "mysql", "macros", "any", "chrono"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "macros", "any", "chrono"] }
 jsonwebtoken = "9"
 clap = { version = "4", features = ["derive"] }
 chrono = "0.4"
@@ -43,7 +43,7 @@ axum-extra = { version = "0.9", features = ["cookie", "cookie-private"] }
 tower = { version = "0.4", features = ["util"] }
 thiserror = "2.0.18"
 tower-sessions = "0.12"
-tower-sessions-sqlx-store = { version = "0.13", features = ["mysql", "sqlite", "postgres"] }
+tower-sessions-sqlx-store = { version = "0.13", default-features = false }
 time = "0.3.47"
 axum_csrf = { version = "0.10.0", features = ["layer"] }
 moka = { version = "0.12.15", features = ["future"] }
@@ -59,7 +59,21 @@ tokio-cron-scheduler = "0.10"
 zip = "2.2"
 walkdir = "2"
 
+[features]
+default = ["sqlite", "postgres", "mysql"]
+all = ["sqlite", "postgres", "mysql", "mssql"]
+sqlite = ["sqlx/sqlite", "tower-sessions-sqlx-store/sqlite"]
+postgres = ["sqlx/postgres", "tower-sessions-sqlx-store/postgres"]
+mysql = ["sqlx/mysql", "tower-sessions-sqlx-store/mysql"]
+mssql = []
 
 [[bin]]
 name = "lumina"
 path = "src/bin/lumina.rs"
+
+[profile.release]
+opt-level = "z"
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true

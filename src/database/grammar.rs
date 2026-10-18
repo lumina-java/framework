@@ -48,6 +48,7 @@ fn get_type(col: &ColumnDefinition, kind: DatabaseKind) -> String {
             DatabaseKind::Sqlite => "INTEGER PRIMARY KEY AUTOINCREMENT".to_string(),
             DatabaseKind::MySql => "INT AUTO_INCREMENT PRIMARY KEY".to_string(),
             DatabaseKind::Postgres => "SERIAL PRIMARY KEY".to_string(),
+            DatabaseKind::Mssql => "INT IDENTITY(1,1) PRIMARY KEY".to_string(),
         },
         ColumnType::String(len) => {
             let length = len.unwrap_or(255);
@@ -61,6 +62,7 @@ fn get_type(col: &ColumnDefinition, kind: DatabaseKind) -> String {
                 DatabaseKind::Sqlite => "BOOLEAN".to_string(), // SQLite uses 0/1
                 DatabaseKind::MySql => "TINYINT(1)".to_string(),
                 DatabaseKind::Postgres => "BOOLEAN".to_string(),
+                DatabaseKind::Mssql => "BIT".to_string(),
             }
         }
         ColumnType::Text => "TEXT".to_string(),
@@ -68,12 +70,14 @@ fn get_type(col: &ColumnDefinition, kind: DatabaseKind) -> String {
             DatabaseKind::Sqlite => "DATETIME".to_string(),
             DatabaseKind::MySql => "DATETIME".to_string(),
             DatabaseKind::Postgres => "TIMESTAMP".to_string(),
+            DatabaseKind::Mssql => "DATETIME2".to_string(),
         },
         ColumnType::Date => "DATE".to_string(),
         ColumnType::Json => match kind {
             DatabaseKind::Sqlite => "TEXT".to_string(),
             DatabaseKind::MySql => "JSON".to_string(),
             DatabaseKind::Postgres => "JSONB".to_string(),
+            DatabaseKind::Mssql => "NVARCHAR(MAX)".to_string(),
         },
     }
 }

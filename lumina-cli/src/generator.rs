@@ -1,7 +1,7 @@
 use chrono::Local;
 use colored::*;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::Path;
 use std::process::Command;
 
@@ -580,58 +580,119 @@ pub fn run_db_seed() {
 //  DEVOPS GENERATORS
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub fn generate_docker() {
+pub fn generate_docker(name: Option<String>, port: Option<u16>) {
     if !guard_project() {
         return;
     }
     println!(
         "{}",
-        "🐳 Generating Docker configuration..."
+        "🐳 Generating Production Docker, Compose & Nginx Configuration..."
             .bright_purple()
             .bold()
     );
 
-    let project_name = get_project_name();
+    let default_name = get_project_name();
+    let target_name = match name {
+        Some(n) if !n.trim().is_empty() => n.trim().to_string(),
+        _ => {
+            print!(
+                "  {} Masukkan nama project / domain server (misal: pos.sugandi.my.id atau service_pos_event) [{}]: ",
+                "▶".bright_cyan(),
+                default_name.bright_yellow()
+            );
+            let _ = io::stdout().flush();
+            let mut input = String::new();
+            let _ = io::stdin().read_line(&mut input);
+            let trimmed = input.trim();
+            if trimmed.is_empty() {
+                default_name.clone()
+            } else {
+                trimmed.to_string()
+            }
+        }
+    };
 
-    let dockerfile = r#"# ─── Build Stage ───────────────────────────────────────────────────────────
-FROM rust:1.82-slim-bookworm AS builder
+    let exposed_port = port.unwrap_or(8000);
+    let safe_name = target_name.replace('.', "-").replace('_', "-").to_lowercase();
+    let container_name = format!("{}-app", safe_name);
+    let pkg_name = get_project_name();
 
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+    // 1. Dockerfile
+    let dockerfile = format!(
+        r#"# ─── Stage 1: Build Stage ───────────────────────────────────────────────────────────
+FROM rust:1.80-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y pkg-config libssl-dev build-essential && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY . .
-RUN cargo build --release
 
-# ─── Runtime Stage ──────────────────────────────────────────────────────────
+# Build dengan Docker BuildKit Cache Mounts untuk kompilasi ulang super cepat
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --release && \
+    (cp /app/target/release/{pkg_name}-server /app/server 2>/dev/null || \
+     cp /app/target/release/{pkg_name} /app/server 2>/dev/null || \
+     find /app/target/release/ -maxdepth 1 -type f -executable ! -name "*.so" ! -name "*.d" -exec cp {{}} /app/server \; )
+
+# ─── Stage 2: Runtime Stage ──────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ca-certificates libssl3 curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /app/target/release/. .
+COPY --from=builder /app/server ./server
 COPY --from=builder /app/resources ./resources
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/database ./database
+COPY --from=builder /app/storage ./storage
 COPY --from=builder /app/.env.example ./.env
 
-EXPOSE 8000
+ENV APP_ENV=production
+ENV APP_PORT={port}
+
+EXPOSE {port}
 CMD ["./server"]
+"#,
+        pkg_name = pkg_name,
+        port = exposed_port
+    );
+
+    // 2. .dockerignore
+    let dockerignore = r#"target/
+.git/
+.github/
+.env
+storage/cache/*
+storage/logs/*
+*.sqlite
+*.db
+node_modules/
 "#;
 
+    // 3. docker-compose.yml
     let compose = format!(
         r#"version: "3.9"
 
 services:
-  app:
-    build: .
-    container_name: {name}-app
+  {safe_name}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {container_name}
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "{port}:{port}"
     volumes:
       - ./.env:/app/.env
       - ./storage:/app/storage
       - ./database:/app/database
+      - ./public:/app/public
     environment:
       - APP_ENV=production
+      - APP_PORT={port}
+      - APP_URL=http://{raw_name}
     networks:
       - lumina-net
 
@@ -639,14 +700,72 @@ networks:
   lumina-net:
     driver: bridge
 "#,
-        name = project_name
+        safe_name = safe_name,
+        container_name = container_name,
+        port = exposed_port,
+        raw_name = target_name
+    );
+
+    // 4. deploy/nginx.conf (aaPanel / Nginx ready reverse proxy)
+    let nginx_conf = format!(
+        r#"# Lumina Framework — Nginx / aaPanel Reverse Proxy Configuration
+# Domain: {raw_name} -> Container Port: {port}
+
+server {{
+    listen 80;
+    server_name {raw_name};
+
+    # Redirect HTTP to HTTPS
+    return 301 https://$host$request_uri;
+}}
+
+server {{
+    listen 443 ssl http2;
+    server_name {raw_name};
+
+    # SSL Configuration (sesuaikan path certs aaPanel / Let's Encrypt jika menggunakan SSL)
+    # ssl_certificate     /www/server/panel/vhost/cert/{raw_name}/fullchain.pem;
+    # ssl_certificate_key /www/server/panel/vhost/cert/{raw_name}/privkey.pem;
+
+    client_max_body_size 50M;
+
+    location / {{
+        proxy_pass         http://127.0.0.1:{port};
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+    }}
+}}
+"#,
+        raw_name = target_name,
+        port = exposed_port
     );
 
     fs::write("Dockerfile", dockerfile).ok();
+    fs::write(".dockerignore", dockerignore).ok();
     fs::write("docker-compose.yml", compose).ok();
-    print_success("Dockerfile");
+
+    fs::create_dir_all("deploy").ok();
+    let nginx_path = format!("deploy/nginx-{}.conf", safe_name);
+    fs::write(&nginx_path, nginx_conf).ok();
+
+    println!();
+    print_success("Dockerfile (Multi-Stage with BuildKit Cache Mounts)");
+    print_success(".dockerignore");
     print_success("docker-compose.yml");
-    print_hint("Build and run with: docker-compose up --build -d");
+    print_success(&format!("Nginx / aaPanel config: {}", nginx_path));
+    println!();
+    print_hint("Build & run: DOCKER_BUILDKIT=1 docker-compose up --build -d");
+    print_hint(&format!(
+        "Server Domain / Service: http://{} (Port: {})",
+        target_name.bright_green(),
+        exposed_port.to_string().bright_yellow()
+    ));
 }
 
 pub fn generate_nginx() {

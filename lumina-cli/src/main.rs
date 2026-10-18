@@ -83,9 +83,15 @@ enum Commands {
     DbSeed,
 
     // ─── DevOps / Deployment ──────────────────────────────────────────────────
-    /// Generate production Dockerfile & docker-compose.yml
+    /// Generate production Dockerfile, docker-compose.yml & aaPanel/Nginx reverse proxy
     #[command(name = "make:docker")]
-    MakeDocker,
+    MakeDocker {
+        /// Project / domain / service name (e.g., pos.sugandi.my.id or service_pos_event)
+        name: Option<String>,
+        /// Port to expose on the host (default: 8000)
+        #[arg(short, long)]
+        port: Option<u16>,
+    },
 
     /// Generate production Nginx reverse proxy configuration
     #[command(name = "make:nginx")]
@@ -133,8 +139,8 @@ fn main() {
         Commands::DbSeed => {
             generator::run_db_seed();
         }
-        Commands::MakeDocker => {
-            generator::generate_docker();
+        Commands::MakeDocker { name, port } => {
+            generator::generate_docker(name, port);
         }
         Commands::MakeNginx => {
             generator::generate_nginx();

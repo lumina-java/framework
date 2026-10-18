@@ -49,7 +49,7 @@ name = "{}-server"
 path = "src/main.rs"
 
 [dependencies]
-lumina = {{ package = "lumina-framework", version = "0.1.6" }}
+lumina = {{ package = "lumina-framework", version = "0.1.7" }}
 tokio = {{ version = "1", features = ["full"] }}
 axum = {{ version = "0.7", features = ["macros", "multipart"] }}
 serde = {{ version = "1", features = ["derive"] }}
@@ -58,7 +58,21 @@ dotenv = "0.15"
 tera = "1.19"
 async-trait = "0.1"
 chrono = {{ version = "0.4", features = ["serde"] }}
-sqlx = {{ version = "0.8", features = ["runtime-tokio", "postgres", "mysql", "sqlite", "any", "macros", "chrono"] }}
+sqlx = {{ version = "0.8", default-features = false, features = ["runtime-tokio", "macros", "any", "chrono", "sqlite", "postgres", "mysql"] }}
+
+[features]
+default = ["sqlite", "postgres", "mysql"]
+sqlite = []
+postgres = []
+mysql = []
+mssql = []
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
 "#,
         name, name, lib_name, name
     );
@@ -78,7 +92,7 @@ APP_KEY=lumina-super-secret-key-change-me-in-production
 LOG_LEVEL=info
 LOG_TO_FILE=true
 
-# Database Configuration (Multi-Driver: sqlite / postgres / mysql)
+# Database Configuration (Multi-Driver: sqlite / postgres / mysql / mssql)
 DB_CONNECTION=sqlite
 DB_HOST=127.0.0.1
 DB_PORT=5432
@@ -90,6 +104,7 @@ DB_PASSWORD=
 # DATABASE_URL=sqlite:./database.sqlite
 # DATABASE_URL=postgres://postgres:password@127.0.0.1:5432/my_db
 # DATABASE_URL=mysql://root:password@127.0.0.1:3306/my_db
+# DATABASE_URL=mssql://sa:YourPassword123@127.0.0.1:1433/my_db
 
 # Rate Limiting
 RATE_LIMIT_MAX=60
@@ -845,4 +860,93 @@ Dokumentasi lengkap dan update framework: [github.com/lumina-java/framework](htt
         name
     );
     fs::write(base.join("README.md"), readme).ok();
+
+    // 16. Dockerfile (Production Ready Multi-Stage with BuildKit Cache Mounts)
+    let dockerfile = format!(
+        r#"# ─── Stage 1: Build Stage ───────────────────────────────────────────────────────────
+FROM rust:1.80-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y pkg-config libssl-dev build-essential && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+
+# Build dengan Docker BuildKit Cache Mounts agar kompilasi ulang hanya memakan hitungan detik
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --release && \
+    (cp /app/target/release/{name}-server /app/server 2>/dev/null || \
+     cp /app/target/release/{name} /app/server 2>/dev/null || \
+     find /app/target/release/ -maxdepth 1 -type f -executable ! -name "*.so" ! -name "*.d" -exec cp {{}} /app/server \; )
+
+# ─── Stage 2: Runtime Stage ──────────────────────────────────────────────────────────
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y ca-certificates libssl3 curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /app/server ./server
+COPY --from=builder /app/resources ./resources
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/database ./database
+COPY --from=builder /app/storage ./storage
+COPY --from=builder /app/.env.example ./.env
+
+ENV APP_ENV=production
+ENV APP_PORT=8000
+
+EXPOSE 8000
+CMD ["./server"]
+"#,
+        name = name
+    );
+    fs::write(base.join("Dockerfile"), dockerfile).ok();
+
+    // 17. .dockerignore
+    let dockerignore = r#"target/
+.git/
+.github/
+.env
+storage/cache/*
+storage/logs/*
+*.sqlite
+*.db
+node_modules/
+"#;
+    fs::write(base.join(".dockerignore"), dockerignore).ok();
+
+    // 18. docker-compose.yml
+    let safe_name = name.replace('.', "-").replace('_', "-").to_lowercase();
+    let compose = format!(
+        r#"version: "3.9"
+
+services:
+  {safe_name}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {safe_name}-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./.env:/app/.env
+      - ./storage:/app/storage
+      - ./database:/app/database
+      - ./public:/app/public
+    environment:
+      - APP_ENV=production
+      - APP_PORT=8000
+    networks:
+      - lumina-net
+
+networks:
+  lumina-net:
+    driver: bridge
+"#,
+        safe_name = safe_name
+    );
+    fs::write(base.join("docker-compose.yml"), compose).ok();
 }
+

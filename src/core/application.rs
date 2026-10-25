@@ -19,7 +19,12 @@ use time::Duration;
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::services::ServeDir;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
-use tower_sessions_sqlx_store::{MySqlStore, PostgresStore, SqliteStore};
+#[cfg(feature = "mysql")]
+use tower_sessions_sqlx_store::MySqlStore;
+#[cfg(feature = "postgres")]
+use tower_sessions_sqlx_store::PostgresStore;
+#[cfg(feature = "sqlite")]
+use tower_sessions_sqlx_store::SqliteStore;
 
 use axum::extract::FromRef;
 use axum_csrf::CsrfConfig;
@@ -44,9 +49,15 @@ pub struct AppState {
     pub lang: Arc<crate::core::i18n::LangManager>,
     pub echo: Arc<crate::core::echo::EchoManager>,
     pub socialite: Arc<crate::core::auth::socialite::SocialiteManager>,
+    pub sandbox: Arc<crate::core::sandbox::LuminaPluginManager>,
 }
 
 impl AppState {
+    /// Akses cepat untuk mengeksekusi file Indonesian Script (.is) di sandbox
+    pub fn script(&self, path: &str) -> crate::core::sandbox::ScriptHandle {
+        crate::core::sandbox::ScriptHandle::new(self.sandbox.clone(), path)
+    }
+
     /// Akses cepat ke Database Pool.
     /// Panik jika database tidak terhubung (seharusnya ditangani oleh db_guard).
     pub fn db(&self) -> &DatabasePool {
@@ -60,6 +71,7 @@ impl AppState {
         &self.cache
     }
 }
+
 
 impl FromRef<AppState> for CsrfConfig {
     fn from_ref(state: &AppState) -> Self {
@@ -371,7 +383,14 @@ impl Application {
             lang,
             echo,
             socialite,
+            sandbox: {
+                let s = Arc::new(crate::core::sandbox::LuminaPluginManager::new());
+                let _ = s.load_directory("plugins");
+                let _ = s.load_directory("resources/plugins");
+                s
+            },
         };
+
 
         let state_arc = Arc::new(state);
 
@@ -380,6 +399,7 @@ impl Application {
         let mut session_store = LuminaSessionStore::Memory(MemoryStore::default());
 
         if db_pool.is_some() {
+            #[cfg(feature = "mysql")]
             if session_db_url.starts_with("mysql:") {
                 if let Ok(pool) = sqlx::MySqlPool::connect(&session_db_url).await {
                     let store = MySqlStore::new(pool);
@@ -387,7 +407,9 @@ impl Application {
                     session_store = LuminaSessionStore::MySql(store);
                     println!("💾 Session Store: Persistent (MySQL)");
                 }
-            } else if session_db_url.starts_with("postgres:")
+            }
+            #[cfg(feature = "postgres")]
+            if session_db_url.starts_with("postgres:")
                 || session_db_url.starts_with("postgresql:")
             {
                 if let Ok(pool) = sqlx::PgPool::connect(&session_db_url).await {
@@ -396,7 +418,9 @@ impl Application {
                     session_store = LuminaSessionStore::Postgres(store);
                     println!("💾 Session Store: Persistent (PostgreSQL)");
                 }
-            } else if session_db_url.starts_with("sqlite:") {
+            }
+            #[cfg(feature = "sqlite")]
+            if session_db_url.starts_with("sqlite:") {
                 if let Ok(pool) = sqlx::SqlitePool::connect(&session_db_url).await {
                     let store = SqliteStore::new(pool);
                     let _ = store.migrate().await;

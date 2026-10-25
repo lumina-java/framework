@@ -4,7 +4,7 @@ use axum::{
     http::{StatusCode, header},
 };
 use std::sync::Arc;
-use tera::Context;
+use crate::core::blade::BladeContext as Context;
 use serde_json::json;
 use crate::core::application::AppState;
 

@@ -30,6 +30,9 @@ pub struct QueryBuilder<'a, T> {
     havings: Vec<String>,
     joins: Vec<String>,
     eager_with: Vec<String>,
+    where_bind_values: Vec<String>,
+    with_trashed: bool,
+    only_trashed: bool,
     _marker: PhantomData<T>,
 }
 
@@ -44,6 +47,7 @@ where
             select: "*".to_string(),
             wheres: Vec::new(),
             args: AnyArguments::default(),
+            where_bind_values: Vec::new(),
             limit: None,
             offset: None,
             order_by: None,
@@ -51,6 +55,8 @@ where
             havings: Vec::new(),
             joins: Vec::new(),
             eager_with: Vec::new(),
+            with_trashed: false,
+            only_trashed: false,
             _marker: PhantomData,
         }
     }
@@ -102,6 +108,7 @@ where
         self.wheres
             .push(format!("{}{} = ?", prefix, column));
         let _ = self.args.add(value.to_string());
+        self.where_bind_values.push(value.to_string());
         self
     }
 
@@ -277,6 +284,147 @@ where
         self
     }
 
+    /// Sertakan baris yang telah di-soft-delete dalam query (Laravel: withTrashed)
+    pub fn with_trashed(mut self) -> Self {
+        self.with_trashed = true;
+        self
+    }
+
+    /// Ambil HANYA baris yang telah di-soft-delete (Laravel: onlyTrashed)
+    pub fn only_trashed(mut self) -> Self {
+        self.only_trashed = true;
+        self
+    }
+
+    /// Terapkan filter query secara kondisional jika kondisi bernilai true (Laravel: when)
+    pub fn when<F>(self, condition: bool, callback: F) -> Self
+    where
+        F: FnOnce(Self) -> Self,
+    {
+        if condition {
+            callback(self)
+        } else {
+            self
+        }
+    }
+
+    /// Terapkan filter query secara kondisional jika kondisi bernilai false (Laravel: unless)
+    pub fn unless<F>(self, condition: bool, callback: F) -> Self
+    where
+        F: FnOnce(Self) -> Self,
+    {
+        if !condition {
+            callback(self)
+        } else {
+            self
+        }
+    }
+
+    /// Tentukan kolom SELECT kustom atau ekspresi SQL mentah (Laravel: selectRaw)
+    pub fn select_raw(mut self, raw_sql: &str) -> Self {
+        self.select = raw_sql.to_string();
+        self
+    }
+
+    /// Tambahkan klausa WHERE mentah (Laravel: whereRaw)
+    pub fn where_raw(mut self, raw_sql: &str) -> Self {
+        let prefix = if self.wheres.is_empty() { "" } else { "AND " };
+        self.wheres.push(format!("{}{}", prefix, raw_sql));
+        self
+    }
+
+    /// Shortcut OR WHERE column = value
+    pub fn or_where_eq<V>(self, column: &str, value: V) -> Self
+    where
+        V: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
+    {
+        self.or_filter(column, "=", value)
+    }
+
+    /// Tambahkan klausa WHERE column NOT BETWEEN min AND max.
+    pub fn where_not_between<V1, V2>(mut self, column: &str, min: V1, max: V2) -> Self
+    where
+        V1: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
+        V2: 'a + Send + sqlx::Encode<'a, sqlx::Any> + sqlx::Type<sqlx::Any>,
+    {
+        let prefix = if self.wheres.is_empty() { "" } else { "AND " };
+        self.wheres
+            .push(format!("{}{} NOT BETWEEN ? AND ?", prefix, column));
+        let _ = self.args.add(min);
+        let _ = self.args.add(max);
+        self
+    }
+
+    /// Tambahkan klausa WHERE DATE(column) = date
+    pub fn where_date(mut self, column: &str, date: &str) -> Self {
+        let prefix = if self.wheres.is_empty() { "" } else { "AND " };
+        self.wheres.push(format!("{}DATE({}) = ?", prefix, column));
+        let _ = self.args.add(date.to_string());
+        self.where_bind_values.push(date.to_string());
+        self
+    }
+
+    /// Tambahkan nilai suatu kolom secara atomik di database (Laravel: increment)
+    pub async fn increment(self, column: &str, amount: i64) -> Result<u64, sqlx::Error> {
+        let where_clause = if !self.wheres.is_empty() {
+            format!(" WHERE {} AND deleted_at IS NULL", self.wheres.join(" "))
+        } else {
+            " WHERE deleted_at IS NULL".to_string()
+        };
+        let sql = format!("UPDATE {} SET {} = {} + ?{}", self.table, column, column, where_clause);
+        let sql = self.pool.prepare_sql(&sql);
+        let mut query = sqlx::query(&sql).bind(amount);
+        for wb in &self.where_bind_values {
+            query = query.bind(wb);
+        }
+        let res = query.execute(&self.pool.pool).await?;
+        Ok(res.rows_affected())
+    }
+
+    /// Kurangkan nilai suatu kolom secara atomik di database (Laravel: decrement)
+    pub async fn decrement(self, column: &str, amount: i64) -> Result<u64, sqlx::Error> {
+        let where_clause = if !self.wheres.is_empty() {
+            format!(" WHERE {} AND deleted_at IS NULL", self.wheres.join(" "))
+        } else {
+            " WHERE deleted_at IS NULL".to_string()
+        };
+        let sql = format!("UPDATE {} SET {} = {} - ?{}", self.table, column, column, where_clause);
+        let sql = self.pool.prepare_sql(&sql);
+        let mut query = sqlx::query(&sql).bind(amount);
+        for wb in &self.where_bind_values {
+            query = query.bind(wb);
+        }
+        let res = query.execute(&self.pool.pool).await?;
+        Ok(res.rows_affected())
+    }
+
+    /// Pulihkan record yang terhapus (Soft Delete Restore ala Laravel)
+    pub async fn restore(self) -> Result<u64, sqlx::Error> {
+        let where_clause = if !self.wheres.is_empty() {
+            format!(" WHERE {} AND deleted_at IS NOT NULL", self.wheres.join(" "))
+        } else {
+            " WHERE deleted_at IS NOT NULL".to_string()
+        };
+        let sql = format!("UPDATE {} SET deleted_at = NULL{}", self.table, where_clause);
+        let sql = self.pool.prepare_sql(&sql);
+        let mut query = sqlx::query(&sql);
+        for wb in &self.where_bind_values {
+            query = query.bind(wb);
+        }
+        let res = query.execute(&self.pool.pool).await?;
+        Ok(res.rows_affected())
+    }
+
+    /// Ambil satu kolom tertentu sebagai Vec<String> (Laravel: pluck)
+    pub async fn pluck_strings(mut self, column: &str) -> Result<Vec<String>, sqlx::Error> {
+        self.select = format!("CAST({} AS TEXT)", column);
+        let sql = self.build_sql();
+        let rows: Vec<(Option<String>,)> = sqlx::query_as_with::<sqlx::Any, (Option<String>,), _>(&sql, self.args)
+            .fetch_all(&self.pool.pool)
+            .await?;
+        Ok(rows.into_iter().filter_map(|r| r.0).collect())
+    }
+
     /// Debugging: Mengambil string SQL yang dihasilkan.
     pub fn to_sql(&self) -> String {
         self.build_sql()
@@ -394,9 +542,10 @@ where
         for pair in &pairs {
             query = query.bind(&pair.1);
         }
+        for wb in &self.where_bind_values {
+            query = query.bind(wb);
+        }
 
-        // Re-bind args from QueryBuilder wheres
-        // Because AnyArguments doesn't easily dump into another query, for simple string/value updates or filter execution
         let res = query.execute(&self.pool.pool).await?;
         Ok(res.rows_affected())
     }
@@ -559,12 +708,22 @@ where
             sql.push_str(&self.joins.join(" "));
         }
 
+        let soft_delete_clause = if self.only_trashed {
+            "deleted_at IS NOT NULL"
+        } else if self.with_trashed {
+            ""
+        } else {
+            "deleted_at IS NULL"
+        };
+
         if !self.wheres.is_empty() {
             sql.push_str(" WHERE ");
             sql.push_str(&self.wheres.join(" "));
-            sql.push_str(" AND deleted_at IS NULL");
-        } else {
-            sql.push_str(" WHERE deleted_at IS NULL");
+            if !soft_delete_clause.is_empty() {
+                sql.push_str(&format!(" AND {}", soft_delete_clause));
+            }
+        } else if !soft_delete_clause.is_empty() {
+            sql.push_str(&format!(" WHERE {}", soft_delete_clause));
         }
 
         if let Some(ref group) = self.group_by {

@@ -16,6 +16,9 @@ enum Commands {
     New {
         /// Name of the project
         name: String,
+        /// Database engine to configure: sqlite, postgres, mysql, all [default: sqlite]
+        #[arg(short, long, default_value = "sqlite")]
+        db: String,
     },
     /// Generate a new controller
     #[command(name = "make:controller")]
@@ -110,6 +113,21 @@ enum Commands {
     /// Run full backup (Database & Storage)
     #[command(name = "backup:run")]
     BackupRun,
+    /// Generate a new WASM plugin starter crate in plugins/<name>
+    #[command(name = "plugin:new")]
+    PluginNew {
+        /// Name of the plugin (e.g. rupiah, markdown, sensor)
+        name: String,
+    },
+    /// Compile WASM plugin crate(s) to target wasm32 and copy to plugins/<name>.wasm
+    #[command(name = "plugin:build")]
+    PluginBuild {
+        /// Name of the plugin (optional, builds all if omitted)
+        name: Option<String>,
+    },
+    /// List all installed WASM plugins and Indonesian Script files
+    #[command(name = "plugin:list")]
+    PluginList,
 }
 
 #[tokio::main]
@@ -118,8 +136,8 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::New { name } => {
-            cli::handle_new(&name).await;
+        Commands::New { name, db } => {
+            cli::handle_new(&name, &db).await;
         }
         Commands::MakeController { name } => {
             cli::handle_make_controller(&name).await;
@@ -220,6 +238,15 @@ async fn main() {
                 .expect("Failed to start cargo-watch. Make sure it's installed: cargo install cargo-watch");
 
             let _ = child.wait();
+        }
+        Commands::PluginNew { name } => {
+            cli::handle_plugin_new(&name).await;
+        }
+        Commands::PluginBuild { name } => {
+            cli::handle_plugin_build(name.as_deref()).await;
+        }
+        Commands::PluginList => {
+            cli::handle_plugin_list().await;
         }
     }
 }

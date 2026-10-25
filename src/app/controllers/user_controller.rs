@@ -1,6 +1,6 @@
 use axum::{extract::{Path, State}, response::{Html, IntoResponse}};
 use crate::core::application::AppState;
-use tera::Context;
+use crate::core::blade::BladeContext as Context;
 use serde_json::json;
 
 pub struct UserController;

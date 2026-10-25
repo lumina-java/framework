@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-pub fn create_full_skeleton(base: &Path, name: &str) {
+pub fn create_full_skeleton(base: &Path, name: &str, db_type: &str) {
     // 1. Create Folder Structure
     let folders = [
         "src",
@@ -26,10 +26,101 @@ pub fn create_full_skeleton(base: &Path, name: &str) {
         "storage/cache",
         "public",
         "tests",
+        "plugins",
+        "app/scripts",
     ];
     for folder in folders {
         fs::create_dir_all(base.join(folder)).ok();
     }
+
+    let db_normalized = match db_type {
+        "postgres" | "postgresql" | "pg" => "postgres",
+        "mysql" | "mariadb" => "mysql",
+        "all" | "full" => "all",
+        _ => "sqlite",
+    };
+
+    let (sqlx_features, default_features, env_db_block) = match db_normalized {
+        "postgres" => (
+            r#"features = ["runtime-tokio", "macros", "any", "chrono", "postgres"]"#,
+            r#"default = ["postgres"]
+sqlite = []
+postgres = []
+mysql = []"#,
+            format!(
+                r#"# Database Configuration (PostgreSQL)
+DB_CONNECTION=postgres
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE={}_db
+DB_USERNAME=postgres
+DB_PASSWORD=secret
+
+# Atau gunakan URL eksplisit:
+DATABASE_URL=postgres://postgres:secret@127.0.0.1:5432/{}_db"#,
+                name, name
+            ),
+        ),
+        "mysql" => (
+            r#"features = ["runtime-tokio", "macros", "any", "chrono", "mysql"]"#,
+            r#"default = ["mysql"]
+sqlite = []
+postgres = []
+mysql = []"#,
+            format!(
+                r#"# Database Configuration (MySQL / MariaDB)
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE={}_db
+DB_USERNAME=root
+DB_PASSWORD=
+
+# Atau gunakan URL eksplisit:
+DATABASE_URL=mysql://root:@127.0.0.1:3306/{}_db"#,
+                name, name
+            ),
+        ),
+        "all" => (
+            r#"features = ["runtime-tokio", "macros", "any", "chrono", "sqlite", "postgres", "mysql"]"#,
+            r#"default = ["sqlite", "postgres", "mysql"]
+sqlite = []
+postgres = []
+mysql = []"#,
+            format!(
+                r#"# Database Configuration (Multi-Driver: sqlite / postgres / mysql)
+DB_CONNECTION=sqlite
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=./database.sqlite
+DB_USERNAME=root
+DB_PASSWORD=
+
+# Atau gunakan URL eksplisit:
+DATABASE_URL=sqlite:./database.sqlite
+# DATABASE_URL=postgres://postgres:secret@127.0.0.1:5432/{}_db
+# DATABASE_URL=mysql://root:@127.0.0.1:3306/{}_db"#,
+                name, name
+            ),
+        ),
+        _ => (
+            r#"features = ["runtime-tokio", "macros", "any", "chrono", "sqlite"]"#,
+            r#"default = ["sqlite"]
+sqlite = []
+postgres = []
+mysql = []"#,
+            r#"# Database Configuration (SQLite - Zero Config)
+DB_CONNECTION=sqlite
+DB_HOST=127.0.0.1
+DB_PORT=
+DB_DATABASE=./database.sqlite
+DB_USERNAME=
+DB_PASSWORD=
+
+# URL eksplisit:
+DATABASE_URL=sqlite:./database.sqlite"#.to_string(),
+        ),
+    };
 
     // 2. Cargo.toml
     let lib_name = name.replace("-", "_");
@@ -49,23 +140,18 @@ name = "{}-server"
 path = "src/main.rs"
 
 [dependencies]
-lumina = {{ package = "lumina-framework", version = "0.1.7" }}
+lumina = {{ package = "lumina-framework", version = "0.2.0" }}
 tokio = {{ version = "1", features = ["full"] }}
 axum = {{ version = "0.7", features = ["macros", "multipart"] }}
 serde = {{ version = "1", features = ["derive"] }}
 serde_json = "1"
 dotenv = "0.15"
-tera = "1.19"
 async-trait = "0.1"
 chrono = {{ version = "0.4", features = ["serde"] }}
-sqlx = {{ version = "0.8", default-features = false, features = ["runtime-tokio", "macros", "any", "chrono", "sqlite", "postgres", "mysql"] }}
+sqlx = {{ version = "0.8", default-features = false, {} }}
 
 [features]
-default = ["sqlite", "postgres", "mysql"]
-sqlite = []
-postgres = []
-mysql = []
-mssql = []
+{}
 
 [profile.release]
 opt-level = "z"
@@ -74,12 +160,13 @@ codegen-units = 1
 panic = "abort"
 strip = true
 "#,
-        name, name, lib_name, name
+        name, name, lib_name, name, sqlx_features, default_features
     );
     fs::write(base.join("Cargo.toml"), cargo_toml).ok();
 
     // 3. .env.example & .env
-    let env_example = r#"# ─── LUMINA FRAMEWORK CONFIGURATION ──────────────────────────────────────────
+    let env_example = format!(
+        r#"# ─── LUMINA FRAMEWORK CONFIGURATION ──────────────────────────────────────────
 
 # Application Settings
 APP_NAME=Lumina
@@ -92,19 +179,7 @@ APP_KEY=lumina-super-secret-key-change-me-in-production
 LOG_LEVEL=info
 LOG_TO_FILE=true
 
-# Database Configuration (Multi-Driver: sqlite / postgres / mysql / mssql)
-DB_CONNECTION=sqlite
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_DATABASE=./database.sqlite
-DB_USERNAME=root
-DB_PASSWORD=
-
-# Atau gunakan URL eksplisit:
-# DATABASE_URL=sqlite:./database.sqlite
-# DATABASE_URL=postgres://postgres:password@127.0.0.1:5432/my_db
-# DATABASE_URL=mysql://root:password@127.0.0.1:3306/my_db
-# DATABASE_URL=mssql://sa:YourPassword123@127.0.0.1:1433/my_db
+{}
 
 # Rate Limiting
 RATE_LIMIT_MAX=60
@@ -117,9 +192,15 @@ UPLOAD_MAX_SIZE_MB=5
 JWT_SECRET=lumina-jwt-secret-key-change-me-in-production
 
 # ──────────────────────────────────────────────────────────────────────────────
-"#;
-    fs::write(base.join(".env.example"), env_example).ok();
-    fs::write(base.join(".env"), env_example).ok();
+"#,
+        env_db_block
+    );
+    fs::write(base.join(".env.example"), &env_example).ok();
+    fs::write(base.join(".env"), &env_example).ok();
+
+    if db_normalized == "sqlite" || db_normalized == "all" {
+        fs::write(base.join("database.sqlite"), "").ok();
+    }
 
     // 4. src/lib.rs (Enables modular code & integration tests in tests/)
     let lib_rs = r#"pub mod app;

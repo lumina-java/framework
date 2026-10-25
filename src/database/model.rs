@@ -162,6 +162,101 @@ pub trait Model:
         Self::create(pool, create_map).await
     }
 
+    /// Update record jika ditemukan berdasarkan atribut, atau buat baru jika tidak ada (Laravel: updateOrCreate).
+    async fn update_or_create<K, V>(
+        pool: &DatabasePool,
+        attributes: impl IntoIterator<Item = (K, V)> + Send,
+        values: impl IntoIterator<Item = (K, V)> + Send,
+    ) -> Result<Self, sqlx::Error>
+    where
+        K: AsRef<str>,
+        V: ToString,
+    {
+        let attr_vec: Vec<(String, String)> = attributes
+            .into_iter()
+            .map(|(k, v)| (k.as_ref().to_string(), v.to_string()))
+            .collect();
+
+        let val_vec: Vec<(String, String)> = values
+            .into_iter()
+            .map(|(k, v)| (k.as_ref().to_string(), v.to_string()))
+            .collect();
+
+        let mut builder = Self::query(pool);
+        for (k, v) in &attr_vec {
+            builder = builder.where_eq_str(k, v);
+        }
+
+        if let Some(_item) = builder.first().await? {
+            if !val_vec.is_empty() {
+                let mut update_builder = Self::query(pool);
+                for (k, v) in &attr_vec {
+                    update_builder = update_builder.where_eq_str(k, v);
+                }
+                update_builder.update(val_vec).await?;
+            }
+
+            let mut refetch = Self::query(pool);
+            for (k, v) in &attr_vec {
+                refetch = refetch.where_eq_str(k, v);
+            }
+            return refetch.first_or_fail().await;
+        }
+
+        let mut create_map: Vec<(String, String)> = attr_vec;
+        for (key, val) in val_vec {
+            if !create_map.iter().any(|(existing_k, _)| existing_k == &key) {
+                create_map.push((key, val));
+            }
+        }
+
+        Self::create(pool, create_map).await
+    }
+
+    /// Ambil sekumpulan record berdasarkan array of primary key IDs (Laravel: findMany).
+    async fn find_many(pool: &DatabasePool, ids: &[i64]) -> Result<Vec<Self>, sqlx::Error> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Self::query(pool)
+            .where_in("id", ids.to_vec())
+            .get()
+            .await
+    }
+
+    /// Pulihkan record yang telah di-soft-delete (Laravel: restore)
+    async fn restore(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
+        let sql = format!("UPDATE {} SET deleted_at = NULL WHERE id = ?", Self::TABLE);
+        let sql = pool.prepare_sql(&sql);
+        let res = sqlx::query(&sql).bind(id).execute(&pool.pool).await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// Hapus record secara permanen (Hard Delete) dari database (Laravel: forceDelete)
+    async fn force_delete(pool: &DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
+        let sql = format!("DELETE FROM {} WHERE id = ?", Self::TABLE);
+        let sql = pool.prepare_sql(&sql);
+        let res = sqlx::query(&sql).bind(id).execute(&pool.pool).await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// Kosongkan seluruh data tabel model (Laravel: truncate)
+    async fn truncate(pool: &DatabasePool) -> Result<(), sqlx::Error> {
+        let sql = format!("DELETE FROM {}", Self::TABLE);
+        sqlx::query(&sql).execute(&pool.pool).await?;
+        Ok(())
+    }
+
+    /// Shortcut query yang menyertakan data yang sudah di-soft-delete (Laravel: withTrashed)
+    fn with_trashed<'a>(pool: &'a DatabasePool) -> QueryBuilder<'a, Self> {
+        Self::query(pool).with_trashed()
+    }
+
+    /// Shortcut query yang HANYA mengambil data yang telah di-soft-delete (Laravel: onlyTrashed)
+    fn only_trashed<'a>(pool: &'a DatabasePool) -> QueryBuilder<'a, Self> {
+        Self::query(pool).only_trashed()
+    }
+
     /// Buat record baru dari key-value pairs secara dinamis.
     async fn create<K, V>(
         pool: &DatabasePool,

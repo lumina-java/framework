@@ -26,6 +26,9 @@ enum Commands {
     New {
         /// The name of the new project
         name: String,
+        /// Database engine to configure: sqlite, postgres, mysql, all [default: sqlite]
+        #[arg(short, long, default_value = "sqlite")]
+        db: String,
     },
 
     /// Start the application server (cargo run)
@@ -100,14 +103,33 @@ enum Commands {
     /// Generate Supervisor daemon configuration
     #[command(name = "make:supervisor")]
     MakeSupervisor,
+
+    // ─── WebAssembly Plugins ──────────────────────────────────────────────────
+    /// Generate a new WASM plugin starter crate in plugins/<name>
+    #[command(name = "plugin:new")]
+    PluginNew {
+        /// Name of the plugin (e.g. rupiah, markdown, sensor)
+        name: String,
+    },
+
+    /// Compile WASM plugin crate(s) to target wasm32 and copy to plugins/<name>.wasm
+    #[command(name = "plugin:build")]
+    PluginBuild {
+        /// Name of the plugin (optional, builds all if omitted)
+        name: Option<String>,
+    },
+
+    /// List all installed WASM plugins and Indonesian Script files
+    #[command(name = "plugin:list")]
+    PluginList,
 }
 
 fn main() {
     let args = LuminaCli::parse();
 
     match args.command {
-        Commands::New { name } => {
-            handle_new_project(&name);
+        Commands::New { name, db } => {
+            handle_new_project(&name, &db);
         }
         Commands::Serve => {
             generator::cmd_serve();
@@ -148,15 +170,25 @@ fn main() {
         Commands::MakeSupervisor => {
             generator::generate_supervisor();
         }
+        Commands::PluginNew { name } => {
+            generator::generate_plugin_new(&name);
+        }
+        Commands::PluginBuild { name } => {
+            generator::cmd_plugin_build(name.as_deref());
+        }
+        Commands::PluginList => {
+            generator::cmd_plugin_list();
+        }
     }
 }
 
-fn handle_new_project(name: &str) {
+fn handle_new_project(name: &str, db: &str) {
+    let db_normalized = db.to_lowercase();
     println!(
         "{}",
         "✨ Welcome to Lumina Framework".bright_purple().bold()
     );
-    println!("🚀 Creating new project: {}\n", name.bright_blue());
+    println!("🚀 Creating new project: {} (Database: {})\n", name.bright_blue(), db_normalized.bright_yellow());
 
     let pb = ProgressBar::new_spinner();
     pb.set_style(
@@ -182,7 +214,7 @@ fn handle_new_project(name: &str) {
     }
 
     pb.set_message("Building project structure...");
-    skeleton::create_full_skeleton(path, name);
+    skeleton::create_full_skeleton(path, name, &db_normalized);
 
     pb.finish_with_message("✅ Project created successfully!");
 

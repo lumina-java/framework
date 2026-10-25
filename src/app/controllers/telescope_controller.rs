@@ -4,7 +4,7 @@ use axum::{
 };
 use crate::core::application::AppState;
 use crate::core::telescope::entry::EntryType;
-use tera::Context;
+use crate::core::blade::BladeContext as Context;
 use serde::Deserialize;
 
 pub struct TelescopeController;
@@ -30,9 +30,12 @@ impl TelescopeController {
             "events" => state.telescope.get_by_type(EntryType::Event),
             "jobs" => state.telescope.get_by_type(EntryType::Job),
             "logs" => state.telescope.get_by_type(EntryType::Log),
+            "sandbox" => state.telescope.get_by_type(EntryType::Sandbox),
             _ => state.telescope.all(),
         };
 
+        let metrics = state.sandbox.get_metrics();
+        context.insert("sandbox_metrics", &metrics);
         context.insert("entries", &entries);
 
         let rendered = state.view.render("telescope/index.blade.rs", &context);
@@ -52,9 +55,12 @@ impl TelescopeController {
             "events" => state.telescope.get_by_type(EntryType::Event),
             "jobs" => state.telescope.get_by_type(EntryType::Job),
             "logs" => state.telescope.get_by_type(EntryType::Log),
+            "sandbox" => state.telescope.get_by_type(EntryType::Sandbox),
             _ => state.telescope.all(),
         };
 
+        let metrics = state.sandbox.get_metrics();
+        context.insert("sandbox_metrics", &metrics);
         context.insert("entries", &entries);
         context.insert("active_tag", &tag);
 

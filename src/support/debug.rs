@@ -174,8 +174,8 @@ pub fn handle_panic(err: Box<dyn Any + Send + 'static>) -> Response {
         "Saran: Jalankan migrasi database Anda dengan perintah <code>./lumina migrate</code> atau <code>cargo run -- make:migration</code>."
     } else if err_msg.contains("Connection refused") || err_msg.contains("database connection") {
         "Saran: Pastikan database Anda sudah menyala dan URL koneksi di <code>.env</code> sudah benar."
-    } else if err_msg.contains("Tera") {
-        "Saran: Terjadi kesalahan saat merender template Tera. Periksa nama variabel atau filter di file view Anda."
+    } else if err_msg.contains("Blade") || err_msg.contains("Template error") {
+        "Saran: Terjadi kesalahan saat merender template Blade. Periksa nama variabel, direktif, atau file view Anda."
     } else {
         "Saran: Periksa kembali baris kode yang menyebabkan panic ini terjadi."
     };

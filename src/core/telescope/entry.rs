@@ -10,6 +10,7 @@ pub enum EntryType {
     Event,
     Log,
     Exception,
+    Sandbox,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,4 +53,14 @@ pub struct JobContent {
     pub queue: String,
     pub status: String, // pending, running, completed, failed
     pub duration_ms: Option<u128>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxContent {
+    pub target: String,
+    pub func_name: String,
+    pub caller: String,
+    pub duration_us: u128,
+    pub memory_bytes: usize,
+    pub status: String,
 }

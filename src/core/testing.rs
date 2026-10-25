@@ -64,7 +64,9 @@ impl TestApp {
             lang,
             echo,
             socialite,
+            sandbox: Arc::new(crate::core::sandbox::LuminaPluginManager::new()),
         };
+
 
         // 4. Build Router
         let session_store = crate::core::session::store::LuminaSessionStore::Memory(

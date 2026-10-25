@@ -898,3 +898,312 @@ fn get_project_name() -> String {
     }
     "lumina-app".to_string()
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  WASM PLUGIN GENERATOR & COMPILER
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub fn generate_plugin_new(name: &str) {
+    let clean_name = name.trim().to_lowercase().replace("-", "_");
+    if clean_name.is_empty() {
+        println!("{}", "❌ Error: Plugin name cannot be empty!".red().bold());
+        return;
+    }
+
+    let plugin_dir = Path::new("plugins").join(&clean_name);
+    if plugin_dir.exists() {
+        println!(
+            "{}",
+            format!("❌ Error: Plugin '{}' already exists in folder {:?}!", clean_name, plugin_dir).red().bold()
+        );
+        return;
+    }
+
+    let src_dir = plugin_dir.join("src");
+    if let Err(e) = fs::create_dir_all(&src_dir) {
+        println!("{}", format!("❌ Error: Could not create plugin directory: {}", e).red().bold());
+        return;
+    }
+
+    // 1. Cargo.toml
+    let cargo_toml = format!(
+        r#"[package]
+name = "{}"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+"#,
+        clean_name
+    );
+    let _ = fs::write(plugin_dir.join("Cargo.toml"), cargo_toml);
+
+    // 2. src/lib.rs
+    let lib_rs = format!(
+        r#"use std::mem;
+
+/// Alokasi buffer memori heap guest untuk transfer data dari host Lumina.
+#[no_mangle]
+pub extern "C" fn alloc(len: i32) -> i32 {{
+    let mut buf = Vec::with_capacity(len as usize);
+    let ptr = buf.as_mut_ptr();
+    mem::forget(buf);
+    ptr as i32
+}}
+
+/// Dealokasi buffer memori heap guest (opsional).
+#[no_mangle]
+pub extern "C" fn dealloc(ptr: i32, len: i32) {{
+    unsafe {{
+        let _ = Vec::from_raw_parts(ptr as *mut u8, len as usize, len as usize);
+    }}
+}}
+
+/// Fungsi filter transformasi untuk dipanggil dari Blade:
+/// {{{{ $data | {} }}}} atau @wasm('{}', 'transform', $data)
+/// Return: (out_ptr << 32) | (out_len & 0xFFFF_FFFF)
+#[no_mangle]
+pub extern "C" fn transform(ptr: i32, len: i32) -> i64 {{
+    let input = unsafe {{
+        let slice = std::slice::from_raw_parts(ptr as *const u8, len as usize);
+        std::str::from_utf8(slice).unwrap_or("")
+    }};
+
+    // Logika transformasi default: bungkus dengan tanda kurung siku (silakan modifikasi sesuai kebutuhan)
+    let output = format!("[{{}}]", input);
+    let out_bytes = output.into_bytes();
+    let out_len = out_bytes.len() as i64;
+    let out_ptr = out_bytes.as_ptr() as i64;
+
+    mem::forget(out_bytes);
+
+    (out_ptr << 32) | (out_len & 0xFFFF_FFFF)
+}}
+"#,
+        clean_name, clean_name
+    );
+    let _ = fs::write(src_dir.join("lib.rs"), lib_rs);
+
+    // 3. README.md
+    let readme = format!(
+        r#"# Lumina WASM Plugin: {}
+
+Plugin WebAssembly untuk Lumina Framework.
+
+## Cara Kompilasi:
+```bash
+lumina plugin:build {}
+```
+Binary output `.wasm` akan otomatis disalin ke `plugins/{}.wasm`.
+
+## Penggunaan di Blade View:
+```html
+{{{{ $data | {} }}}}
+@wasm('{}', 'transform', $data)
+```
+"#,
+        clean_name, clean_name, clean_name, clean_name, clean_name
+    );
+    let _ = fs::write(plugin_dir.join("README.md"), readme);
+
+    println!(
+        "✨ {}",
+        format!("WASM Plugin '{}' successfully created in plugins/{}/", clean_name, clean_name)
+            .bright_purple()
+            .bold()
+    );
+    println!("👉 Next step: Compile the plugin with:");
+    println!("   {}\n", format!("lumina plugin:build {}", clean_name).bright_cyan());
+}
+
+pub fn cmd_plugin_build(name: Option<&str>) {
+    println!("{}", "🔨 Compiling Lumina WebAssembly Plugin(s)...".bright_blue().bold());
+
+    let plugins_to_build: Vec<String> = if let Some(n) = name {
+        vec![n.trim().to_lowercase().replace("-", "_")]
+    } else {
+        let mut list = Vec::new();
+        if let Ok(entries) = fs::read_dir("plugins") {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_dir() && p.join("Cargo.toml").exists() {
+                    if let Some(folder_name) = p.file_name().and_then(|s| s.to_str()) {
+                        list.push(folder_name.to_string());
+                    }
+                }
+            }
+        }
+        list
+    };
+
+    if plugins_to_build.is_empty() {
+        println!("{}", "⚠️  No plugin crates found to compile.".yellow());
+        println!("💡 Tip: Create a new plugin with: {}", "lumina plugin:new <name>".bright_cyan());
+        return;
+    }
+
+    for plugin in plugins_to_build {
+        let plugin_dir = Path::new("plugins").join(&plugin);
+        if !plugin_dir.join("Cargo.toml").exists() {
+            println!(
+                "{}",
+                format!("❌ Error: Plugin folder 'plugins/{}' has no Cargo.toml!", plugin).red()
+            );
+            continue;
+        }
+
+        println!(
+            "📦 Compiling plugin '{}' to target wasm32-unknown-unknown...",
+            plugin.bright_cyan()
+        );
+
+        let status = Command::new("cargo")
+            .arg("build")
+            .arg("--target")
+            .arg("wasm32-unknown-unknown")
+            .arg("--release")
+            .current_dir(&plugin_dir)
+            .status();
+
+        match status {
+            Ok(s) if s.success() => {
+                let wasm_src = plugin_dir
+                    .join("target")
+                    .join("wasm32-unknown-unknown")
+                    .join("release")
+                    .join(format!("{}.wasm", plugin));
+
+                let wasm_dest = Path::new("plugins").join(format!("{}.wasm", plugin));
+
+                if wasm_src.exists() {
+                    if let Ok(_) = fs::copy(&wasm_src, &wasm_dest) {
+                        let size_bytes = fs::metadata(&wasm_dest).map(|m| m.len()).unwrap_or(0);
+                        let size_kb = (size_bytes as f64) / 1024.0;
+                        println!(
+                            "  {} {}",
+                            "✅".green(),
+                            format!("Output binary saved to: {:?} ({:.2} KB)", wasm_dest, size_kb).green()
+                        );
+                    } else {
+                        println!(
+                            "{}",
+                            format!("❌ Failed to copy WASM binary from {:?} to {:?}", wasm_src, wasm_dest).red()
+                        );
+                    }
+                } else {
+                    println!(
+                        "{}",
+                        format!("❌ Binary output {:?} not found after build!", wasm_src).red()
+                    );
+                }
+            }
+            Ok(s) => {
+                println!("{}", format!("❌ Compilation failed with exit code: {:?}", s.code()).red());
+                println!("💡 Tip: Ensure WASM target is installed: rustup target add wasm32-unknown-unknown");
+            }
+            Err(e) => {
+                println!("{}", format!("❌ Failed to execute cargo: {}", e).red());
+                println!("💡 Tip: Ensure WASM target is installed: rustup target add wasm32-unknown-unknown");
+            }
+        }
+    }
+}
+
+pub fn cmd_plugin_list() {
+    println!("{}", "🔍 Scanning for Lumina Plugins & Indonesian Scripts...\n".bright_blue().bold());
+
+    struct Item {
+        name: String,
+        kind: String,
+        size_str: String,
+        status: String,
+    }
+
+    let mut items = Vec::new();
+
+    // 1. Scan plugins/ folder
+    if let Ok(entries) = fs::read_dir("plugins") {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() {
+                if let Some(ext) = p.extension().and_then(|s| s.to_str()) {
+                    let file_name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?").to_string();
+                    let size = fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+                    let size_kb = format!("{:.2} KB", (size as f64) / 1024.0);
+
+                    if ext == "wasm" {
+                        items.push(Item {
+                            name: file_name,
+                            kind: "WASM Binary".to_string(),
+                            size_str: size_kb,
+                            status: "Ready to Execute ✅".to_string(),
+                        });
+                    } else if ext == "is" {
+                        let content = fs::read_to_string(&p).unwrap_or_default();
+                        let func_count = content.lines().filter(|l| l.trim().starts_with("fungsi ")).count();
+                        items.push(Item {
+                            name: file_name,
+                            kind: "Script (.is)".to_string(),
+                            size_str: size_kb,
+                            status: format!("{} functions", func_count),
+                        });
+                    }
+                }
+            } else if p.is_dir() && p.join("Cargo.toml").exists() {
+                let folder_name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?").to_string();
+                let wasm_exists = Path::new("plugins").join(format!("{}.wasm", folder_name)).exists();
+                let status = if wasm_exists {
+                    "Configured & Compiled".to_string()
+                } else {
+                    "Not built (run lumina plugin:build)".to_string()
+                };
+                items.push(Item {
+                    name: format!("{}/ (Crate)", folder_name),
+                    kind: "WASM Source".to_string(),
+                    size_str: "-".to_string(),
+                    status,
+                });
+            }
+        }
+    }
+
+    // 2. Scan app/scripts/ and resources/scripts/ folder
+    for script_dir in &["app/scripts", "resources/scripts"] {
+        if let Ok(entries) = fs::read_dir(script_dir) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_file() && p.extension().and_then(|s| s.to_str()) == Some("is") {
+                    let file_name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?").to_string();
+                    let size = fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+                    let size_kb = format!("{:.2} KB", (size as f64) / 1024.0);
+                    let content = fs::read_to_string(&p).unwrap_or_default();
+                    let func_count = content.lines().filter(|l| l.trim().starts_with("fungsi ")).count();
+                    items.push(Item {
+                        name: format!("{}/{}", script_dir, file_name),
+                        kind: "Script (.is)".to_string(),
+                        size_str: size_kb,
+                        status: format!("{} functions", func_count),
+                    });
+                }
+            }
+        }
+    }
+
+    if items.is_empty() {
+        println!("{}", "ℹ️  No WASM plugins or Indonesian Scripts found.".yellow());
+        println!("💡 Tip: Create a new plugin with: {}", "lumina plugin:new <name>".bright_cyan());
+        println!("💡 Tip: Place .is scripts in folder {} or {}\n", "app/scripts/".bright_cyan(), "plugins/".bright_cyan());
+        return;
+    }
+
+    println!("{:<32} {:<15} {:<12} {:<35}", "NAME", "TYPE", "SIZE", "STATUS / DETAIL");
+    println!("{:-<32} {:-<15} {:-<12} {:-<35}", "", "", "", "");
+    for item in &items {
+        println!("{:<32} {:<15} {:<12} {:<35}", item.name.bright_green(), item.kind.bright_yellow(), item.size_str, item.status);
+    }
+    println!("{:-<32} {:-<15} {:-<12} {:-<35}", "", "", "", "");
+    println!("Total detected items: {}\n", items.len());
+}

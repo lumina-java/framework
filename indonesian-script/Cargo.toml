@@ -1,6 +1,6 @@
 [package]
 name = "indonesian-script"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Slamet Sugandi <packercyber@gmail.com>"]
 description = "Indonesian Script (.is) - Super lightweight reactive JavaScript compiler in Rust with Indonesian & Javanese syntax helpers"

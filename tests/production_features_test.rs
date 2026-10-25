@@ -110,7 +110,7 @@ async fn test_tenant_operator_jwt_verification() {
     use lumina::core::echo::EchoManager;
     use lumina::http::auth::{generate_token, validate_token};
 
-    std::env::set_var("APP_KEY", "secret-tenant-key-99999");
+    std::env::set_var("APP_KEY", "secret-test-key-12345");
 
     let echo = EchoManager::new();
 

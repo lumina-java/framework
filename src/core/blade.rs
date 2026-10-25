@@ -1,8 +1,10 @@
 use regex::Regex;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
+
 
 mod html_escape {
     pub fn encode_safe(input: &str) -> String {
@@ -15,6 +17,8 @@ mod html_escape {
     }
 }
 
+/// BladeContext — Menyimpan data dan variabel untuk dirender ke dalam template Blade.
+/// Mendukung nested properties (dot-notation), array indexing, dan serialisasi data dinamis.
 #[derive(Clone, Debug, Default)]
 pub struct BladeContext {
     data: HashMap<String, Value>,
@@ -27,13 +31,23 @@ impl BladeContext {
         }
     }
 
+    /// Masukkan data serializable ke dalam context.
     pub fn insert<T: serde::Serialize>(&mut self, key: &str, value: T) {
+        let clean_key = key.trim().trim_start_matches('$');
         if let Ok(val) = serde_json::to_value(value) {
-            self.data.insert(key.to_string(), val);
+            self.data.insert(clean_key.to_string(), val);
         }
     }
 
+    /// Masukkan Value serde_json langsung.
+    pub fn insert_val(&mut self, key: &str, value: Value) {
+        let clean_key = key.trim().trim_start_matches('$');
+        self.data.insert(clean_key.to_string(), value);
+    }
+
+    /// Ambil nilai variabel. Mendukung dot-notation (misal: "user.profile.name" atau "items.0.title").
     pub fn get(&self, key: &str) -> Option<&Value> {
+        let key = key.trim().trim_start_matches('$');
         if !key.contains('.') {
             return self.data.get(key);
         }
@@ -55,20 +69,253 @@ impl BladeContext {
         }
         Some(curr)
     }
+
+    /// Cek apakah sebuah key ada di dalam context.
+    pub fn has(&self, key: &str) -> bool {
+        self.get(key).is_some()
+    }
+
+    /// Cek apakah suatu nilai bertipe truthy menurut aturan Blade/Laravel.
+    pub fn is_truthy(val: Option<&Value>) -> bool {
+        match val {
+            None => false,
+            Some(Value::Null) => false,
+            Some(Value::Bool(b)) => *b,
+            Some(Value::Number(n)) => n.as_f64().map(|f| f != 0.0).unwrap_or(false),
+            Some(Value::String(s)) => {
+                let trimmed = s.trim();
+                !trimmed.is_empty() && trimmed != "0" && trimmed != "false"
+            }
+            Some(Value::Array(arr)) => !arr.is_empty(),
+            Some(Value::Object(obj)) => !obj.is_empty(),
+        }
+    }
+
+    /// Evaluasi nilai ekspresi variabel/literal menjadi String.
+    /// Mendukung null coalescing: `$name ?? 'Default'`
+    pub fn eval_val(&self, expr: &str) -> String {
+        let expr = expr.trim();
+        if expr.is_empty() {
+            return String::new();
+        }
+
+        // Null coalescing: expr1 ?? expr2
+        if let Some(idx) = expr.find("??") {
+            let left = expr[..idx].trim();
+            let right = expr[idx + 2..].trim();
+            let val = self.eval_val(left);
+            if !val.is_empty() {
+                return val;
+            } else {
+                return self.eval_val(right);
+            }
+        }
+
+        // String literal: '...' atau "..."
+        if (expr.starts_with('\'') && expr.ends_with('\'') && expr.len() >= 2)
+            || (expr.starts_with('"') && expr.ends_with('"') && expr.len() >= 2)
+        {
+            return expr[1..expr.len() - 1].to_string();
+        }
+
+        // Boolean literal
+        if expr == "true" {
+            return "true".to_string();
+        }
+        if expr == "false" {
+            return "false".to_string();
+        }
+
+        // Number literal
+        if expr.parse::<f64>().is_ok() {
+            return expr.to_string();
+        }
+
+        // Variable lookup
+        if let Some(val) = self.get(expr) {
+            match val {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                Value::Bool(b) => b.to_string(),
+                Value::Null => String::new(),
+                v => v.to_string(),
+            }
+        } else {
+            String::new()
+        }
+    }
+
+    /// Evaluasi kondisi boolean (truthy) untuk direktif @if, @unless, @checked, dll.
+    pub fn eval_truthy(&self, expr: &str) -> bool {
+        let expr = expr.trim();
+        if expr.is_empty() {
+            return false;
+        }
+
+        // Hapus tanda kurung terluar jika ada: ( expr )
+        if expr.starts_with('(') && expr.ends_with(')') {
+            let inner = &expr[1..expr.len() - 1];
+            return self.eval_truthy(inner);
+        }
+
+        // Logical OR: ||
+        if let Some(idx) = expr.find("||") {
+            let left = &expr[..idx];
+            let right = &expr[idx + 2..];
+            return self.eval_truthy(left) || self.eval_truthy(right);
+        }
+
+        // Logical AND: &&
+        if let Some(idx) = expr.find("&&") {
+            let left = &expr[..idx];
+            let right = &expr[idx + 2..];
+            return self.eval_truthy(left) && self.eval_truthy(right);
+        }
+
+        // Unary NOT: !expr
+        if expr.starts_with('!') {
+            return !self.eval_truthy(&expr[1..]);
+        }
+
+        // Special helpers:
+        // auth() / auth
+        if expr == "auth" || expr == "auth()" {
+            let uid = self.get("user_id").or_else(|| self.get("user")).or_else(|| self.get("auth"));
+            return Self::is_truthy(uid);
+        }
+        // guest() / guest
+        if expr == "guest" || expr == "guest()" {
+            let uid = self.get("user_id").or_else(|| self.get("user")).or_else(|| self.get("auth"));
+            return !Self::is_truthy(uid);
+        }
+        // isset($var)
+        if expr.starts_with("isset(") && expr.ends_with(')') {
+            let var = &expr[6..expr.len() - 1].trim();
+            return self.get(var).is_some() && !self.get(var).unwrap().is_null();
+        }
+        // empty($var)
+        if expr.starts_with("empty(") && expr.ends_with(')') {
+            let var = &expr[6..expr.len() - 1].trim();
+            return !Self::is_truthy(self.get(var));
+        }
+        // production / production()
+        if expr == "production" || expr == "production()" {
+            let env = self.get("env").and_then(|v| v.as_str()).unwrap_or("");
+            return env == "production" || env == "prod" || std::env::var("APP_ENV").unwrap_or_default() == "production";
+        }
+        // env('local', 'staging')
+        if expr.starts_with("env(") && expr.ends_with(')') {
+            let args = &expr[4..expr.len() - 1];
+            let current_env = self.get("env").and_then(|v| v.as_str())
+                .unwrap_or_else(|| "local");
+            for arg in args.split(',') {
+                let clean_arg = arg.trim().trim_matches('\'').trim_matches('"');
+                if clean_arg == current_env {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Perbandingan: ===, ==, !=, >=, <=, >, <
+        for op in &["===", "==", "!=", ">=", "<=", ">", "<"] {
+            if let Some(idx) = expr.find(op) {
+                let left = self.eval_val(&expr[..idx]);
+                let right = self.eval_val(&expr[idx + op.len()..]);
+
+                // Perbandingan numerik jika kedua sisi angka
+                if let (Ok(n1), Ok(n2)) = (left.parse::<f64>(), right.parse::<f64>()) {
+                    return match *op {
+                        "===" | "==" => (n1 - n2).abs() < f64::EPSILON,
+                        "!=" => (n1 - n2).abs() >= f64::EPSILON,
+                        ">=" => n1 >= n2,
+                        "<=" => n1 <= n2,
+                        ">" => n1 > n2,
+                        "<" => n1 < n2,
+                        _ => false,
+                    };
+                }
+
+                // Perbandingan string
+                return match *op {
+                    "===" | "==" => left == right,
+                    "!=" => left != right,
+                    ">=" => left >= right,
+                    "<=" => left <= right,
+                    ">" => left > right,
+                    "<" => left < right,
+                    _ => false,
+                };
+            }
+        }
+
+        // Boolean literal
+        if expr == "true" {
+            return true;
+        }
+        if expr == "false" {
+            return false;
+        }
+
+        Self::is_truthy(self.get(expr))
+    }
 }
 
+/// BladeEngine — Pure Native Laravel Blade Templating Engine for Rust.
+/// Sangat cepat, tanpa alokasi berat, mendukung layout inheritance, loop variables,
+/// conditional directives, integrasi Indonesian Script, serta Filter & Ekstensi WASM Sandbox.
 pub struct BladeEngine {
-    templates: HashMap<String, String>,
+    pub templates: HashMap<String, String>,
+    pub plugin_manager: Arc<crate::core::sandbox::LuminaPluginManager>,
+    pub wasm_filters: HashMap<String, (String, String)>,
+}
+
+impl Default for BladeEngine {
+    fn default() -> Self {
+        Self::empty()
+    }
 }
 
 impl BladeEngine {
-    pub fn new() -> Self {
-        let mut engine = Self {
+    /// Membuat BladeEngine kosong (tanpa membaca views path, cocok untuk test/memory engine)
+    pub fn empty() -> Self {
+        Self {
             templates: HashMap::new(),
-        };
+            plugin_manager: Arc::new(crate::core::sandbox::LuminaPluginManager::new()),
+            wasm_filters: HashMap::new(),
+        }
+    }
+
+    pub fn new() -> Self {
+        let mut engine = Self::empty();
         engine.reload_templates("resources/views");
+        let _ = engine.plugin_manager.load_directory("plugins");
+        let _ = engine.plugin_manager.load_directory("resources/plugins");
         engine
     }
+
+    /// Pasang plugin_manager kustom/global (misal dari AppState)
+    pub fn with_plugin_manager(mut self, manager: Arc<crate::core::sandbox::LuminaPluginManager>) -> Self {
+        self.plugin_manager = manager;
+        self
+    }
+
+    /// Daftarkan plugin WASM ke dalam sandbox engine
+    pub fn register_plugin(&self, plugin: crate::core::sandbox::WasmPlugin) {
+        self.plugin_manager.register(plugin);
+    }
+
+    /// Daftarkan alias filter Blade kustom yang mengarah ke plugin WASM tertentu
+    pub fn register_wasm_filter(&mut self, alias: &str, plugin_name: &str, func_name: &str) {
+        self.wasm_filters.insert(alias.to_string(), (plugin_name.to_string(), func_name.to_string()));
+    }
+
+    /// Daftarkan skrip Indonesian Script (.is) ke dalam runner engine
+    pub fn register_is_script(&self, name: &str, runner: crate::core::sandbox::IsScriptRunner) {
+        self.plugin_manager.register_is_script(name, runner);
+    }
+
+
 
     pub fn reload_templates(&mut self, views_path: &str) {
         self.templates.clear();
@@ -126,6 +373,7 @@ impl BladeEngine {
         }
     }
 
+    /// Render template menggunakan nama file atau format dot-notation (misal: "auth.login" atau "layouts/app.blade.rs")
     pub fn render(&self, template_name: &str, context: &BladeContext) -> String {
         let clean = template_name.replace('\\', "/");
         let raw = self.templates.get(&clean)
@@ -153,9 +401,15 @@ impl BladeEngine {
         self.process_template(&raw, context, 0)
     }
 
+    /// Render string template secara langsung tanpa membaca file
+    pub fn render_string(&self, content: &str, context: &BladeContext) -> String {
+        self.process_template(content, context, 0)
+    }
+
+    /// Pipeline utama pemrosesan template Blade
     fn process_template(&self, content: &str, context: &BladeContext, depth: usize) -> String {
-        if depth > 20 {
-            return "Template recursion limit exceeded".to_string();
+        if depth > 25 {
+            return "<!-- Template recursion limit exceeded -->".to_string();
         }
 
         let mut s = content.to_string();
@@ -164,7 +418,309 @@ impl BladeEngine {
         let re_comment = Regex::new(r"(?s)\{\{--.*?--\}\}").unwrap();
         s = re_comment.replace_all(&s, "").to_string();
 
-        // 1. Check for @extends('layout')
+        // 1. Template Inheritance: @extends, @section, @yield, @hasSection
+        s = self.process_inheritance(&s, context, depth);
+
+        // 2. Includes: @include, @includeIf, @includeWhen, @includeUnless
+        s = self.process_includes(&s, context, depth);
+
+        // 3. Normalisasi direktif varian kondisional ke @if ... @endif standar
+        s = self.normalize_conditionals(&s);
+
+        // 4. Perulangan: @foreach, @forelse, @for
+        s = self.process_loops(&s, context, depth);
+
+        // 5. Kondisional bercabang: @if, @elseif, @else, @endif (mendukung nesting)
+        s = self.process_if_blocks(&s, context, depth);
+
+        // 6. Switch-Case: @switch, @case, @break, @default, @endswitch
+        s = self.process_switch(&s, context, depth);
+
+        // 7. Form & Security Helpers: @csrf, @method
+        s = s.replace("@csrf", &format!("<input type=\"hidden\" name=\"csrf_token\" value=\"{}\">", context.get("csrf_token").and_then(|v| v.as_str()).unwrap_or("")));
+        let re_method = Regex::new(r#"@method\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_method.replace_all(&s, "<input type=\"hidden\" name=\"_method\" value=\"$1\">").to_string();
+
+        // 8. Attribute Helpers: @checked, @selected, @disabled, @readonly, @required, @class, @style
+        s = self.process_attributes(&s, context);
+
+        // 9. Debug & Output Helpers: @json, @dump, @dd
+        s = self.process_debug_helpers(&s, context);
+
+        // 10. Indonesian Script: @is('script') / @script('script')
+        s = self.process_indonesian_script(&s);
+
+        // 11. Direktif WASM: @wasm('plugin_name', 'function_name', $arg)
+        let re_wasm = Regex::new(r#"@wasm\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*(?:,\s*(.*?))?\s*\)"#).unwrap();
+        s = re_wasm.replace_all(&s, |caps: &regex::Captures| {
+            let plugin_name = &caps[1];
+            let func_name = &caps[2];
+            let arg = caps.get(3).map(|m| context.eval_val(m.as_str())).unwrap_or_default();
+            match self.plugin_manager.call_filter(plugin_name, func_name, &arg) {
+                Ok(out) => out,
+                Err(e) => format!("<!-- WASM error: {} -->", e),
+            }
+        }).to_string();
+
+        // 12. Direktif Evaluasi Backend Indonesian Script: @eval_is('file.is', 'func', $arg1, $arg2, ...)
+        let re_eval_is = Regex::new(r#"@eval_is\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*(?:,\s*(.*?))?\s*\)"#).unwrap();
+        s = re_eval_is.replace_all(&s, |caps: &regex::Captures| {
+            let script_path = &caps[1];
+            let func_name = &caps[2];
+            let mut args_vec = Vec::new();
+            if let Some(args_raw) = caps.get(3) {
+                for arg in args_raw.as_str().split(',') {
+                    let clean_arg = arg.trim();
+                    if !clean_arg.is_empty() {
+                        let evaled = context.eval_val(clean_arg);
+                        if let Ok(num) = evaled.parse::<f64>() {
+                            args_vec.push(json!(num));
+                        } else if evaled == "true" {
+                            args_vec.push(json!(true));
+                        } else if evaled == "false" {
+                            args_vec.push(json!(false));
+                        } else {
+                            args_vec.push(json!(evaled));
+                        }
+                    }
+                }
+            }
+
+            match self.plugin_manager.eval_is_script(script_path, func_name, &args_vec) {
+                Ok(val) => match val {
+                    Value::String(s) => s,
+                    Value::Number(n) => {
+                        if let Some(i) = n.as_i64() {
+                            i.to_string()
+                        } else if let Some(f) = n.as_f64() {
+                            if f.fract() == 0.0 {
+                                (f as i64).to_string()
+                            } else {
+                                f.to_string()
+                            }
+                        } else {
+                            n.to_string()
+                        }
+                    },
+                    Value::Bool(b) => b.to_string(),
+                    Value::Null => String::new(),
+                    other => other.to_string(),
+                },
+                Err(e) => format!("<!-- Indonesian Script error: {} -->", e),
+            }
+        }).to_string();
+
+        // 13. Interpolasi Variabel & Filter: {!! raw !!} dan {{ escaped }}
+
+        let re_raw = Regex::new(r"\{!!\s*(.*?)\s*!!\}").unwrap();
+        s = re_raw.replace_all(&s, |caps: &regex::Captures| {
+            self.eval_expr_with_filters(&caps[1], context)
+        }).to_string();
+
+        let re_var = Regex::new(r"\{\{\s*(.*?)\s*\}\}").unwrap();
+        s = re_var.replace_all(&s, |caps: &regex::Captures| {
+            html_escape::encode_safe(&self.eval_expr_with_filters(&caps[1], context))
+        }).to_string();
+
+        s
+    }
+
+    /// Evaluasi ekspresi variabel atau literal yang mungkin memiliki filter berantai:
+    /// Contoh: `$nominal | rupiah`
+    /// Contoh: `$title | slug | uppercase`
+    /// Contoh: `$content | limit: 100`
+    /// Contoh: `$comment | sensor_kata` (WASM Sandbox)
+    pub fn eval_expr_with_filters(&self, expr: &str, context: &BladeContext) -> String {
+        let expr = expr.trim();
+        if !expr.contains('|') {
+            return context.eval_val(expr);
+        }
+
+        // Simpan operator '||' jika ada agar tidak terpotong pipa filter
+        let safe_expr = expr.replace("||", "__LOGICAL_OR__");
+        let parts: Vec<&str> = safe_expr.split('|').collect();
+
+        let base_raw = parts[0].replace("__LOGICAL_OR__", "||");
+        let mut current_val = context.eval_val(&base_raw);
+
+        for segment in &parts[1..] {
+            let seg = segment.trim();
+            if seg.is_empty() {
+                continue;
+            }
+
+            // Parsing filter name dan parameter opsional: filter_name: arg1, arg2
+            let (filter_name, args) = if let Some(colon_idx) = seg.find(':') {
+                let name = seg[..colon_idx].trim();
+                let raw_args = &seg[colon_idx + 1..];
+                let args_vec: Vec<&str> = raw_args.split(',').map(|a| a.trim()).collect();
+                (name, args_vec)
+            } else {
+                (seg, Vec::new())
+            };
+
+            current_val = self.apply_filter(filter_name, &args, &current_val);
+        }
+
+        current_val
+    }
+
+    /// Terapkan filter pada nilai string (Native Rust Filters + WASM Sandbox Fallback)
+    fn apply_filter(&self, filter_name: &str, args: &[&str], input: &str) -> String {
+        match filter_name {
+            // Native Filter: Format Mata Uang Rupiah
+            "rupiah" | "formatRupiah" => Self::format_rupiah(input),
+
+            // Native Filter: URL Slug Generator
+            "slug" => Self::slug(input),
+
+            // Native Filter: Huruf Besar (Uppercase)
+            "upper" | "uppercase" => input.to_uppercase(),
+
+            // Native Filter: Huruf Kecil (Lowercase)
+            "lower" | "lowercase" => input.to_lowercase(),
+
+            // Native Filter: Kapitalisasi Kata
+            "capitalize" | "title" => {
+                let mut c = input.chars();
+                match c.next() {
+                    None => String::new(),
+                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                }
+            }
+
+            // Native Filter: Pangkas Spasi
+            "trim" => input.trim().to_string(),
+
+            // Native Filter: Pemotongan Teks (limit: 50 atau potong: 50)
+            "limit" | "potong" => {
+                let max_len = args.first().and_then(|a| a.parse::<usize>().ok()).unwrap_or(100);
+                if input.chars().count() > max_len {
+                    let truncated: String = input.chars().take(max_len).collect();
+                    format!("{}...", truncated)
+                } else {
+                    input.to_string()
+                }
+            }
+
+            // Native Filter: Balik Karakter
+            "reverse" | "balik" => input.chars().rev().collect(),
+
+            // WASM Sandbox Fallback: Delegasikan ke WebAssembly Plugin
+            custom_filter => {
+                // 1. Cek pemetaan alias filter terdaftar
+                if let Some((plugin_name, func_name)) = self.wasm_filters.get(custom_filter) {
+                    if let Ok(res) = self.plugin_manager.call_filter(plugin_name, func_name, input) {
+                        return res;
+                    }
+                }
+
+                // 2. Cek apakah ada modul plugin dengan nama filter itu sendiri
+                if let Ok(res) = self.plugin_manager.call_filter(custom_filter, "transform", input) {
+                    return res;
+                }
+                if let Ok(res) = self.plugin_manager.call_filter(custom_filter, custom_filter, input) {
+                    return res;
+                }
+
+                // Jika filter tidak ditemukan, kembalikan teks asli dengan aman tanpa panic
+                input.to_string()
+            }
+        }
+    }
+
+    /// Helper Native: Format angka ke format mata uang Rupiah
+    pub fn format_rupiah(input: &str) -> String {
+        let clean = input.trim().replace(',', "");
+        if let Ok(num) = clean.parse::<f64>() {
+            let int_part = num.trunc() as i64;
+            let s = int_part.abs().to_string();
+            let mut formatted = String::new();
+            let mut count = 0;
+            for c in s.chars().rev() {
+                if count > 0 && count % 3 == 0 {
+                    formatted.push('.');
+                }
+                formatted.push(c);
+                count += 1;
+            }
+            let reversed: String = formatted.chars().rev().collect();
+            if int_part < 0 {
+                format!("-Rp {}", reversed)
+            } else {
+                format!("Rp {}", reversed)
+            }
+        } else {
+            format!("Rp {}", input)
+        }
+    }
+
+    /// Helper Native: Mengubah teks menjadi slug URL (contoh: "Halo Dunia!" -> "halo-dunia")
+    pub fn slug(input: &str) -> String {
+        let mut result = String::new();
+        let mut last_was_dash = false;
+        for c in input.chars() {
+            if c.is_alphanumeric() {
+                result.push(c.to_ascii_lowercase());
+                last_was_dash = false;
+            } else if !last_was_dash && !result.is_empty() {
+                result.push('-');
+                last_was_dash = true;
+            }
+        }
+        if result.ends_with('-') {
+            result.pop();
+        }
+        result
+    }
+
+
+    /// Normalisasi sintaks kondisional Laravel menjadi format `@if` standar
+    fn normalize_conditionals(&self, input: &str) -> String {
+        let mut s = input.to_string();
+
+        // @unless(expr) -> @if(!(expr)) & @endunless -> @endif
+        let re_unless = Regex::new(r"@unless\s*\((.*?)\)").unwrap();
+        s = re_unless.replace_all(&s, "@if(!($1))").to_string();
+        s = s.replace("@endunless", "@endif");
+
+        // @isset(var) -> @if(isset(var)) & @endisset -> @endif
+        let re_isset = Regex::new(r"@isset\s*\((.*?)\)").unwrap();
+        s = re_isset.replace_all(&s, "@if(isset($1))").to_string();
+        s = s.replace("@endisset", "@endif");
+
+        // @empty(var) -> @if(empty(var)) & @endempty -> @endif
+        let re_empty = Regex::new(r"@empty\s*\((.*?)\)").unwrap();
+        s = re_empty.replace_all(&s, "@if(empty($1))").to_string();
+        s = s.replace("@endempty", "@endif");
+
+        // @auth -> @if(auth) & @endauth -> @endif
+        let re_auth = Regex::new(r"@auth\b").unwrap();
+        s = re_auth.replace_all(&s, "@if(auth)").to_string();
+        s = s.replace("@endauth", "@endif");
+
+        // @guest -> @if(guest) & @endguest -> @endif
+        let re_guest = Regex::new(r"@guest\b").unwrap();
+        s = re_guest.replace_all(&s, "@if(guest)").to_string();
+        s = s.replace("@endguest", "@endif");
+
+        // @production -> @if(production) & @endproduction -> @endif
+        let re_prod = Regex::new(r"@production\b").unwrap();
+        s = re_prod.replace_all(&s, "@if(production)").to_string();
+        s = s.replace("@endproduction", "@endif");
+
+        // @env(...) -> @if(env(...)) & @endenv -> @endif
+        let re_env = Regex::new(r"@env\s*\((.*?)\)").unwrap();
+        s = re_env.replace_all(&s, "@if(env($1))").to_string();
+        s = s.replace("@endenv", "@endif");
+
+        s
+    }
+
+    /// Penanganan pewarisan template (@extends, @section, @yield)
+    fn process_inheritance(&self, content: &str, context: &BladeContext, depth: usize) -> String {
+        let mut s = content.to_string();
+
         let re_extends = Regex::new(r#"@extends\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
         if let Some(caps) = re_extends.captures(&s) {
             let layout_raw = caps[1].trim().replace('\\', "/");
@@ -179,59 +735,655 @@ impl BladeEngine {
                     self.templates.get(&file)
                 });
 
-            // Extract @section('name') ... @endsection
             let mut sections: HashMap<String, String> = HashMap::new();
-            let re_section = Regex::new(r#"(?s)@section\s*\(\s*['"]([^'"]+)['"]\s*\)(.*?)@(?:endsection|stop|endblock)"#).unwrap();
+
+            // Short inline syntax: @section('title', 'Page Title')
+            let re_short_section = Regex::new(r#"@section\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+            for sec_caps in re_short_section.captures_iter(&s) {
+                sections.insert(sec_caps[1].to_string(), sec_caps[2].to_string());
+            }
+
+            // Block syntax: @section('name') ... @endsection / @stop / @show
+            let re_section = Regex::new(r#"(?s)@section\s*\(\s*['"]([^'"]+)['"]\s*\)(.*?)@(?:endsection|stop|show)"#).unwrap();
             for sec_caps in re_section.captures_iter(&s) {
                 let sec_name = sec_caps[1].to_string();
                 let sec_content = sec_caps[2].to_string();
                 sections.insert(sec_name, sec_content);
             }
 
-            // Load parent layout template
+            // Load parent layout
             if let Some(parent_content) = layout_content {
                 let mut layout_processed = parent_content.clone();
-                // Replace @yield('name') with section content
+
+                // 1. @yield('name', 'default fallback')
+                let re_yield_default = Regex::new(r#"@yield\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+                layout_processed = re_yield_default.replace_all(&layout_processed, |y_caps: &regex::Captures| {
+                    let y_name = &y_caps[1];
+                    let y_default = &y_caps[2];
+                    sections.get(y_name).cloned().unwrap_or_else(|| y_default.to_string())
+                }).to_string();
+
+                // 2. @yield('name')
                 let re_yield = Regex::new(r#"@yield\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
                 layout_processed = re_yield.replace_all(&layout_processed, |y_caps: &regex::Captures| {
                     let y_name = &y_caps[1];
                     sections.get(y_name).cloned().unwrap_or_default()
                 }).to_string();
 
-                s = layout_processed;
+                // 3. @hasSection('name')
+                let re_has_sec = Regex::new(r#"@hasSection\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+                layout_processed = re_has_sec.replace_all(&layout_processed, |h_caps: &regex::Captures| {
+                    if sections.contains_key(&h_caps[1]) {
+                        "@if(true)".to_string()
+                    } else {
+                        "@if(false)".to_string()
+                    }
+                }).to_string();
+
+                s = self.process_template(&layout_processed, context, depth + 1);
             }
         }
 
-        // 2. @include('path.subpath')
-        let re_include = Regex::new(r#"@include\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-        s = re_include.replace_all(&s, |caps: &regex::Captures| {
-            let path_raw = caps[1].trim().replace('\\', "/");
-            let inc_content = self.templates.get(&path_raw)
-                .or_else(|| {
-                    let normalized = path_raw.replace('.', "/");
-                    let file = if normalized.ends_with(".blade.rs") || normalized.ends_with(".html") {
-                        normalized
-                    } else {
-                        format!("{}.blade.rs", normalized)
-                    };
-                    self.templates.get(&file)
-                });
+        s
+    }
 
-            if let Some(inc_content) = inc_content {
-                self.process_template(inc_content, context, depth + 1)
+    /// Penanganan @include, @includeIf, @includeWhen, @includeUnless
+    fn process_includes(&self, content: &str, context: &BladeContext, depth: usize) -> String {
+        let mut s = content.to_string();
+
+        // @includeWhen(cond, 'path')
+        let re_inc_when = Regex::new(r#"@includeWhen\s*\((.*?),\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_inc_when.replace_all(&s, |caps: &regex::Captures| {
+            let cond = &caps[1];
+            let path = &caps[2];
+            if context.eval_truthy(cond) {
+                self.resolve_include(path, context, depth, false)
             } else {
-                format!("<!-- Include '{}' not found -->", path_raw)
+                String::new()
             }
         }).to_string();
 
-        // 3. Directives: @csrf, @method, @is, @script
-        s = s.replace("@csrf", &format!("<input type=\"hidden\" name=\"csrf_token\" value=\"{}\">", context.get("csrf_token").and_then(|v| v.as_str()).unwrap_or("")));
+        // @includeUnless(cond, 'path')
+        let re_inc_unless = Regex::new(r#"@includeUnless\s*\((.*?),\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_inc_unless.replace_all(&s, |caps: &regex::Captures| {
+            let cond = &caps[1];
+            let path = &caps[2];
+            if !context.eval_truthy(cond) {
+                self.resolve_include(path, context, depth, false)
+            } else {
+                String::new()
+            }
+        }).to_string();
 
-        let re_method = Regex::new(r#"@method\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-        s = re_method.replace_all(&s, "<input type=\"hidden\" name=\"_method\" value=\"$1\">").to_string();
+        // @includeIf('path')
+        let re_inc_if = Regex::new(r#"@includeIf\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_inc_if.replace_all(&s, |caps: &regex::Captures| {
+            self.resolve_include(&caps[1], context, depth, true)
+        }).to_string();
 
+        // @include('path')
+        let re_inc = Regex::new(r#"@include\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+        s = re_inc.replace_all(&s, |caps: &regex::Captures| {
+            self.resolve_include(&caps[1], context, depth, false)
+        }).to_string();
+
+        s
+    }
+
+    fn resolve_include(&self, path_raw: &str, context: &BladeContext, depth: usize, silent: bool) -> String {
+        let clean = path_raw.trim().replace('\\', "/");
+        let inc_content = self.templates.get(&clean)
+            .or_else(|| {
+                let normalized = clean.replace('.', "/");
+                let file = if normalized.ends_with(".blade.rs") || normalized.ends_with(".html") {
+                    normalized
+                } else {
+                    format!("{}.blade.rs", normalized)
+                };
+                self.templates.get(&file)
+            });
+
+        if let Some(content) = inc_content {
+            self.process_template(content, context, depth + 1)
+        } else if silent {
+            String::new()
+        } else {
+            format!("<!-- Include '{}' not found -->", path_raw)
+        }
+    }
+
+    /// Penanganan perulangan (@foreach, @forelse, @for)
+    fn process_loops(&self, content: &str, context: &BladeContext, depth: usize) -> String {
+        let mut s = content.to_string();
+
+        // @foreach ($collection as $item) / @foreach ($collection as $key => $item)
+        let re_foreach_open = Regex::new(r"@foreach\s*\((.*?)\)").unwrap();
+        while let Some(m) = re_foreach_open.find(&s) {
+            let start = m.start();
+            let header = re_foreach_open.captures(&s[start..]).unwrap()[1].to_string();
+            let body_start = m.end();
+
+            // Cari matching @endforeach
+            let mut nesting = 1;
+            let mut idx = body_start;
+            let mut block_end = None;
+
+            while idx < s.len() {
+                let slice = &s[idx..];
+                if slice.starts_with("@foreach") {
+                    nesting += 1;
+                    idx += 8;
+                } else if slice.starts_with("@endforeach") {
+                    nesting -= 1;
+                    if nesting == 0 {
+                        block_end = Some(idx);
+                        break;
+                    }
+                    idx += 11;
+                } else {
+                    idx += 1;
+                }
+            }
+
+            if let Some(end) = block_end {
+                let body = &s[body_start..end];
+                let rendered = self.render_foreach_loop(&header, body, "", context, depth);
+                s.replace_range(start..end + "@endforeach".len(), &rendered);
+            } else {
+                break;
+            }
+        }
+
+        // @forelse ($collection as $item) ... @empty ... @endforelse
+        let re_forelse_open = Regex::new(r"@forelse\s*\((.*?)\)").unwrap();
+        while let Some(m) = re_forelse_open.find(&s) {
+            let start = m.start();
+            let header = re_forelse_open.captures(&s[start..]).unwrap()[1].to_string();
+            let body_start = m.end();
+
+            let mut nesting = 1;
+            let mut idx = body_start;
+            let mut empty_pos = None;
+            let mut block_end = None;
+
+            while idx < s.len() {
+                let slice = &s[idx..];
+                if slice.starts_with("@forelse") {
+                    nesting += 1;
+                    idx += 8;
+                } else if slice.starts_with("@empty") && nesting == 1 && (slice[6..].starts_with(|c: char| c.is_whitespace()) || slice.len() == 6) {
+                    empty_pos = Some(idx);
+                    idx += 6;
+                } else if slice.starts_with("@endforelse") {
+                    nesting -= 1;
+                    if nesting == 0 {
+                        block_end = Some(idx);
+                        break;
+                    }
+                    idx += 11;
+                } else {
+                    idx += 1;
+                }
+            }
+
+            if let Some(end) = block_end {
+                let (body, empty_body) = if let Some(e_idx) = empty_pos {
+                    (&s[body_start..e_idx], &s[e_idx + 6..end])
+                } else {
+                    (&s[body_start..end], "")
+                };
+
+                let rendered = self.render_foreach_loop(&header, body, empty_body, context, depth);
+                s.replace_range(start..end + "@endforelse".len(), &rendered);
+            } else {
+                break;
+            }
+        }
+
+        // @for ($i = 0; $i < N; $i++) atau @for ($i in 0..N)
+        let re_for_open = Regex::new(r"@for\s*\((.*?)\)").unwrap();
+        while let Some(m) = re_for_open.find(&s) {
+            let start = m.start();
+            let header = re_for_open.captures(&s[start..]).unwrap()[1].to_string();
+            let body_start = m.end();
+
+            let mut nesting = 1;
+            let mut idx = body_start;
+            let mut block_end = None;
+
+            while idx < s.len() {
+                let slice = &s[idx..];
+                if slice.starts_with("@for") && !slice.starts_with("@foreach") && !slice.starts_with("@forelse") {
+                    nesting += 1;
+                    idx += 4;
+                } else if slice.starts_with("@endfor") && !slice.starts_with("@endforeach") && !slice.starts_with("@endforelse") {
+                    nesting -= 1;
+                    if nesting == 0 {
+                        block_end = Some(idx);
+                        break;
+                    }
+                    idx += 7;
+                } else {
+                    idx += 1;
+                }
+            }
+
+            if let Some(end) = block_end {
+                let body = &s[body_start..end];
+                let rendered = self.render_for_loop(&header, body, context, depth);
+                s.replace_range(start..end + "@endfor".len(), &rendered);
+            } else {
+                break;
+            }
+        }
+
+        s
+    }
+
+    fn render_foreach_loop(&self, header: &str, body: &str, empty_body: &str, context: &BladeContext, depth: usize) -> String {
+        // Syntax: $collection as $item ATAU $collection as $key => $item
+        let parts: Vec<&str> = header.split(" as ").collect();
+        if parts.len() != 2 {
+            return String::new();
+        }
+
+        let coll_expr = parts[0].trim();
+        let target = parts[1].trim();
+
+        let (key_var, item_var) = if let Some(arrow_idx) = target.find("=>") {
+            (
+                Some(target[..arrow_idx].trim().trim_start_matches('$').to_string()),
+                target[arrow_idx + 2..].trim().trim_start_matches('$').to_string(),
+            )
+        } else {
+            (None, target.trim_start_matches('$').to_string())
+        };
+
+        let collection_val = context.get(coll_expr);
+
+        match collection_val {
+            Some(Value::Array(items)) if !items.is_empty() => {
+                let total = items.len();
+                let mut out = String::new();
+                for (idx, item) in items.iter().enumerate() {
+                    let mut iter_ctx = context.clone();
+                    iter_ctx.insert_val(&item_var, item.clone());
+                    if let Some(ref k) = key_var {
+                        iter_ctx.insert_val(k, json!(idx));
+                    }
+
+                    let loop_obj = json!({
+                        "index": idx,
+                        "iteration": idx + 1,
+                        "remaining": total - (idx + 1),
+                        "count": total,
+                        "first": idx == 0,
+                        "last": idx == total - 1,
+                        "even": (idx + 1) % 2 == 0,
+                        "odd": (idx + 1) % 2 != 0,
+                        "depth": depth + 1,
+                    });
+                    iter_ctx.insert_val("loop", loop_obj);
+                    out.push_str(&self.process_template(body, &iter_ctx, depth + 1));
+                }
+                out
+            }
+            Some(Value::Object(map)) if !map.is_empty() => {
+                let total = map.len();
+                let mut out = String::new();
+                for (idx, (k, v)) in map.iter().enumerate() {
+                    let mut iter_ctx = context.clone();
+                    iter_ctx.insert_val(&item_var, v.clone());
+                    if let Some(ref kv) = key_var {
+                        iter_ctx.insert_val(kv, json!(k));
+                    }
+
+                    let loop_obj = json!({
+                        "index": idx,
+                        "iteration": idx + 1,
+                        "remaining": total - (idx + 1),
+                        "count": total,
+                        "first": idx == 0,
+                        "last": idx == total - 1,
+                        "even": (idx + 1) % 2 == 0,
+                        "odd": (idx + 1) % 2 != 0,
+                        "depth": depth + 1,
+                    });
+                    iter_ctx.insert_val("loop", loop_obj);
+                    out.push_str(&self.process_template(body, &iter_ctx, depth + 1));
+                }
+                out
+            }
+            _ => {
+                if !empty_body.is_empty() {
+                    self.process_template(empty_body, context, depth + 1)
+                } else {
+                    String::new()
+                }
+            }
+        }
+    }
+
+    fn render_for_loop(&self, header: &str, body: &str, context: &BladeContext, depth: usize) -> String {
+        // Support: $i in 0..5
+        if header.contains(" in ") {
+            let parts: Vec<&str> = header.split(" in ").collect();
+            if parts.len() == 2 {
+                let var = parts[0].trim().trim_start_matches('$');
+                let range_parts: Vec<&str> = parts[1].split("..").collect();
+                if range_parts.len() == 2 {
+                    let start: i64 = range_parts[0].trim().parse().unwrap_or(0);
+                    let end: i64 = range_parts[1].trim().parse().unwrap_or(0);
+                    let mut out = String::new();
+                    for i in start..end {
+                        let mut iter_ctx = context.clone();
+                        iter_ctx.insert_val(var, json!(i));
+                        out.push_str(&self.process_template(body, &iter_ctx, depth + 1));
+                    }
+                    return out;
+                }
+            }
+        }
+
+        // Support standard C/PHP style: $i = 0; $i < 5; $i++
+        let parts: Vec<&str> = header.split(';').collect();
+        if parts.len() == 3 {
+            let re_init = Regex::new(r"\$?(\w+)\s*=\s*(\d+)").unwrap();
+            let re_cond = Regex::new(r"<\s*(\d+)").unwrap();
+            if let (Some(init_caps), Some(cond_caps)) = (re_init.captures(parts[0]), re_cond.captures(parts[1])) {
+                let var_name = &init_caps[1];
+                let start: i64 = init_caps[2].parse().unwrap_or(0);
+                let end: i64 = cond_caps[1].parse().unwrap_or(0);
+
+                let mut out = String::new();
+                for i in start..end {
+                    let mut iter_ctx = context.clone();
+                    iter_ctx.insert_val(var_name, json!(i));
+                    out.push_str(&self.process_template(body, &iter_ctx, depth + 1));
+                }
+                return out;
+            }
+        }
+
+        String::new()
+    }
+
+    fn extract_balanced_parens<'a>(s: &'a str, open_idx: usize) -> Option<(&'a str, usize)> {
+        let mut depth = 0;
+        let bytes = s.as_bytes();
+        for i in open_idx..s.len() {
+            if bytes[i] == b'(' {
+                depth += 1;
+            } else if bytes[i] == b')' {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((&s[open_idx + 1..i], i + 1));
+                }
+            }
+        }
+        None
+    }
+
+    /// Penanganan percabangan @if ... @elseif ... @else ... @endif (mendukung nesting)
+    fn process_if_blocks(&self, input: &str, context: &BladeContext, depth: usize) -> String {
+        let mut result = input.to_string();
+
+        while let Some(if_idx) = result.find("@if") {
+            let after_if = &result[if_idx + 3..];
+            let paren_rel = after_if.find('(');
+            if paren_rel.is_none() || !after_if[..paren_rel.unwrap()].chars().all(|c| c.is_whitespace()) {
+                break;
+            }
+            let open_paren = if_idx + 3 + paren_rel.unwrap();
+            let (cond, after_if_end) = match Self::extract_balanced_parens(&result, open_paren) {
+                Some(res) => (res.0.trim().to_string(), res.1),
+                None => break,
+            };
+
+            let start_pos = if_idx;
+            let mut branches: Vec<(Option<String>, usize, usize)> = Vec::new();
+            let mut curr_cond = Some(cond);
+            let mut curr_branch_start = after_if_end;
+            let mut nesting = 1;
+            let mut block_end = None;
+
+            let mut idx = after_if_end;
+
+            while idx < result.len() {
+                if result.as_bytes()[idx] == b'@' {
+                    let slice = &result[idx..];
+                    if slice.starts_with("@if") && slice[3..].starts_with(|c: char| c.is_whitespace() || c == '(') {
+                        nesting += 1;
+                        idx += 3;
+                        continue;
+                    } else if slice.starts_with("@endif") {
+                        nesting -= 1;
+                        if nesting == 0 {
+                            branches.push((curr_cond, curr_branch_start, idx));
+                            block_end = Some(idx + "@endif".len());
+                            break;
+                        }
+                        idx += 6;
+                        continue;
+                    } else if nesting == 1 {
+                        if slice.starts_with("@elseif") {
+                            let after_elseif = &slice[7..];
+                            if let Some(p) = after_elseif.find('(') {
+                                if after_elseif[..p].chars().all(|c| c.is_whitespace()) {
+                                    if let Some((elseif_cond, after_paren)) = Self::extract_balanced_parens(slice, 7 + p) {
+                                        branches.push((curr_cond, curr_branch_start, idx));
+                                        curr_cond = Some(elseif_cond.trim().to_string());
+                                        idx += after_paren;
+                                        curr_branch_start = idx;
+                                        continue;
+                                    }
+                                }
+                            }
+                        } else if slice.starts_with("@else") && (slice[5..].starts_with(|c: char| c.is_whitespace()) || slice[5..].starts_with('<') || slice.len() == 5) {
+                            branches.push((curr_cond, curr_branch_start, idx));
+                            curr_cond = None;
+                            idx += 5;
+                            curr_branch_start = idx;
+                            continue;
+                        }
+                    }
+                }
+                idx += 1;
+            }
+
+            if let Some(end_pos) = block_end {
+                let mut chosen_content = String::new();
+                for (branch_cond, b_start, b_end) in branches {
+                    let is_match = match branch_cond {
+                        Some(ref c) => context.eval_truthy(c),
+                        None => true,
+                    };
+                    if is_match {
+                        chosen_content = result[b_start..b_end].to_string();
+                        break;
+                    }
+                }
+
+                let rendered_branch = self.process_template(&chosen_content, context, depth + 1);
+                result.replace_range(start_pos..end_pos, &rendered_branch);
+            } else {
+                break;
+            }
+        }
+
+        result
+    }
+
+    /// Penanganan @switch ... @case ... @default ... @endswitch
+    fn process_switch(&self, content: &str, context: &BladeContext, depth: usize) -> String {
+        let mut s = content.to_string();
+        let re_switch = Regex::new(r#"(?s)@switch\s*\((.*?)\)(.*?)@endswitch"#).unwrap();
+
+        s = re_switch.replace_all(&s, |caps: &regex::Captures| {
+            let target_val = context.eval_val(&caps[1]);
+            let body = &caps[2];
+
+            let re_cases = Regex::new(r#"(?s)@case\s*\(\s*['"]?([^'"]+)['"]?\s*\)(.*?)(?:@break|@case|@default|$)"#).unwrap();
+            let mut matched = false;
+            let mut output = String::new();
+
+            for case_caps in re_cases.captures_iter(body) {
+                let case_val = case_caps[1].trim();
+                let case_body = case_caps[2].trim();
+                if case_val == target_val {
+                    matched = true;
+                    output = self.process_template(case_body, context, depth + 1);
+                    break;
+                }
+            }
+
+            if !matched {
+                let re_default = Regex::new(r#"(?s)@default(.*?)(?:@break|$)"#).unwrap();
+                if let Some(def_caps) = re_default.captures(body) {
+                    output = self.process_template(def_caps[1].trim(), context, depth + 1);
+                }
+            }
+
+            output
+        }).to_string();
+
+        s
+    }
+
+    /// Penanganan direktif atribut HTML: @checked, @selected, @disabled, @readonly, @required, @class, @style
+    fn process_attributes(&self, content: &str, context: &BladeContext) -> String {
+        let mut s = content.to_string();
+
+        // @checked(cond)
+        let re_checked = Regex::new(r"@checked\s*\((.*?)\)").unwrap();
+        s = re_checked.replace_all(&s, |caps: &regex::Captures| {
+            if context.eval_truthy(&caps[1]) { "checked" } else { "" }
+        }).to_string();
+
+        // @selected(cond)
+        let re_selected = Regex::new(r"@selected\s*\((.*?)\)").unwrap();
+        s = re_selected.replace_all(&s, |caps: &regex::Captures| {
+            if context.eval_truthy(&caps[1]) { "selected" } else { "" }
+        }).to_string();
+
+        // @disabled(cond)
+        let re_disabled = Regex::new(r"@disabled\s*\((.*?)\)").unwrap();
+        s = re_disabled.replace_all(&s, |caps: &regex::Captures| {
+            if context.eval_truthy(&caps[1]) { "disabled" } else { "" }
+        }).to_string();
+
+        // @readonly(cond)
+        let re_readonly = Regex::new(r"@readonly\s*\((.*?)\)").unwrap();
+        s = re_readonly.replace_all(&s, |caps: &regex::Captures| {
+            if context.eval_truthy(&caps[1]) { "readonly" } else { "" }
+        }).to_string();
+
+        // @required(cond)
+        let re_required = Regex::new(r"@required\s*\((.*?)\)").unwrap();
+        s = re_required.replace_all(&s, |caps: &regex::Captures| {
+            if context.eval_truthy(&caps[1]) { "required" } else { "" }
+        }).to_string();
+
+        // @class(['p-4', 'font-bold' => $active, 'hidden' => !$show])
+        let re_class = Regex::new(r"@class\s*\(\s*\[(.*?)\]\s*\)").unwrap();
+        s = re_class.replace_all(&s, |caps: &regex::Captures| {
+            let inner = &caps[1];
+            let mut active_classes: Vec<String> = Vec::new();
+            for item in inner.split(',') {
+                let item = item.trim();
+                if item.is_empty() {
+                    continue;
+                }
+                if let Some(arrow_idx) = item.find("=>") {
+                    let class_name = item[..arrow_idx].trim().trim_matches('\'').trim_matches('"');
+                    let cond = item[arrow_idx + 2..].trim();
+                    if context.eval_truthy(cond) {
+                        active_classes.push(class_name.to_string());
+                    }
+                } else {
+                    let class_name = item.trim_matches('\'').trim_matches('"');
+                    if !class_name.is_empty() {
+                        active_classes.push(class_name.to_string());
+                    }
+                }
+            }
+            if !active_classes.is_empty() {
+                format!("class=\"{}\"", active_classes.join(" "))
+            } else {
+                String::new()
+            }
+        }).to_string();
+
+        // @style(['background-color: red' => $hasError])
+        let re_style = Regex::new(r"@style\s*\(\s*\[(.*?)\]\s*\)").unwrap();
+        s = re_style.replace_all(&s, |caps: &regex::Captures| {
+            let inner = &caps[1];
+            let mut active_styles: Vec<String> = Vec::new();
+            for item in inner.split(',') {
+                let item = item.trim();
+                if item.is_empty() {
+                    continue;
+                }
+                if let Some(arrow_idx) = item.find("=>") {
+                    let style_rule = item[..arrow_idx].trim().trim_matches('\'').trim_matches('"');
+                    let cond = item[arrow_idx + 2..].trim();
+                    if context.eval_truthy(cond) {
+                        active_styles.push(style_rule.to_string());
+                    }
+                } else {
+                    let style_rule = item.trim_matches('\'').trim_matches('"');
+                    if !style_rule.is_empty() {
+                        active_styles.push(style_rule.to_string());
+                    }
+                }
+            }
+            if !active_styles.is_empty() {
+                format!("style=\"{}\"", active_styles.join("; "))
+            } else {
+                String::new()
+            }
+        }).to_string();
+
+        s
+    }
+
+    /// Penanganan @json, @dump, @dd
+    fn process_debug_helpers(&self, content: &str, context: &BladeContext) -> String {
+        let mut s = content.to_string();
+
+        // @json($variable)
+        let re_json = Regex::new(r"@json\s*\((.*?)\)").unwrap();
+        s = re_json.replace_all(&s, |caps: &regex::Captures| {
+            let var = caps[1].trim();
+            if let Some(val) = context.get(var) {
+                serde_json::to_string(val).unwrap_or_else(|_| "null".to_string())
+            } else {
+                "null".to_string()
+            }
+        }).to_string();
+
+        // @dump($variable) / @dd($variable)
+        let re_dump = Regex::new(r"@(?:dump|dd)\s*\((.*?)\)").unwrap();
+        s = re_dump.replace_all(&s, |caps: &regex::Captures| {
+            let var = caps[1].trim();
+            let json_str = if let Some(val) = context.get(var) {
+                serde_json::to_string_pretty(val).unwrap_or_default()
+            } else {
+                format!("Variable '{}' not found", var)
+            };
+            format!(
+                "<pre style=\"background:#181825;color:#a6e3a1;padding:12px;border-radius:8px;font-family:monospace;font-size:12px;overflow-x:auto;\">{}</pre>",
+                html_escape::encode_safe(&json_str)
+            )
+        }).to_string();
+
+        s
+    }
+
+    /// Penanganan direktif Indonesian Script (@is, @script)
+    fn process_indonesian_script(&self, content: &str) -> String {
         let re_is = Regex::new(r#"(?:@is|@script)\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-        s = re_is.replace_all(&s, |caps: &regex::Captures| {
+        re_is.replace_all(content, |caps: &regex::Captures| {
             let script_name = caps[1].trim();
             let mut file_path = format!("resources/scripts/{}", script_name);
             if !file_path.ends_with(".is") {
@@ -248,36 +1400,7 @@ impl BladeEngine {
 
             let compiled_js = indonesian_script::compile_is(&source);
             format!("<script>\n{}\n</script>", compiled_js)
-        }).to_string();
-
-        // 4. Interpolation: {!! raw !!} and {{ escaped }}
-        let re_raw = Regex::new(r"\{!!\s*\$?([\w.]+)\s*!!\}").unwrap();
-        s = re_raw.replace_all(&s, |caps: &regex::Captures| {
-            let key = &caps[1];
-            self.eval_val(key, context)
-        }).to_string();
-
-        let re_var = Regex::new(r"\{\{\s*\$?([\w.]+)\s*\}\}").unwrap();
-        s = re_var.replace_all(&s, |caps: &regex::Captures| {
-            let key = &caps[1];
-            html_escape::encode_safe(&self.eval_val(key, context)).to_string()
-        }).to_string();
-
-        s
-    }
-
-    fn eval_val(&self, key: &str, context: &BladeContext) -> String {
-        if let Some(val) = context.get(key) {
-            match val {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                Value::Null => "".to_string(),
-                v => v.to_string(),
-            }
-        } else {
-            "".to_string()
-        }
+        }).to_string()
     }
 }
 
@@ -286,17 +1409,326 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_native_blade_engine() {
-        let mut engine = BladeEngine {
-            templates: HashMap::new(),
-        };
-        engine.templates.insert("layouts/app.blade.rs".to_string(), "<html><body>@yield('content')</body></html>".to_string());
-        engine.templates.insert("home.blade.rs".to_string(), "@extends('layouts.app')\n@section('content')<h1>Halo {{ name }}</h1>@endsection".to_string());
+    fn test_blade_extends_and_yield() {
+        let mut engine = BladeEngine::empty();
+        engine.templates.insert("layouts/app.blade.rs".to_string(), "<html><title>@yield('title', 'Default Title')</title><body>@yield('content')</body></html>".to_string());
+        engine.templates.insert("home.blade.rs".to_string(), "@extends('layouts.app')\n@section('title', 'Halaman Utama')\n@section('content')<h1>Halo {{ $name }}</h1>@endsection".to_string());
 
         let mut ctx = BladeContext::new();
-        ctx.insert("name", "Lumina Native Blade");
+        ctx.insert("name", "Lumina Pure Blade");
 
         let html = engine.render("home", &ctx);
-        assert!(html.contains("<html><body><h1>Halo Lumina Native Blade</h1></body></html>"));
+        assert!(html.contains("<title>Halaman Utama</title>"));
+        assert!(html.contains("<h1>Halo Lumina Pure Blade</h1>"));
+    }
+
+    #[test]
+    fn test_blade_conditionals_nested() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"
+        @if ($isAdmin)
+            <h1>Halo Admin</h1>
+            @if ($role == 'superadmin')
+                <span>Full Access</span>
+            @else
+                <span>Normal Admin</span>
+            @endif
+        @else
+            <h1>Halo Tamu</h1>
+        @endif
+        "#;
+
+        let mut ctx = BladeContext::new();
+        ctx.insert("isAdmin", true);
+        ctx.insert("role", "superadmin");
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("Halo Admin"));
+        assert!(html.contains("Full Access"));
+        assert!(!html.contains("Halo Tamu"));
+    }
+
+    #[test]
+    fn test_blade_foreach_and_loop_variable() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"
+        <ul>
+        @foreach ($users as $user)
+            <li>{{ $loop.iteration }}. {{ $user.name }} (first: {{ $loop.first }})</li>
+        @endforeach
+        </ul>
+        "#;
+
+        let mut ctx = BladeContext::new();
+        ctx.insert("users", json!([
+            {"name": "Alice"},
+            {"name": "Bob"}
+        ]));
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("1. Alice (first: true)"));
+        assert!(html.contains("2. Bob (first: false)"));
+    }
+
+    #[test]
+    fn test_blade_forelse_empty() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"
+        @forelse ($items as $item)
+            <p>{{ $item }}</p>
+        @empty
+            <p class="empty">Tidak ada item</p>
+        @endforelse
+        "#;
+
+        let mut ctx = BladeContext::new();
+        ctx.insert("items", json!([]));
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("Tidak ada item"));
+    }
+
+    #[test]
+    fn test_blade_auth_guest() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"
+        @auth
+            <p>Welcome back, {{ $email }}</p>
+        @else
+            <a href="/login">Login</a>
+        @endauth
+        "#;
+
+        let mut ctx = BladeContext::new();
+        ctx.insert("user_id", 1);
+        ctx.insert("email", "admin@lumina.rs");
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("Welcome back, admin@lumina.rs"));
+        assert!(!html.contains("Login"));
+    }
+
+    #[test]
+    fn test_blade_attribute_helpers() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"<input type="checkbox" @checked($isActive)> <button @class(['btn', 'btn-primary' => $isPrimary, 'hidden' => $isHidden])>Kirim</button>"#;
+
+        let mut ctx = BladeContext::new();
+        ctx.insert("isActive", true);
+        ctx.insert("isPrimary", true);
+        ctx.insert("isHidden", false);
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("checked"));
+        assert!(html.contains("class=\"btn btn-primary\""));
+    }
+
+    #[test]
+    fn test_blade_null_coalescing() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"<p>{{ $username ?? 'Pengguna Anonim' }}</p>"#;
+        let ctx = BladeContext::new();
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("Pengguna Anonim"));
+    }
+
+    #[test]
+    fn test_blade_switch_case() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"
+        @switch ($status)
+            @case ('pending')
+                <span>Menunggu Konfirmasi</span>
+                @break
+            @case ('active')
+                <span>Akun Aktif</span>
+                @break
+            @default
+                <span>Status Tidak Dikenal</span>
+        @endswitch
+        "#;
+
+        let mut ctx = BladeContext::new();
+        ctx.insert("status", "active");
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("Akun Aktif"));
+        assert!(!html.contains("Menunggu Konfirmasi"));
+    }
+
+    #[test]
+    fn test_blade_for_loop() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"@for ($i in 1..4)<span>{{ $i }}</span>@endfor"#;
+        let ctx = BladeContext::new();
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert_eq!(html, "<span>1</span><span>2</span><span>3</span>");
+    }
+
+    #[test]
+    fn test_blade_dot_notation() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"<p>{{ $user.profile.address.city }}</p>"#;
+        let mut ctx = BladeContext::new();
+        ctx.insert("user", json!({
+            "profile": {
+                "address": {
+                    "city": "Bandung"
+                }
+            }
+        }));
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("Bandung"));
+    }
+
+    #[test]
+    fn test_blade_native_and_chained_filters() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"
+        <p>Harga: {{ $harga | rupiah }}</p>
+        <p>Slug: {{ $judul | slug }}</p>
+        <p>Rantai: {{ $judul | slug | uppercase }}</p>
+        <p>Potong: {{ $deskripsi | limit: 10 }}</p>
+        "#;
+
+        let mut ctx = BladeContext::new();
+        ctx.insert("harga", 150000);
+        ctx.insert("judul", "Lumina Web Framework Rust!");
+        ctx.insert("deskripsi", "Ini adalah deskripsi yang sangat panjang sekali");
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("<p>Harga: Rp 150.000</p>"));
+        assert!(html.contains("<p>Slug: lumina-web-framework-rust</p>"));
+        assert!(html.contains("<p>Rantai: LUMINA-WEB-FRAMEWORK-RUST</p>"));
+        assert!(html.contains("<p>Potong: Ini adalah...</p>"));
+    }
+
+    #[test]
+    fn test_blade_wasm_filter_pipeline() {
+        let mut engine = BladeEngine::empty();
+
+        // WAT Plugin sederhana untuk sensor kata: mengubah semua 'x' menjadi '*'
+        let wat = r#"
+            (module
+                (memory (export "memory") 1)
+                (func (export "sensor") (param $ptr i32) (param $len i32) (result i32)
+                    (local $i i32)
+                    (local $curr i32)
+                    (local.set $i (i32.const 0))
+                    (block $break
+                        (loop $loop
+                            (br_if $break (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $curr (i32.load8_u (i32.add (local.get $ptr) (local.get $i))))
+                            ;; jika huruf 'x' (ASCII 120), ganti jadi '*' (ASCII 42)
+                            (if (i32.eq (local.get $curr) (i32.const 120))
+                                (then
+                                    (i32.store8
+                                        (i32.add (local.get $ptr) (local.get $i))
+                                        (i32.const 42)
+                                    )
+                                )
+                            )
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)
+                        )
+                    )
+                    local.get $len
+                )
+            )
+        "#;
+
+        let plugin = crate::core::sandbox::WasmPlugin::from_wat("filter_sensor", wat).expect("Compile plugin gagal");
+        engine.register_plugin(plugin);
+        engine.register_wasm_filter("sensor", "filter_sensor", "sensor");
+
+        let tmpl = r#"<p>Komentar: {{ $pesan | sensor }}</p>"#;
+        let mut ctx = BladeContext::new();
+        ctx.insert("pesan", "teks rahasia xxxx");
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("<p>Komentar: teks rahasia ****</p>"));
+    }
+
+    #[test]
+    fn test_blade_wasm_directive() {
+        let engine = BladeEngine::empty();
+
+        // WAT Plugin untuk direktif: mengubah teks menjadi uppercase
+        let wat = r#"
+            (module
+                (memory (export "memory") 1)
+                (func (export "kapital") (param $ptr i32) (param $len i32) (result i32)
+                    (local $i i32)
+                    (local $curr i32)
+                    (local.set $i (i32.const 0))
+                    (block $break
+                        (loop $loop
+                            (br_if $break (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $curr (i32.load8_u (i32.add (local.get $ptr) (local.get $i))))
+                            (if (i32.and (i32.ge_u (local.get $curr) (i32.const 97)) (i32.le_u (local.get $curr) (i32.const 122)))
+                                (then
+                                    (i32.store8
+                                        (i32.add (local.get $ptr) (local.get $i))
+                                        (i32.sub (local.get $curr) (i32.const 32))
+                                    )
+                                )
+                            )
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)
+                        )
+                    )
+                    local.get $len
+                )
+            )
+        "#;
+
+        let plugin = crate::core::sandbox::WasmPlugin::from_wat("text_tool", wat).expect("Compile plugin gagal");
+        engine.register_plugin(plugin);
+
+        let tmpl = r#"<div>Hasil: @wasm('text_tool', 'kapital', $nama)</div>"#;
+        let mut ctx = BladeContext::new();
+        ctx.insert("nama", "lumina hybrid");
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("<div>Hasil: LUMINA HYBRID</div>"));
+    }
+
+    #[test]
+    fn test_blade_eval_is_directive() {
+        let engine = BladeEngine::empty();
+
+        let source = r#"
+        fungsi hitung_promo(total, kupon) {
+            jika kupon == "DISKON50" {
+                kembalikan total * 0.50;
+            }
+            kembalikan 0;
+        }
+        "#;
+
+        let runner = crate::core::sandbox::IsScriptRunner::from_source(source).unwrap();
+        engine.register_is_script("promo.is", runner);
+
+        let tmpl = r#"<span>Hemat: Rp @eval_is('promo.is', 'hitung_promo', $total, 'DISKON50')</span>"#;
+        let mut ctx = BladeContext::new();
+        ctx.insert("total", 100000);
+
+        let html = engine.render_string(tmpl, &ctx);
+        assert!(html.contains("<span>Hemat: Rp 50000</span>"));
     }
 }
+
+

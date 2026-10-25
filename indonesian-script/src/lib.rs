@@ -129,7 +129,58 @@ pub fn compile_is(source: &str) -> String {
         processed_source = processed_source.replace(&caps[0], &placeholder);
     }
 
-    // 2. Transpilasi Sintaks & Helper Bahasa Indonesia / Jawa
+    // 2. Transpilasi Kontrol Alur & Kata Kunci Bahasa Indonesia / Daerah
+    // -------------------------------------------------------------
+    // selain_itu jika / utawa yen -> else if
+    let re_else_if = Regex::new(r"\b(selain_itu\s+jika|utawa\s+yen)\b").unwrap();
+    processed_source = re_else_if.replace_all(&processed_source, "else if").to_string();
+
+    // selain_itu / liyane -> else
+    let re_else = Regex::new(r"\b(selain_itu|liyane)\b").unwrap();
+    processed_source = re_else.replace_all(&processed_source, "else").to_string();
+
+    // jika / kalau / yen -> if
+    let re_if = Regex::new(r"\b(jika|kalau|yen)\b").unwrap();
+    processed_source = re_if.replace_all(&processed_source, "if").to_string();
+
+    // fungsi / pranata / tugas -> function
+    let re_fungsi = Regex::new(r"\b(fungsi|pranata|tugas)\b").unwrap();
+    processed_source = re_fungsi.replace_all(&processed_source, "function").to_string();
+
+    // kembalikan / balekno -> return
+    let re_kembalikan = Regex::new(r"\b(kembalikan|balekno)\b").unwrap();
+    processed_source = re_kembalikan.replace_all(&processed_source, "return").to_string();
+
+    // selama / suwene -> while
+    let re_selama = Regex::new(r"\b(selama|suwene)\b").unwrap();
+    processed_source = re_selama.replace_all(&processed_source, "while").to_string();
+
+    // untuk / kanggo -> for
+    let re_untuk = Regex::new(r"\b(untuk|kanggo)\b").unwrap();
+    processed_source = re_untuk.replace_all(&processed_source, "for").to_string();
+
+    // berhenti / mandek -> break
+    let re_berhenti = Regex::new(r"\b(berhenti|mandek)\b").unwrap();
+    processed_source = re_berhenti.replace_all(&processed_source, "break").to_string();
+
+    // lanjut / terusno -> continue
+    let re_lanjut = Regex::new(r"\b(lanjut|terusno)\b").unwrap();
+    processed_source = re_lanjut.replace_all(&processed_source, "continue").to_string();
+
+    // benar / bener -> true
+    let re_benar = Regex::new(r"\b(benar|bener)\b").unwrap();
+    processed_source = re_benar.replace_all(&processed_source, "true").to_string();
+
+    // salah / kliru -> false
+    let re_salah = Regex::new(r"\b(salah|kliru)\b").unwrap();
+    processed_source = re_salah.replace_all(&processed_source, "false").to_string();
+
+    // kosong / suwung -> null
+    let re_kosong = Regex::new(r"\b(kosong|suwung)\b").unwrap();
+    processed_source = re_kosong.replace_all(&processed_source, "null").to_string();
+
+    // 3. Transpilasi Sintaks & Helper Bawaan
+    // -------------------------------------------------------------
 
     // dudohno / cetak / tulis -> console.log
     let re_cetak = Regex::new(r"\b(dudohno|cetak|tulis)\s*\(").unwrap();
@@ -179,6 +230,62 @@ pub fn compile_is(source: &str) -> String {
     let re_tampil = Regex::new(r"\b(tampilkan|tuduhno)\s*\(\s*([^)]+)\s*\)").unwrap();
     processed_source = re_tampil.replace_all(&processed_source, "(typeof $2 === 'string' ? document.querySelector($2) : $2).style.display = ''").to_string();
 
+    // Dialog & Notifikasi: peringatan, konfirmasi, masukan
+    let re_peringatan = Regex::new(r"\b(peringatan|elingno)\s*\(").unwrap();
+    processed_source = re_peringatan.replace_all(&processed_source, "alert(").to_string();
+
+    let re_konfirmasi = Regex::new(r"\b(konfirmasi|takon)\s*\(").unwrap();
+    processed_source = re_konfirmasi.replace_all(&processed_source, "confirm(").to_string();
+
+    let re_masukan = Regex::new(r"\b(masukan|jaluk)\s*\(").unwrap();
+    processed_source = re_masukan.replace_all(&processed_source, "prompt(").to_string();
+
+    // Asinkron & Waktu: tunggu, setiap, nanti
+    let re_tunggu = Regex::new(r"\btunggu\s*\(\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_tunggu.replace_all(&processed_source, "(await new Promise(r => setTimeout(r, $1)))").to_string();
+
+    let re_setiap = Regex::new(r"\b(setiap|saben)\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_setiap.replace_all(&processed_source, "setInterval($3, $2)").to_string();
+
+    let re_nanti = Regex::new(r"\b(nanti|mengko)\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_nanti.replace_all(&processed_source, "setTimeout($3, $2)").to_string();
+
+    // Clipboard & Storage: salin, simpan, ambilPenyimpanan, hapusPenyimpanan
+    let re_salin = Regex::new(r"\b(salin|salinTeks)\s*\(\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_salin.replace_all(&processed_source, "navigator.clipboard?.writeText($2)").to_string();
+
+    let re_simpan = Regex::new(r"\b(simpan|simpen)\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_simpan.replace_all(&processed_source, "localStorage.setItem($2, JSON.stringify($3))").to_string();
+
+    let re_ambil_penyimpanan = Regex::new(r"\b(ambilPenyimpanan|jupukSimpenan)\s*\(\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_ambil_penyimpanan.replace_all(&processed_source, "JSON.parse(localStorage.getItem($2) || 'null')").to_string();
+
+    let re_hapus_penyimpanan = Regex::new(r"\b(hapusPenyimpanan|busakSimpenan)\s*\(\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_hapus_penyimpanan.replace_all(&processed_source, "localStorage.removeItem($2)").to_string();
+
+    // Format Rupiah, Angka & Tanggal
+    let re_rupiah = Regex::new(r"\b(formatRupiah|rupiah)\s*\(\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_rupiah.replace_all(&processed_source, "(new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format($2))").to_string();
+
+    let re_format_angka = Regex::new(r"\bformatAngka\s*\(\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_format_angka.replace_all(&processed_source, "(new Intl.NumberFormat('id-ID').format($2))").to_string();
+
+    let re_format_tanggal = Regex::new(r"\bformatTanggal\s*\(\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_format_tanggal.replace_all(&processed_source, "(new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date($2)))").to_string();
+
+    // Manipulasi Class DOM
+    let re_tambah_kelas = Regex::new(r"\btambahKelas\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_tambah_kelas.replace_all(&processed_source, "((typeof $1 === 'string' ? document.querySelector($1) : $1)?.classList?.add($2))").to_string();
+
+    let re_hapus_kelas = Regex::new(r"\bhapusKelas\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_hapus_kelas.replace_all(&processed_source, "((typeof $1 === 'string' ? document.querySelector($1) : $1)?.classList?.remove($2))").to_string();
+
+    let re_ganti_kelas = Regex::new(r"\b(gantiKelas|putarKelas)\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_ganti_kelas.replace_all(&processed_source, "((typeof $1 === 'string' ? document.querySelector($1) : $1)?.classList?.toggle($2))").to_string();
+
+    let re_ada_kelas = Regex::new(r"\badaKelas\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)").unwrap();
+    processed_source = re_ada_kelas.replace_all(&processed_source, "((typeof $1 === 'string' ? document.querySelector($1) : $1)?.classList?.contains($2))").to_string();
+
     js.push_str("  ");
     js.push_str(&processed_source);
     js.push_str("\n})();\n");
@@ -194,7 +301,7 @@ mod tests {
     fn test_is_engine_compiler_basic() {
         let code = r#"
 reaktif jumlah = 0;
-function tambah() {
+fungsi tambah() {
     jumlah = jumlah + 1;
     dudohno('Jumlah saiki:', jumlah);
 }
@@ -205,4 +312,53 @@ function tambah() {
         assert!(compiled.contains("console.log"));
         assert!(compiled.contains("function tambah()"));
     }
+
+    #[test]
+    fn test_is_engine_control_flow_and_helpers() {
+        let code = r#"
+fungsi cek_status(skor) {
+    jika skor >= 80 {
+        kembalikan benar;
+    } selain_itu jika skor >= 60 {
+        cetak("Cukup");
+        kembalikan benar;
+    } selain_itu {
+        kembalikan salah;
+    }
 }
+
+fungsi bayar(nominal) {
+    let harga_rp = rupiah(nominal);
+    salin(harga_rp);
+    peringatan("Disalin: " + harga_rp);
+}
+"#;
+        let compiled = compile_is(code);
+        assert!(compiled.contains("function cek_status(skor)"));
+        assert!(compiled.contains("if skor >= 80"));
+        assert!(compiled.contains("return true;"));
+        assert!(compiled.contains("else if skor >= 60"));
+        assert!(compiled.contains("else"));
+        assert!(compiled.contains("return false;"));
+        assert!(compiled.contains("Intl.NumberFormat('id-ID'"));
+        assert!(compiled.contains("navigator.clipboard?.writeText"));
+        assert!(compiled.contains("alert("));
+    }
+
+    #[test]
+    fn test_is_engine_dom_and_storage_helpers() {
+        let code = r##"
+fungsi init_ui() {
+    tambahKelas("#card", "aktif");
+    simpan("pengaturan", { tema: "gelap" });
+    let p = ambilPenyimpanan("pengaturan");
+}
+"##;
+        let compiled = compile_is(code);
+        assert!(compiled.contains("classList?.add"));
+        assert!(compiled.contains("localStorage.setItem"));
+        assert!(compiled.contains("localStorage.getItem"));
+    }
+}
+
+

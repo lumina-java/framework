@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-pub fn create_full_skeleton(base: &Path, name: &str) {
+pub fn create_full_skeleton(base: &Path, name: &str, db_type: &str) {
     // 1. Create Folder Structure
     let folders = [
         "src",
@@ -18,14 +18,106 @@ pub fn create_full_skeleton(base: &Path, name: &str) {
         "resources/css",
         "database",
         "database/migrations",
+        "database/seeders",
         "storage",
         "storage/app/public",
         "storage/cache",
         "public",
+        "plugins",
+        "app/scripts",
     ];
     for folder in folders {
         fs::create_dir_all(base.join(folder)).ok();
     }
+
+    let db_normalized = match db_type {
+        "postgres" | "postgresql" | "pg" => "postgres",
+        "mysql" | "mariadb" => "mysql",
+        "all" | "full" => "all",
+        _ => "sqlite",
+    };
+
+    let (sqlx_features, default_features, env_db_block) = match db_normalized {
+        "postgres" => (
+            r#"features = ["runtime-tokio", "postgres", "macros", "any", "chrono"]"#,
+            r#"default = ["postgres"]
+sqlite = []
+postgres = []
+mysql = []"#,
+            format!(
+                r#"# Database Configuration (PostgreSQL)
+DB_CONNECTION=postgres
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE={}_db
+DB_USERNAME=postgres
+DB_PASSWORD=secret
+
+# Atau gunakan URL eksplisit:
+DATABASE_URL=postgres://postgres:secret@127.0.0.1:5432/{}_db"#,
+                name, name
+            ),
+        ),
+        "mysql" => (
+            r#"features = ["runtime-tokio", "mysql", "macros", "any", "chrono"]"#,
+            r#"default = ["mysql"]
+sqlite = []
+postgres = []
+mysql = []"#,
+            format!(
+                r#"# Database Configuration (MySQL / MariaDB)
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE={}_db
+DB_USERNAME=root
+DB_PASSWORD=
+
+# Atau gunakan URL eksplisit:
+DATABASE_URL=mysql://root:@127.0.0.1:3306/{}_db"#,
+                name, name
+            ),
+        ),
+        "all" => (
+            r#"features = ["runtime-tokio", "sqlite", "postgres", "mysql", "macros", "any", "chrono"]"#,
+            r#"default = ["sqlite", "postgres", "mysql"]
+sqlite = []
+postgres = []
+mysql = []"#,
+            format!(
+                r#"# Database Configuration (Multi-Driver: sqlite / postgres / mysql)
+DB_CONNECTION=sqlite
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=./database.sqlite
+DB_USERNAME=root
+DB_PASSWORD=
+
+# Atau gunakan URL eksplisit:
+DATABASE_URL=sqlite:./database.sqlite
+# DATABASE_URL=postgres://postgres:secret@127.0.0.1:5432/{}_db
+# DATABASE_URL=mysql://root:@127.0.0.1:3306/{}_db"#,
+                name, name
+            ),
+        ),
+        _ => (
+            r#"features = ["runtime-tokio", "sqlite", "macros", "any", "chrono"]"#,
+            r#"default = ["sqlite"]
+sqlite = []
+postgres = []
+mysql = []"#,
+            r#"# Database Configuration (SQLite - Zero Config)
+DB_CONNECTION=sqlite
+DB_HOST=127.0.0.1
+DB_PORT=
+DB_DATABASE=./database.sqlite
+DB_USERNAME=
+DB_PASSWORD=
+
+# URL eksplisit:
+DATABASE_URL=sqlite:./database.sqlite"#.to_string(),
+        ),
+    };
 
     // 2. Cargo.toml
     let cargo_toml = format!(
@@ -45,19 +137,23 @@ serde = {{ version = "1", features = ["derive"] }}
 serde_json = "1"
 dotenv = "0.15"
 async-trait = "0.1"
-sqlx = {{ version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "mysql", "macros", "any", "chrono"] }}
+sqlx = {{ version = "0.8", {} }}
 validator = {{ version = "0.18", features = ["derive"] }}
+
+[features]
+{}
 
 [[bin]]
 name = "{}-server"
 path = "src/main.rs"
 "#,
-        name, name, name
+        name, name, sqlx_features, default_features, name
     );
     fs::write(base.join("Cargo.toml"), cargo_toml).ok();
 
     // 3. .env.example
-    let env_example = r#"# ─── LUMINA FRAMEWORK CONFIGURATION ──────────────────────────────────────────
+    let env_example = format!(
+        r#"# ─── LUMINA FRAMEWORK CONFIGURATION ──────────────────────────────────────────
 
 # Application Settings
 APP_NAME=Lumina
@@ -79,16 +175,7 @@ GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 GITHUB_REDIRECT_URL=http://127.0.0.1:8000/auth/github/callback
 
-# Database Configuration (Laravel Style)
-DB_CONNECTION=sqlite
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=./database.sqlite
-DB_USERNAME=root
-DB_PASSWORD=
-
-# Atau gunakan URL eksplisit (jika DATABASE_URL ada, maka variabel DB_* diabaikan)
-# DATABASE_URL=sqlite:./database.sqlite
+{}
 
 # Rate Limiting
 RATE_LIMIT_MAX=60
@@ -102,10 +189,15 @@ UPLOAD_MAX_SIZE_MB=2
 JWT_SECRET=lumina-jwt-secret-key-change-me-in-production
 
 # ──────────────────────────────────────────────────────────────────────────────
-"#;
-    fs::write(base.join(".env.example"), env_example).ok();
-    fs::write(base.join(".env"), env_example).ok();
-    fs::write(base.join("database.sqlite"), "").ok();
+"#,
+        env_db_block
+    );
+    fs::write(base.join(".env.example"), &env_example).ok();
+    fs::write(base.join(".env"), &env_example).ok();
+
+    if db_normalized == "sqlite" || db_normalized == "all" {
+        fs::write(base.join("database.sqlite"), "").ok();
+    }
 
     // 4. src/main.rs
     let main_rs = r#"mod app;
@@ -432,7 +524,7 @@ pub fn router() -> Router<AppState> {
                 <div style="font-size:0.7rem;display:flex;flex-direction:column;gap:8px;">
                     <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--color-border-bg);padding-bottom:6px;"><span style="color:#94a3b8;">Framework:</span><span style="color:#fff;font-weight:700;">Lumina Rust Core</span></div>
                     <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--color-border-bg);padding-bottom:6px;"><span style="color:#94a3b8;">Database:</span><span style="color:#fff;font-weight:700;">SQLite 3.x</span></div>
-                    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--color-border-bg);padding-bottom:6px;"><span style="color:#94a3b8;">Templates:</span><span style="color:#fff;font-weight:700;">Tera Engine</span></div>
+                    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--color-border-bg);padding-bottom:6px;"><span style="color:#94a3b8;">Templates:</span><span style="color:#fff;font-weight:700;">Native Blade Engine</span></div>
                     <div style="display:flex;justify-content:space-between;"><span style="color:#94a3b8;">Sessions:</span><span style="color:#fff;font-weight:700;">SQLite Pool</span></div>
                 </div>
             </div>
@@ -844,4 +936,85 @@ Enjoy building something incredibly fast, secure, and beautiful with **Lumina**!
         name
     );
     fs::write(base.join("README.md"), readme).ok();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_skeleton_generator_sqlite() {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_dir = std::env::temp_dir().join(format!("lumina_test_sqlite_{}", nanos));
+        fs::create_dir_all(&test_dir).unwrap();
+
+        create_full_skeleton(&test_dir, "my_sqlite_app", "sqlite");
+
+        assert!(test_dir.join("Cargo.toml").exists());
+        assert!(test_dir.join(".env").exists());
+        assert!(test_dir.join("database.sqlite").exists());
+        assert!(test_dir.join("plugins").exists());
+        assert!(test_dir.join("app/scripts").exists());
+
+        let cargo = fs::read_to_string(test_dir.join("Cargo.toml")).unwrap();
+        assert!(cargo.contains(r#"default = ["sqlite"]"#));
+
+        let env = fs::read_to_string(test_dir.join(".env")).unwrap();
+        assert!(env.contains("DB_CONNECTION=sqlite"));
+        assert!(env.contains("sqlite:./database.sqlite"));
+
+        let _ = fs::remove_dir_all(&test_dir);
+    }
+
+    #[test]
+    fn test_skeleton_generator_postgres() {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_dir = std::env::temp_dir().join(format!("lumina_test_pg_{}", nanos));
+        fs::create_dir_all(&test_dir).unwrap();
+
+        create_full_skeleton(&test_dir, "my_pg_app", "postgres");
+
+        assert!(test_dir.join("Cargo.toml").exists());
+        assert!(test_dir.join(".env").exists());
+        assert!(!test_dir.join("database.sqlite").exists());
+
+        let cargo = fs::read_to_string(test_dir.join("Cargo.toml")).unwrap();
+        assert!(cargo.contains(r#"default = ["postgres"]"#));
+
+        let env = fs::read_to_string(test_dir.join(".env")).unwrap();
+        assert!(env.contains("DB_CONNECTION=postgres"));
+        assert!(env.contains("postgres://postgres:secret@127.0.0.1:5432/my_pg_app_db"));
+
+        let _ = fs::remove_dir_all(&test_dir);
+    }
+
+    #[test]
+    fn test_skeleton_generator_mysql() {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_dir = std::env::temp_dir().join(format!("lumina_test_mysql_{}", nanos));
+        fs::create_dir_all(&test_dir).unwrap();
+
+        create_full_skeleton(&test_dir, "my_mysql_app", "mysql");
+
+        assert!(test_dir.join("Cargo.toml").exists());
+        assert!(test_dir.join(".env").exists());
+
+        let cargo = fs::read_to_string(test_dir.join("Cargo.toml")).unwrap();
+        assert!(cargo.contains(r#"default = ["mysql"]"#));
+
+        let env = fs::read_to_string(test_dir.join(".env")).unwrap();
+        assert!(env.contains("DB_CONNECTION=mysql"));
+        assert!(env.contains("mysql://root:@127.0.0.1:3306/my_mysql_app_db"));
+
+        let _ = fs::remove_dir_all(&test_dir);
+    }
 }

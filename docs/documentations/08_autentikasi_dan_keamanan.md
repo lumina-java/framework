@@ -116,6 +116,23 @@ Sembunyikan atau tampilkan elemen navigasi berdasarkan status login:
 
 ---
 
+## 6. Lumina Shield Security Audit (`lumina audit`)
+
+Sebelum melakukan deployment ke server produksi, Lumina menyediakan alat audit keamanan otomatis:
+
+```bash
+lumina audit
+```
+
+### Lingkup Pemeriksaan Otomatis:
+1. **Secret & Key Entropy**: Memverifikasi kekuatan `APP_KEY` dan `JWT_SECRET` (panjang minimal 32 karakter dan bukan placeholder default).
+2. **Debug Mode in Production**: Mencegah kebocoran stack trace dan kredensial sensitif jika `APP_DEBUG=true` aktif di lingkungan `production`.
+3. **CSRF Protection on Forms**: Memindai seluruh template tampilan (`resources/views/`) untuk memastikan setiap formulir bermetode `POST` memiliki direktif `@csrf`.
+4. **Database & Storage Hardening**: Memeriksa koneksi database dan isolasi folder upload publik.
+5. **Scoreboard & Actionable Fixes**: Memberikan skor keamanan (*0–100*), peringkat mutu (*Grade A+*), serta rekomendasi perintah perbaikan secara instan.
+
+---
+
 ### Navigasi Modul:
 - **Sebelumnya**: [Modul 07: Indonesian Script](./07_indonesian_script.md) 
 - **Berikutnya**: [Modul 09: Broadcasting & WebSocket](./09_broadcasting_dan_websocket.md) ➔

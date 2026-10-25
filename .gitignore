@@ -50,6 +50,7 @@ storage/app/public/uploads/*
 
 # --- Internal Work History & Draft Skills (Never commit to GitHub) ---
 /docs/history_pekerjaan/
+/docs/planing_pekerjaan/
 /skill_for_creates/
 skill_for_createse.md
 CRUD_TEST_REPORT.md

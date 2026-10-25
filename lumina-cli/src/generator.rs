@@ -1207,3 +1207,91 @@ pub fn cmd_plugin_list() {
     println!("{:-<32} {:-<15} {:-<12} {:-<35}", "", "", "", "");
     println!("Total detected items: {}\n", items.len());
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MODEL FACTORY GENERATOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub fn generate_factory(name: &str) {
+    if !guard_project() {
+        return;
+    }
+    println!("{}", "🏭 Generating Model Factory...".bright_purple().bold());
+
+    let class_name = capitalize_first(name);
+    let base = class_name.trim_end_matches("Factory");
+    let model_name = base.to_string();
+    let factory_name = format!("{}Factory", base);
+    let file_base = format!("{}_factory", to_snake_case(base));
+    let file_path = format!("database/factories/{}.rs", file_base);
+
+    if Path::new(&file_path).exists() {
+        println!("{} Factory already exists: {}", "⚠️".yellow(), file_path.yellow());
+        return;
+    }
+
+    let _ = fs::create_dir_all("database/factories");
+
+    let code = format!(
+        r#"use lumina::prelude::*;
+use crate::app::models::{snake_model}::{model_name};
+
+// =========================================================================
+//  {factory_name} (Lumina Model Factory)
+// =========================================================================
+
+pub struct {factory_name};
+
+impl {factory_name} {{
+    pub fn new() -> Self {{
+        Self
+    }}
+}}
+
+impl Factory<{model_name}> for {factory_name} {{
+    /// Definisikan nilai dummy default untuk model {model_name}
+    fn definition(&self) -> {model_name} {{
+        {model_name} {{
+            name: Faker::name(),
+            email: Faker::unique_email(),
+            phone: Faker::phone(),
+            created_at: Some(Faker::datetime_recent()),
+            updated_at: Some(Faker::datetime_recent()),
+            ..Default::default()
+        }}
+    }}
+}}
+
+impl HasFactory<{factory_name}> for {model_name} {{
+    fn factory() -> {factory_name} {{
+        {factory_name}::new()
+    }}
+}}
+"#,
+        factory_name = factory_name,
+        model_name = model_name,
+        snake_model = to_snake_case(&model_name),
+    );
+
+    if let Err(e) = fs::write(&file_path, code) {
+        println!("{} Failed to write factory file: {}", "❌".red(), e);
+        return;
+    }
+
+    // Register into database/factories/mod.rs
+    let mod_file = "database/factories/mod.rs";
+    let mod_line = format!("pub mod {};\n", file_base);
+    if Path::new(mod_file).exists() {
+        let existing = fs::read_to_string(mod_file).unwrap_or_default();
+        if !existing.contains(&mod_line) {
+            append_to_file(mod_file, &mod_line);
+        }
+    } else {
+        let _ = fs::write(mod_file, format!("// Lumina Database Factories\n{}", mod_line));
+    }
+
+    print_success(&format!("Factory created: {}", file_path.bright_green()));
+    print_hint(&format!("Use in seeder/test: {}::new().count(10).create(req.db()).await", factory_name));
+    print_hint(&format!("Or shortcut on model: {}::factory().count(10).create(req.db()).await\n", model_name));
+}
+

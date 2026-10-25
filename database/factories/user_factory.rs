@@ -1,36 +1,35 @@
-use async_trait::async_trait;
-use fake::Fake;
-use fake::faker::name::raw::*;
-use fake::faker::internet::raw::*;
-use fake::locales::*;
-use crate::database::{connection::DatabasePool, factory::Factory, model::Model};
+use lumina::prelude::*;
 use crate::app::models::user::User;
 use crate::core::auth::Auth;
 
+// =========================================================================
+//  UserFactory (Lumina Model Factory)
+// =========================================================================
+
 pub struct UserFactory;
 
-#[async_trait]
-impl Factory for UserFactory {
-    type Model = User;
+impl UserFactory {
+    pub fn new() -> Self {
+        Self
+    }
+}
 
-    fn definition(&self) -> Self::Model {
+impl Factory<User> for UserFactory {
+    /// Definisikan nilai dummy default untuk model User
+    fn definition(&self) -> User {
         User {
-            name: Name(EN).fake(),
-            email: SafeEmail(EN).fake(),
+            name: Faker::name(),
+            email: Faker::unique_email(),
             password: Auth::make_hash("password"),
             role: "user".to_string(),
             ..Default::default()
         }
     }
+}
 
-    async fn create(&self, db: &DatabasePool) -> Result<Self::Model, String> {
-        let mut model = self.definition();
-        match model.save(db).await {
-            Ok(id) => {
-                model.id = id;
-                Ok(model)
-            },
-            Err(e) => Err(format!("Gagal menyimpan user ke database: {}", e)),
-        }
+impl HasFactory<UserFactory> for User {
+    fn factory() -> UserFactory {
+        UserFactory::new()
     }
 }
+

@@ -6,6 +6,22 @@ Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/
 
 ---
 
+## [0.3.0] - 2026-10-25
+
+### 🚀 Ditambahkan (Added)
+- **High-Speed Model Factory & Faker Engine**:
+  - Trait `Factory<M>` dan struct `FactoryBuilder` dengan chaining fluen ala Laravel: `.count(n)`, `.state(|m| ...)`, `.make()`, `.make_one()`, dan `.create(db).await`.
+  - Generator `Faker` bawaan berkecepatan tinggi tanpa dependensi eksternal (*zero external crates*), dioptimalkan untuk data realistis Indonesia (nama pria/wanita, telepon 08xx, alamat jalan, kota, perusahaan, rupiah, kalimat lorem, email unik).
+  - Generator CLI: `lumina make:factory <Name>` yang menghasilkan scaffold factory lengkap dan mendaftarkannya otomatis ke `database/factories/mod.rs`.
+- **Lumina Shield Security Audit (`lumina audit`)**:
+  - Pemindai otomatis postur keamanan dan hardening konfigurasi aplikasi.
+  - Memverifikasi entropi kriptografi `APP_KEY` dan `JWT_SECRET` (>= 32 karakter).
+  - Mendeteksi bahaya `APP_DEBUG=true` di lingkungan produksi.
+  - Memindai seluruh template Blade untuk memastikan keberadaan proteksi `@csrf` pada seluruh formulir POST.
+  - Menghasilkan visual security scoreboard dengan skor (0–100), peringkat mutu (*Grade A+*), dan rekomendasi langkah perbaikan konkret (*Actionable Fixes*).
+
+---
+
 ## [0.2.1] - 2026-10-25
 
 ### 🚀 Ditambahkan (Added)

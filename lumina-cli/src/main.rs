@@ -6,6 +6,7 @@ use std::path::Path;
 
 mod generator;
 mod skeleton;
+mod audit;
 
 #[derive(Parser)]
 #[command(
@@ -72,6 +73,17 @@ enum Commands {
     /// Generate a ready-to-use Authentication system (Register & Login)
     #[command(name = "make:auth")]
     MakeAuth,
+
+    /// Generate a new Model Factory for testing and seeding
+    #[command(name = "make:factory")]
+    MakeFactory {
+        /// The name of the factory (e.g., UserFactory)
+        name: String,
+    },
+
+    // ─── Security & Auditing ──────────────────────────────────────────────────
+    /// Run Lumina Shield to audit security, secrets, and environment configuration
+    Audit,
 
     // ─── Database ─────────────────────────────────────────────────────────────
     /// Run all pending database migrations
@@ -151,6 +163,12 @@ fn main() {
         }
         Commands::MakeAuth => {
             generator::generate_auth();
+        }
+        Commands::MakeFactory { name } => {
+            generator::generate_factory(&name);
+        }
+        Commands::Audit => {
+            audit::run_audit();
         }
         Commands::Migrate => {
             generator::run_migrate();

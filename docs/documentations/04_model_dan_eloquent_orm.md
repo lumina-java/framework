@@ -169,6 +169,68 @@ pub fn roles(&self, db: &DbPool) -> BelongsToMany<Role> {
 
 ---
 
+## 7. Model Factory & Faker Engine (`lumina make:factory`)
+
+Lumina menyediakan sistem pembuatan data tiruan (*mock / seeding*) otomatis berkecepatan tinggi ala Laravel Factory dengan lokalisasi data Indonesia:
+
+### A. Membuat Factory Baru via CLI
+```bash
+lumina make:factory UserFactory
+```
+File `database/factories/user_factory.rs` akan dibuat secara otomatis:
+
+```rust
+use lumina::prelude::*;
+use crate::app::models::user::User;
+
+pub struct UserFactory;
+
+impl UserFactory {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Factory<User> for UserFactory {
+    fn definition(&self) -> User {
+        User {
+            name: Faker::name(),
+            email: Faker::unique_email(),
+            phone: Faker::phone(),
+            created_at: Some(Faker::datetime_recent()),
+            updated_at: Some(Faker::datetime_recent()),
+            ..Default::default()
+        }
+    }
+}
+
+impl HasFactory<UserFactory> for User {
+    fn factory() -> UserFactory {
+        UserFactory::new()
+    }
+}
+```
+
+### B. Penggunaan di Seeder atau Unit Test
+```rust
+// 1. Buat 100 User baru langsung masuk ke database
+let users = User::factory().count(100).create(req.db()).await?;
+
+// 2. Modifikasi atribut dengan State Modifier
+let admins = User::factory()
+    .count(5)
+    .state(|u| {
+        u.role = "admin".to_string();
+    })
+    .create(req.db())
+    .await?;
+
+// 3. Buat objek in-memory tanpa menyentuh database
+let mock_user = User::factory().make_one();
+```
+
+---
+
 ### Navigasi Modul:
 - **Sebelumnya**: [Modul 03: Controller & Request](./03_controller_dan_request.md) 
 - **Berikutnya**: [Modul 05: Blade Template Engine](./05_blade_template_engine.md) ➔

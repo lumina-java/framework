@@ -32,12 +32,13 @@ Rust terkenal dengan kecepatan ekstrem dan keamanannya, namun sering kali memili
 - ⚡ **Supercharged Tokio + Axum Core** — Performa HTTP async tinggi dengan konsumsi resource yang sangat hemat.
 - 🏗️ **Arsitektur MVC Lengkap** — Pembagian layer yang rapi: Controllers, Models, Services, Requests, Views, dan Providers.
 - 🗄️ **Human ORM & Macro-based Models** — Gunakan `#[derive(LuminaModel)]` untuk mendapatkan fungsi CRUD otomatis, pagination (`LengthAwarePaginator`), eager loading, soft deletes, dan query builder lancar (*fluent*).
+- 🏭 **Model Factory & Faker Engine** — Generator data tiruan (*mock / seeding*) berkecepatan tinggi dengan lokalisasi Indonesia & internasional serta chaining fluen ala Laravel (`User::factory().count(100).create(db).await`).
 - 🔄 **Universal Multi-Database Layer** — Dukungan langsung untuk **PostgreSQL**, **MySQL**, dan **SQLite** dengan auto-migration runner serta generator database flag di CLI (`--db`).
-- 🪄 **Lumina Smart CLI (`lumina`)** — Buat project baru dengan preset database, controller, model, migration, autentikasi instan (`make:auth`), plugin WASM, dan modul CRUD lengkap (`make:crud`).
+- 🪄 **Lumina Smart CLI (`lumina`)** — Buat project baru dengan preset database, controller, model, factory (`make:factory`), audit keamanan (`audit`), autentikasi instan (`make:auth`), plugin WASM, dan modul CRUD lengkap (`make:crud`).
 - 📦 **The Unified `Request` Extractor** — Cukup panggil `req: Request` untuk mengakses Database Pool, Session, CSRF Token, Auth User, Flash Messages, dan View Renderer.
-- 🛡️ **Auto-Validation Engine** — `ValidatedJson<T>` & `ValidatedForm<T>` dengan pesan error validasi yang ramah developer.
+- 🛡️ **Lumina Shield Security Scanner (`lumina audit`)** — Audit otomatis postur keamanan aplikasi (kekuatan secret, mode debug di produksi, proteksi CSRF form, storage hardening) dengan security scoreboard dan saran perbaikan.
 - 🔐 **Dual Auth Suite** — Autentikasi berbasis **Session** untuk web serta **JWT Bearer Token** untuk API.
-- 🎭 **Pure Native Blade Engine** — Template engine independen berkecepatan tinggi tanpa runtime eksternal. Mendukung direktif familiar (`@extends`, `@section`, `@if`, `@foreach`, `@csrf`), pipeline filter (`| rupiah`, `| uppercase`), dan direktif kustom.
+- 🎭 **Pure Native Blade Engine** — Template engine independen berkecepatan tinggi tanpa runtime eksternal. Mendukung direktif familiar (`@extends`, `@section`, `@if`, `@foreach`, `@csrf`), pipeline filter (`| rupiah`, `| uppercase`), dan render bebas tanda `&`.
 - 🧩 **WASM Native Hybrid Plugin Engine** — Eksekusi plugin pihak ketiga terisolasi dalam sandbox WebAssembly (`wasmi 2.0`) yang aman dari crash memori dan terpantau di Telescope.
 - 🇮🇩 **Indonesian Script (.is) Runtime** — Bahasa skrip berorientasi logika bisnis berbasis bahasa Indonesia natural (`fungsi`, `jika`, `selama`) yang dieksekusi langsung oleh backend Lumina.
 - 📡 **Lumina Echo (WebSocket Broadcaster)** — Broadcasting event real-time dengan channel authorization (Public, Private, Presence) dan verifikasi JWT.
@@ -298,10 +299,12 @@ pub fn router() -> Router<AppState> {
 | `lumina make:auth` | Menghasilkan modul autentikasi lengkap (Register, Login, Session, Blade) |
 | `lumina make:controller <Name>` | Menghasilkan controller baru |
 | `lumina make:model <Name>` | Menghasilkan model baru beserta file migrasi |
+| `lumina make:factory <Name>` | Menghasilkan Model Factory baru untuk testing & seeding |
 | `lumina make:migration <Name>` | Membuat file migrasi database baru |
 | `lumina migrate` | Menjalankan seluruh file migrasi SQL yang belum diaplikasikan |
 | `lumina migrate:rollback` | Membatalkan migrasi terakhir |
 | `lumina db:seed` | Menjalankan database seeder |
+| `lumina audit` | Menjalankan Lumina Shield untuk audit keamanan & konfigurasi project |
 | `lumina plugin:new <name>` | Membuat scaffold plugin WebAssembly baru |
 | `lumina plugin:build <name>` | Membangun binary WASM target `wasm32-wasip1` |
 | `lumina plugin:list` | Mendaftar semua plugin WASM yang terpasang di `storage/plugins` |

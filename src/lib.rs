@@ -18,9 +18,12 @@ pub mod prelude {
     pub use crate::core::request::{HttpResult, LuminaResult, Request};
     pub use crate::core::response::ApiResponse;
     pub use crate::core::validation::{ValidatedForm, ValidatedJson};
+    pub use crate::core::view::View;
     pub use crate::database::connection::{DatabasePool, Db};
     pub use crate::database::model::Model;
     pub use crate::database::orm::{LengthAwarePaginator, OrmResult, QueryBuilder};
+    pub use crate::database::factory::{Factory, FactoryBuilder, HasFactory};
+    pub use crate::database::faker::Faker;
     pub use crate::{belongs_to, belongs_to_many, has_many, has_one};
     pub use lumina_macros::{lumina_form, LuminaModel};
     // middleware helpers

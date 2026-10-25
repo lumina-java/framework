@@ -21,6 +21,7 @@ pub fn create_full_skeleton(base: &Path, name: &str, db_type: &str) {
         "database",
         "database/migrations",
         "database/seeders",
+        "database/factories",
         "storage",
         "storage/app/public",
         "storage/cache",

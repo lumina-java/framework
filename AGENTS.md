@@ -119,6 +119,11 @@ Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent 
    ```rust
    let posts = Post::query(req.db()).with("user").get().await?;
    ```
+5. **Model Factory & Faker (Testing & Seeding)**:
+   Gunakan Model Factory (`lumina make:factory <Model>Factory`) untuk keperluan seeding data dan unit testing. Manfaatkan generator `Faker` untuk membangkitkan data realistis Indonesia (nama, telepon, email, alamat, rupiah) dengan method chaining yang fluen:
+   ```rust
+   User::factory().count(50).state(|u| u.is_active = true).create(req.db()).await?;
+   ```
 
 ---
 

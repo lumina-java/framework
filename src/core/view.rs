@@ -124,8 +124,10 @@ impl ViewBuilder {
     }
 
     /// Mengeksekusi render dan mengembalikan ViewResponse.
+    /// Mendukung pemanggilan bersih tanpa ampersand: `.render(req).await` maupun `.render(&req).await`.
     /// Sekarang mendukung Injeksi CSRF otomatis.
-    pub async fn render(mut self, req: &crate::core::request::Request) -> ViewResponse {
+    pub async fn render<R: std::borrow::Borrow<crate::core::request::Request>>(mut self, req: R) -> ViewResponse {
+        let req = req.borrow();
         // Auto-inject CSRF Token jika tersedia
         if let Ok(token) = req.token.authenticity_token() {
             self.context.insert("csrf_token", &token);

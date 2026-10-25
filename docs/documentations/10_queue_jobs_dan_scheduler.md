@@ -61,7 +61,7 @@ pub async fn register_success(req: Request) -> impl IntoResponse {
     View::make("auth.registered_success")
         .with("title", "Registrasi Berhasil")
         .with("message", "Email sambutan sedang dikirimkan di latar belakang!")
-        .render(&req)
+        .render(req)
         .await
 }
 ```

@@ -196,17 +196,19 @@ use crate::app::models::user::User;
 
 pub async fn show_dashboard(req: Request) -> impl IntoResponse {
     let users = User::all(req.db()).await.unwrap_or_default();
+    let is_admin = req.user.as_ref().map(|u| u.role == "admin").unwrap_or(false);
 
+    // Sintaks bebas ampersand (&) yang bersih dan mudah diketik
     View::make("dashboard.index")
         .with("title", "Dashboard — Lumina")
-        .with("users", &users)
-        .with("is_admin", &(req.user.as_ref().map(|u| u.role == "admin").unwrap_or(false)))
-        .render(&req)
+        .with("users", users)
+        .with("is_admin", is_admin)
+        .render(req)
         .await
 }
 ```
 
-Metode `.render(&req).await` secara otomatis:
+Metode `.render(req).await` (atau `.render(&req).await`) secara otomatis:
 1. Menyisipkan variabel global aplikasi (CSRF token, flash messages, data user auth aktif).
 2. Mengompilasi dan mengeksekusi template Blade secara asinkron.
 3. Mengembalikan tipe response yang langsung kompatibel dengan Axum `impl IntoResponse`.

@@ -11,23 +11,25 @@ impl DashboardController {
     /// Menggunakan Request bundle untuk akses cepat ke State, Session, dan User.
     pub async fn index(req: Request) -> impl IntoResponse {
         // Karena route ini dilindungi middleware, req.user pasti Some
-        let user_session = req.user.as_ref().expect("Unauthorized access to dashboard");
+        let user = req.user.clone().expect("Unauthorized access to dashboard");
 
         // 🔥 EAGER LOADING IN ACTION (N+1 Solution)
-        // Kita mengambil semua user dan semua post mereka dalam 2 query saja.
-        let users = User::query(req.state.db())
+        // Mengambil semua user dan post mereka dalam 2 query SQL optimal
+        let users = User::query(req.db())
             .with("posts")
             .get()
             .await
             .unwrap_or_default();
 
+        // Cuantik, bersih, bebas tanda ampersand (&)
         View::make("dashboard.index")
             .with("title", "Dashboard — Lumina")
-            .with("user_id", &user_session.sub)
-            .with("email", &user_session.email)
-            .with("role", &user_session.role)
-            .with("users", &users)
-            .render(&req)
+            .with("user_id", user.sub.clone())
+            .with("email", user.email.clone())
+            .with("role", user.role.clone())
+            .with("user", user)
+            .with("users", users)
+            .render(req)
             .await
     }
 }

@@ -24,18 +24,19 @@ Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent 
 ### B. Standardisasi Return Type
 - **Controller Halaman Web (HTML View)**:
   - **WAJIB** mengembalikan `impl IntoResponse`.
-  - **WAJIB** merender view menggunakan `View::make("nama.view").with("kunci", &nilai)...render(&req).await` atau `req.view("nama.view")...`.
+  - **WAJIB** merender view menggunakan `View::make("nama.view").with("kunci", nilai)...render(req).await` (Bebas tanda ampersand `&` yang merepotkan).
   - Contoh:
     ```rust
     pub async fn index(req: Request) -> impl IntoResponse {
-        let user = req.user.as_ref().expect("Unauthorized");
+        let user = req.user.clone().expect("Unauthorized");
         let users = User::query(req.db()).with("posts").get().await.unwrap_or_default();
 
+        // Bersih, elegan, tanpa tanda '&'
         View::make("dashboard.index")
             .with("title", "Dashboard — Lumina")
-            .with("user", &user)
-            .with("users", &users)
-            .render(&req)
+            .with("user", user)
+            .with("users", users)
+            .render(req)
             .await
     }
     ```

@@ -384,6 +384,13 @@ cargo test --test production_features_test
 
 ---
 
+## 📜 Dokumen Panduan & Riwayat Rilis
+
+- 🤖 **[AGENTS.md](./AGENTS.md)** — Pedoman arsitektur dan aturan baku penulisan kode (*Laravel-like elegance, Request bundle, dan clean architecture*) untuk AI Agent & developer.
+- 📝 **[CHANGELOG.md](./CHANGELOG.md)** — Catatan riwayat rilis dan pembaruan fitur per versi framework.
+
+---
+
 ## 📄 License
 
 Lumina Framework dilisensikan di bawah lisensi [MIT](LICENSE).  

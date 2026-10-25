@@ -32,19 +32,21 @@ Rust terkenal dengan kecepatan ekstrem dan keamanannya, namun sering kali memili
 - ⚡ **Supercharged Tokio + Axum Core** — Performa HTTP async tinggi dengan konsumsi resource yang sangat hemat.
 - 🏗️ **Arsitektur MVC Lengkap** — Pembagian layer yang rapi: Controllers, Models, Services, Requests, Views, dan Providers.
 - 🗄️ **Human ORM & Macro-based Models** — Gunakan `#[derive(LuminaModel)]` untuk mendapatkan fungsi CRUD otomatis, pagination (`LengthAwarePaginator`), eager loading, soft deletes, dan query builder lancar (*fluent*).
-- 🔄 **Universal Multi-Database Layer** — Dukungan langsung untuk **PostgreSQL**, **MySQL**, dan **SQLite** dengan auto-migration runner.
-- 🪄 **Lumina Smart CLI (`lumina`)** — Buat project baru, controller, model, migration, autentikasi instan (`make:auth`), dan modul CRUD lengkap (`make:crud`) hanya dengan satu perintah.
+- 🔄 **Universal Multi-Database Layer** — Dukungan langsung untuk **PostgreSQL**, **MySQL**, dan **SQLite** dengan auto-migration runner serta generator database flag di CLI (`--db`).
+- 🪄 **Lumina Smart CLI (`lumina`)** — Buat project baru dengan preset database, controller, model, migration, autentikasi instan (`make:auth`), plugin WASM, dan modul CRUD lengkap (`make:crud`).
 - 📦 **The Unified `Request` Extractor** — Cukup panggil `req: Request` untuk mengakses Database Pool, Session, CSRF Token, Auth User, Flash Messages, dan View Renderer.
 - 🛡️ **Auto-Validation Engine** — `ValidatedJson<T>` & `ValidatedForm<T>` dengan pesan error validasi yang ramah developer.
 - 🔐 **Dual Auth Suite** — Autentikasi berbasis **Session** untuk web serta **JWT Bearer Token** untuk API.
-- 🎭 **Template Engine Blade + Tera** — Mendukung ekstensi `.blade.rs` dengan direktif familiar (`@extends`, `@section`, `@if`, `@foreach`, `@csrf`), serta compiler **Indonesian Script** (`.is`).
+- 🎭 **Pure Native Blade Engine** — Template engine independen berkecepatan tinggi tanpa runtime eksternal. Mendukung direktif familiar (`@extends`, `@section`, `@if`, `@foreach`, `@csrf`), pipeline filter (`| rupiah`, `| uppercase`), dan direktif kustom.
+- 🧩 **WASM Native Hybrid Plugin Engine** — Eksekusi plugin pihak ketiga terisolasi dalam sandbox WebAssembly (`wasmi 2.0`) yang aman dari crash memori dan terpantau di Telescope.
+- 🇮🇩 **Indonesian Script (.is) Runtime** — Bahasa skrip berorientasi logika bisnis berbasis bahasa Indonesia natural (`fungsi`, `jika`, `selama`) yang dieksekusi langsung oleh backend Lumina.
 - 📡 **Lumina Echo (WebSocket Broadcaster)** — Broadcasting event real-time dengan channel authorization (Public, Private, Presence) dan verifikasi JWT.
 - ⏳ **Background Queue & Jobs** — Eksekusi antrean tugas asinkron dengan persistensi database.
 - ⏰ **Task Scheduler** — Penjadwalan cron-job bawaan yang mudah dikonfigurasi.
 - 💾 **High-Speed Cache** — Cache in-memory berbasis Moka dengan dukungan tagging dan TTL.
 - 📧 **Mail & Notification** — Fluent email builder dengan template rendering dan driver Log/SMTP.
 - 📁 **File Storage & Image Manipulation** — Penanganan upload multipart dan manipulasi gambar otomatis (resize, thumbnail, grayscale).
-- 🔭 **Telescope & Health Checks** — Endpoint pemantauan `/up` & `/health`, graceful shutdown, dan security headers bawaan.
+- 🔭 **Telescope & Health Checks** — Dasbor `/lumina/telescope` (Requests, Queries, Logs, Sandbox Metrics), health check `/up` & `/health`, graceful shutdown, dan security headers bawaan.
 
 ---
 
@@ -289,7 +291,7 @@ pub fn router() -> Router<AppState> {
 
 | Perintah | Deskripsi |
 | :--- | :--- |
-| `lumina new <name>` | Membuat project aplikasi baru dari skeleton |
+| `lumina new <name> [--db <preset>]` | Membuat project baru (`--db sqlite`, `postgres`, `mysql`, atau `all`) |
 | `lumina serve` | Menjalankan server aplikasi HTTP |
 | `lumina watch` | Menjalankan server dengan fitur hot auto-reload (`cargo-watch`) |
 | `lumina make:crud <Name> [fields]` | Membuat CRUD lengkap instan (Model, Controller, Migrasi, View) |
@@ -300,6 +302,9 @@ pub fn router() -> Router<AppState> {
 | `lumina migrate` | Menjalankan seluruh file migrasi SQL yang belum diaplikasikan |
 | `lumina migrate:rollback` | Membatalkan migrasi terakhir |
 | `lumina db:seed` | Menjalankan database seeder |
+| `lumina plugin:new <name>` | Membuat scaffold plugin WebAssembly baru |
+| `lumina plugin:build <name>` | Membangun binary WASM target `wasm32-wasip1` |
+| `lumina plugin:list` | Mendaftar semua plugin WASM yang terpasang di `storage/plugins` |
 | `lumina make:docker` | Menghasilkan `Dockerfile` & `docker-compose.yml` multi-stage produksi |
 | `lumina make:nginx` | Menghasilkan konfigurasi Nginx reverse proxy produksi |
 | `lumina make:supervisor` | Menghasilkan konfigurasi Supervisor daemon |
@@ -336,15 +341,26 @@ my_app/
 
 ---
 
-## 📚 Dokumentasi Lanjutan
+## 📚 Dokumentasi Lengkap & Seri Tutorial
 
-Untuk panduan dan referensi teknis yang lebih mendalam:
+Dokumentasi resmi Lumina disusun secara berseri (*12 episode/modul*) yang terstruktur, komprehensif, dan mudah dipelajari:
 
-- 📖 **[DOCUMENTATION.md](./DOCUMENTATION.md)** — Dokumentasi komprehensif seluruh modul core.
-- 💎 **[docs/ORM.md](./docs/ORM.md)** — Panduan Lengkap Lumina Eloquent ORM & Relationships.
-- 🚀 **[TUTORIAL_INSTALL.md](./TUTORIAL_INSTALL.md)** — Panduan instalasi dan persiapan sistem.
-- 📡 **[TUTORIAL_BROADCASTER.md](./TUTORIAL_BROADCASTER.md)** — Panduan real-time WebSocket broadcasting dengan Lumina Echo.
-- ⚡ **[CHEAT_SHEET.md](./CHEAT_SHEET.md)** — Snippet cepat sintaks controller, query ORM, dan helper.
+👉 **[Buka Indeks Dokumentasi Utama (docs/documentations/README.md)](./docs/documentations/README.md)**
+
+| Episode | Modul Dokumentasi | Topik Utama |
+| :---: | :--- | :--- |
+| **01** | [**Persyaratan Sistem & Instalasi**](./docs/documentations/01_instalasi_dan_persyaratan.md) | Requirement Rust, CLI global, `lumina new --db`, struktur folder MVC, `.env`, `lumina serve`. |
+| **02** | [**Routing & Middleware**](./docs/documentations/02_routing_dan_middleware.md) | Rute HTTP, parameter URL, group & prefix, custom middleware, security headers, rate limiting, CSRF. |
+| **03** | [**Controller & Request Handling**](./docs/documentations/03_controller_dan_request.md) | `make:controller`, Dependency Injection, Form/JSON payload, `make:request` (validasi), file upload. |
+| **04** | [**Model & Eloquent ORM**](./docs/documentations/04_model_dan_eloquent_orm.md) | `make:model`, migrasi, `#[derive(LuminaModel)]`, CRUD, Query Builder, pagination, relasi 1-baris. |
+| **05** | [**Blade Template Engine**](./docs/documentations/05_blade_template_engine.md) | Layout inheritance (`@extends`, `@section`), looping `@foreach`, pipeline filter `\| rupiah`, `@wasm`, `@eval_is`. |
+| **06** | [**WASM Sandbox & Plugin**](./docs/documentations/06_wasm_sandbox_dan_plugin.md) | Arsitektur WASM Native Hybrid (`wasmi 2.0`), fault isolation, `plugin:new`, `plugin:build`, ABI bridge. |
+| **07** | [**Indonesian Script (.is)**](./docs/documentations/07_indonesian_script.md) | Skrip backend natural (`fungsi`, `jika`, `selama`), built-in helpers, eksekusi di Controller & Blade. |
+| **08** | [**Autentikasi & Keamanan**](./docs/documentations/08_autentikasi_dan_keamanan.md) | `make:auth`, hashing Bcrypt, Dual Auth (Session Web + JWT API), RBAC (`can`), Blade `@auth`/`@guest`. |
+| **09** | [**Broadcasting & WebSocket (Echo)**](./docs/documentations/09_broadcasting_dan_websocket.md) | Server WebSocket, Public vs Private Channel, otorisasi JWT, event `ShouldBroadcast`, client JS. |
+| **10** | [**Queue, Jobs & Scheduler**](./docs/documentations/10_queue_jobs_dan_scheduler.md) | Background Jobs (`make:job`), dispatching asinkron, persistent queue database, cron scheduler. |
+| **11** | [**Observabilitas & Telescope**](./docs/documentations/11_observabilitas_dan_telescope.md) | Dasbor `/lumina/telescope`, request logger, query tracer, exception viewer, Tab Sandbox Metrics. |
+| **12** | [**Deployment & DevOps**](./docs/documentations/12_deployment_dan_devops.md) | Release build, Docker multi-stage (`make:docker`), Nginx (`make:nginx`), Supervisor (`make:supervisor`), backup. |
 
 ---
 

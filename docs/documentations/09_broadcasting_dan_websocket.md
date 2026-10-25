@@ -49,16 +49,15 @@ impl ShouldBroadcast for OrderShippedEvent {
 
 ## 3. Menyiarkan Event dari Controller
 
-Cukup panggil method `state.echo.broadcast(&event)`:
+Cukup panggil method `req.state.echo.broadcast(&event)`:
 
 ```rust
-use axum::{extract::State, Json};
-use lumina::core::application::AppState;
+use lumina::prelude::*;
 
 pub async fn ship_order(
-    State(state): State<AppState>,
-    Json(payload): Json<ShipRequest>,
-) -> Json<serde_json::Value> {
+    req: Request,
+    ValidatedJson(payload): ValidatedJson<ShipRequest>,
+) -> LuminaResult {
     let event = OrderShippedEvent {
         order_id: payload.order_id,
         tracking_number: "RESI-123456".to_string(),
@@ -66,9 +65,9 @@ pub async fn ship_order(
     };
 
     // Siarkan secara asinkron ke semua client yang terkoneksi
-    state.echo.broadcast(&event).await;
+    req.state.echo.broadcast(&event).await;
 
-    Json(serde_json::json!({ "status": "Shipped & Broadcasted" }))
+    req.ok(serde_json::json!({ "status": "Shipped & Broadcasted" }))
 }
 ```
 

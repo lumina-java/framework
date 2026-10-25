@@ -185,6 +185,34 @@ Eksekusi logika perhitungan skrip Indonesian Script (`.is`) tanpa reload server:
 
 ---
 
+## 8. Merender View dari Controller (`View::make` & `impl IntoResponse`)
+
+Untuk merender template Blade dari Controller, gunakan builder `View::make(...)` atau `req.view(...)`:
+
+```rust
+use lumina::prelude::*;
+use axum::response::IntoResponse;
+use crate::app::models::user::User;
+
+pub async fn show_dashboard(req: Request) -> impl IntoResponse {
+    let users = User::all(req.db()).await.unwrap_or_default();
+
+    View::make("dashboard.index")
+        .with("title", "Dashboard — Lumina")
+        .with("users", &users)
+        .with("is_admin", &(req.user.as_ref().map(|u| u.role == "admin").unwrap_or(false)))
+        .render(&req)
+        .await
+}
+```
+
+Metode `.render(&req).await` secara otomatis:
+1. Menyisipkan variabel global aplikasi (CSRF token, flash messages, data user auth aktif).
+2. Mengompilasi dan mengeksekusi template Blade secara asinkron.
+3. Mengembalikan tipe response yang langsung kompatibel dengan Axum `impl IntoResponse`.
+
+---
+
 ### Navigasi Modul:
 - **Sebelumnya**: [Modul 04: Model & Eloquent ORM](./04_model_dan_eloquent_orm.md) 
 - **Berikutnya**: [Modul 06: WASM Sandbox & Plugin](./06_wasm_sandbox_dan_plugin.md) ➔

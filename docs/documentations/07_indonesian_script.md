@@ -82,23 +82,22 @@ Lumina menyediakan sejumlah fungsi bawaan yang siap pakai di dalam skrip `.is`:
 
 ## 4. Eksekusi dari Controller Rust
 
-Anda dapat memanggil fungsi di dalam skrip `.is` secara ergonomis menggunakan method `app.script("path.is")`:
+Anda dapat memanggil fungsi di dalam skrip `.is` secara ergonomis menggunakan method `req.state.script("path.is")`:
 
 ```rust
+use lumina::prelude::*;
 use serde_json::json;
-use lumina::core::application::AppState;
 
 pub async fn hitung_diskon_handler(
-    State(state): State<AppState>,
-    Json(payload): Json<KuponRequest>,
-) -> Json<serde_json::Value> {
+    req: Request,
+    ValidatedJson(payload): ValidatedJson<KuponRequest>,
+) -> LuminaResult {
     // Memanggil fungsi 'hitung_promo' dari skrip 'app/scripts/promo.is'
-    let diskon = state.script("promo.is")
+    let diskon = req.state.script("promo.is")
         .call("hitung_promo", vec![json!(payload.total), json!(payload.kode)])
         .unwrap_or(json!(0));
 
-    Json(json!({
-        "status": "success",
+    req.ok(json!({
         "total_belanja": payload.total,
         "potongan": diskon
     }))

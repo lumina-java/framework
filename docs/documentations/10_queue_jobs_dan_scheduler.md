@@ -43,20 +43,26 @@ impl Job for SendWelcomeEmailJob {
 
 ## 2. Memasukkan Tugas ke Antrean (Dispatching)
 
-Panggil method `state.queue.dispatch(...)` dari controller:
+Panggil method `req.state.queue.dispatch(...)` dari controller:
 
 ```rust
-pub async fn register_success(State(state): State<AppState>) -> String {
+use lumina::prelude::*;
+use axum::response::IntoResponse;
+
+pub async fn register_success(req: Request) -> impl IntoResponse {
     let job = SendWelcomeEmailJob {
         email: "ahmad@example.com".to_string(),
         user_name: "Ahmad".to_string(),
     };
 
     // Masukkan ke antrean queue tanpa menunggu proses email selesai
-    state.queue.dispatch(job).await.unwrap();
+    let _ = req.state.queue.dispatch(job).await;
 
-    "Registrasi berhasil! Email sambutan sedang dikirimkan di latar belakang."
-        .to_string()
+    View::make("auth.registered_success")
+        .with("title", "Registrasi Berhasil")
+        .with("message", "Email sambutan sedang dikirimkan di latar belakang!")
+        .render(&req)
+        .await
 }
 ```
 

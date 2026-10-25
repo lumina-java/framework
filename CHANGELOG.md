@@ -6,6 +6,17 @@ Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/
 
 ---
 
+## [0.2.1] - 2026-10-25
+
+### 🚀 Ditambahkan (Added)
+- **Sintaks Render View Bebas Ampersand (`&`)**: `ViewBuilder::render` kini mengimplementasikan `std::borrow::Borrow<Request>`, memungkinkan penulisan `View::make("...").with("kunci", nilai).render(req).await` tanpa tanda ampersand (`&`) yang menyulitkan pengetikan dan autocompletion.
+- **Pedoman Aturan Kode (`AGENTS.md`)**: Panduan baku kode *Laravel-like elegance* untuk seluruh Controller, Model, View, Service, dan Repository.
+
+### 🔄 Diubah (Changed)
+- **Pembaruan Dokumentasi Modular**: Seluruh tutorial controller dan view di `docs/documentations/` diselaraskan ke sintaks fluen terbaru.
+
+---
+
 ## [0.2.0] - 2026-10-25
 
 ### 🚀 Ditambahkan (Added)

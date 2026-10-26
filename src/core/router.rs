@@ -2,6 +2,8 @@ use axum::Router as ax_router;
 use axum::{handler::Handler, routing};
 use std::sync::Arc;
 
+pub use axum::middleware::{from_fn, from_fn_with_state, Next};
+
 /// Lumina Router — fluent builder API yang membungkus axum::Router.
 #[derive(Clone)]
 pub struct Router<S = ()> {
@@ -163,6 +165,68 @@ where
         <L::Service as tower::Service<axum::extract::Request>>::Future: Send + 'static,
     {
         self.layer(layer)
+    }
+
+    /// Daftarkan async middleware function secara langsung tanpa perlu `from_fn(...)`.
+    /// 
+    /// Contoh:
+    /// ```rust,ignore
+    /// async fn auth_guard(req: Request, next: Next) -> Response {
+    ///     next.run(req).await
+    /// }
+    /// 
+    /// Router::new()
+    ///     .guard(auth_guard)
+    ///     .get("/protected", handler)
+    /// ```
+    pub fn guard<F, T>(self, f: F) -> Self
+    where
+        F: Clone + Send + Sync + 'static,
+        axum::middleware::FromFnLayer<F, (), T>: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        <axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service:
+            tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <<axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service as tower::Service<axum::extract::Request>>::Response:
+            axum::response::IntoResponse + 'static,
+        <<axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service as tower::Service<axum::extract::Request>>::Error:
+            Into<std::convert::Infallible> + 'static,
+        <<axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service as tower::Service<axum::extract::Request>>::Future:
+            Send + 'static,
+    {
+        self.layer(axum::middleware::from_fn(f))
+    }
+
+    /// Alias untuk `guard` agar konsisten dengan `middleware_fn`.
+    pub fn middleware_fn<F, T>(self, f: F) -> Self
+    where
+        F: Clone + Send + Sync + 'static,
+        axum::middleware::FromFnLayer<F, (), T>: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        <axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service:
+            tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <<axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service as tower::Service<axum::extract::Request>>::Response:
+            axum::response::IntoResponse + 'static,
+        <<axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service as tower::Service<axum::extract::Request>>::Error:
+            Into<std::convert::Infallible> + 'static,
+        <<axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service as tower::Service<axum::extract::Request>>::Future:
+            Send + 'static,
+    {
+        self.guard(f)
+    }
+
+    /// Daftarkan async middleware function pada route-level tanpa perlu `from_fn(...)`.
+    pub fn route_guard<F, T>(self, f: F) -> Self
+    where
+        F: Clone + Send + Sync + 'static,
+        axum::middleware::FromFnLayer<F, (), T>: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        <axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service:
+            tower::Service<axum::extract::Request> + Clone + Send + 'static,
+        <<axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service as tower::Service<axum::extract::Request>>::Response:
+            axum::response::IntoResponse + 'static,
+        <<axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service as tower::Service<axum::extract::Request>>::Error:
+            Into<std::convert::Infallible> + 'static,
+        <<axum::middleware::FromFnLayer<F, (), T> as tower::Layer<axum::routing::Route>>::Service as tower::Service<axum::extract::Request>>::Future:
+            Send + 'static,
+    {
+        self.route_layer(axum::middleware::from_fn(f))
     }
 
     /// Tambahkan route-level middleware (hanya berlaku untuk route pada router ini).

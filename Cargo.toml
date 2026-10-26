@@ -1,6 +1,6 @@
 [package]
 name = "lumina-framework"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 authors = ["Lumina Java <admin@lumina-java.com>"]
 description = "A beautiful, fast, and elegant web framework for Rust"
@@ -30,7 +30,7 @@ async-trait = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "macros", "any", "chrono"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "macros", "any", "chrono", "uuid", "rust_decimal"] }
 jsonwebtoken = "9"
 clap = { version = "4", features = ["derive"] }
 chrono = "0.4"
@@ -47,6 +47,8 @@ time = "0.3.47"
 axum_csrf = { version = "0.10.0", features = ["layer"] }
 moka = { version = "0.12.15", features = ["future"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+rust_decimal = { version = "1", features = ["serde", "maths"] }
+rust_decimal_macros = "1"
 image = "0.25"
 oauth2 = "4.4"
 reqwest = { version = "0.12", features = ["json"] }
@@ -56,6 +58,10 @@ tokio-cron-scheduler = "0.10"
 zip = "2.2"
 walkdir = "2"
 wasmi = "2.0"
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+subtle = "2"
 
 
 [features]

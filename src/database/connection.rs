@@ -13,6 +13,12 @@ pub enum DatabaseKind {
 pub struct DatabasePool {
     pub pool: Pool<Any>,
     pub kind: DatabaseKind,
+    #[cfg(feature = "postgres")]
+    pub pg_pool: Option<sqlx::PgPool>,
+    #[cfg(feature = "sqlite")]
+    pub sqlite_pool: Option<sqlx::SqlitePool>,
+    #[cfg(feature = "mysql")]
+    pub mysql_pool: Option<sqlx::MySqlPool>,
 }
 
 /// Alias ringkas & manusiawi untuk DatabasePool
@@ -42,8 +48,56 @@ impl DatabasePool {
             .connect(database_url)
             .await?;
 
+        #[cfg(feature = "postgres")]
+        let pg_pool = if kind == DatabaseKind::Postgres {
+            sqlx::PgPool::connect(database_url).await.ok()
+        } else {
+            None
+        };
+
+        #[cfg(feature = "sqlite")]
+        let sqlite_pool = if kind == DatabaseKind::Sqlite {
+            sqlx::SqlitePool::connect(database_url).await.ok()
+        } else {
+            None
+        };
+
+        #[cfg(feature = "mysql")]
+        let mysql_pool = if kind == DatabaseKind::MySql {
+            sqlx::MySqlPool::connect(database_url).await.ok()
+        } else {
+            None
+        };
+
         println!("📦 Database connected: {:?}", kind);
-        Ok(Self { pool, kind })
+        Ok(Self {
+            pool,
+            kind,
+            #[cfg(feature = "postgres")]
+            pg_pool,
+            #[cfg(feature = "sqlite")]
+            sqlite_pool,
+            #[cfg(feature = "mysql")]
+            mysql_pool,
+        })
+    }
+
+    /// Akses direct native PgPool (hanya tersedia jika fitur `postgres` aktif)
+    #[cfg(feature = "postgres")]
+    pub fn pg(&self) -> Option<&sqlx::PgPool> {
+        self.pg_pool.as_ref()
+    }
+
+    /// Akses direct native SqlitePool (hanya tersedia jika fitur `sqlite` aktif)
+    #[cfg(feature = "sqlite")]
+    pub fn sqlite(&self) -> Option<&sqlx::SqlitePool> {
+        self.sqlite_pool.as_ref()
+    }
+
+    /// Akses direct native MySqlPool (hanya tersedia jika fitur `mysql` aktif)
+    #[cfg(feature = "mysql")]
+    pub fn mysql(&self) -> Option<&sqlx::MySqlPool> {
+        self.mysql_pool.as_ref()
     }
 
     /// Helper untuk mendapatkan referensi ke pool asli

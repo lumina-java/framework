@@ -95,6 +95,48 @@ impl Request {
             .clone()
     }
 
+    /// Akses direct native PgPool (PostgreSQL) jika fitur postgres aktif.
+    #[cfg(feature = "postgres")]
+    pub fn pg_pool(&self) -> Option<sqlx::PgPool> {
+        self.db().pg().cloned()
+    }
+
+    /// Akses direct native SqlitePool jika fitur sqlite aktif.
+    #[cfg(feature = "sqlite")]
+    pub fn sqlite_pool(&self) -> Option<sqlx::SqlitePool> {
+        self.db().sqlite().cloned()
+    }
+
+    /// Akses direct native MySqlPool jika fitur mysql aktif.
+    #[cfg(feature = "mysql")]
+    pub fn mysql_pool(&self) -> Option<sqlx::MySqlPool> {
+        self.db().mysql().cloned()
+    }
+
+    /// Ambil token Bearer dari header Authorization jika tersedia.
+    pub fn bearer_token(&self) -> Option<String> {
+        self.headers
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|h| h.to_str().ok())
+            .and_then(|h| {
+                if h.starts_with("Bearer ") {
+                    Some(h[7..].trim().to_string())
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Cabut / batalkan (revoke) token JWT aktif saat ini (misal pada endpoint POST /api/logout).
+    pub async fn revoke_token(&self) -> bool {
+        if let Some(t) = self.bearer_token() {
+            crate::core::auth::TokenBlacklist::revoke(&t).await;
+            true
+        } else {
+            false
+        }
+    }
+
     /// Shortcut untuk mengambil user yang sedang login.
     pub fn user(&self) -> Option<crate::core::auth::AuthUser> {
         self.user.clone()

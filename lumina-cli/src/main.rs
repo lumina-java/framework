@@ -7,6 +7,7 @@ use std::path::Path;
 mod generator;
 mod skeleton;
 mod audit;
+mod migrator;
 
 #[derive(Parser)]
 #[command(
@@ -96,6 +97,10 @@ enum Commands {
     #[command(name = "migrate:rollback")]
     MigrateRollback,
 
+    /// Show the status of each migration (Ran or Pending)
+    #[command(name = "migrate:status")]
+    MigrateStatus,
+
     /// Seed the database with initial dummy data
     #[command(name = "db:seed")]
     DbSeed,
@@ -174,13 +179,24 @@ fn main() {
             audit::run_audit();
         }
         Commands::Migrate => {
-            generator::run_migrate();
+            tokio::runtime::Runtime::new()
+                .expect("Failed to start Tokio runtime for migration")
+                .block_on(migrator::run_migrate_async());
         }
         Commands::MigrateRollback => {
-            generator::run_migrate_rollback();
+            tokio::runtime::Runtime::new()
+                .expect("Failed to start Tokio runtime for migration")
+                .block_on(migrator::run_rollback_async());
+        }
+        Commands::MigrateStatus => {
+            tokio::runtime::Runtime::new()
+                .expect("Failed to start Tokio runtime for migration")
+                .block_on(migrator::run_status_async());
         }
         Commands::DbSeed => {
-            generator::run_db_seed();
+            tokio::runtime::Runtime::new()
+                .expect("Failed to start Tokio runtime for seeding")
+                .block_on(migrator::run_seed_async());
         }
         Commands::MakeDocker { name, port } => {
             generator::generate_docker(name, port);

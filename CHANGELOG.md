@@ -6,6 +6,29 @@ Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/
 
 ---
 
+## [0.3.1] - 2026-10-26
+
+### 🚀 Ditambahkan (Added)
+- **Native Transactional Migration & Seeder CLI Engine**:
+  - `lumina migrate`: Runner migrasi SQL nyata multi-database (PostgreSQL, MySQL, SQLite) transaksional dengan batch tracking di tabel `_lumina_migrations`.
+  - `lumina migrate:rollback`: Membatalkan batch migrasi terakhir secara transaksional dengan mengeksekusi berkas `*.down.sql` dan membersihkan entri dari database.
+  - `lumina migrate:status`: Menampilkan tabel ringkasan status setiap berkas migrasi (`Ran` vs `Pending`, batch, dan tanggal eksekusi).
+  - `lumina db:seed`: Eksekusi berkas seeder `database/seeders/*.sql` secara terurut dan transaksional.
+  - Resolusi otomatis string koneksi database dari berkas `.env` (`DATABASE_URL` atau variabel granular `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`).
+- **Ergonomi Middleware Router Tingkat Lanjut**:
+  - `Router::guard(async_fn)` dan `Router::middleware_fn(async_fn)`: Menghubungkan fungsi middleware asinkron secara langsung tanpa kewajiban membungkus `axum::middleware::from_fn(...)`.
+  - Re-export `from_fn`, `from_fn_with_state`, dan `Next` langsung di `lumina::prelude::*`.
+- **Financial Types, UUID & Native Pool Access**:
+  - Re-export `uuid::Uuid`, `rust_decimal::Decimal`, dan makro `dec!` langsung di `lumina::prelude::*`.
+  - Dukungan decoding native `Uuid` dan `Decimal` di SQLx pada entitas `LuminaModel`.
+  - Akses direct native pool: `req.pg_pool()`, `req.sqlite_pool()`, dan `req.mysql_pool()` untuk kebutuhan query spesifik vendor seperti row locks (`SELECT ... FOR UPDATE`) atau PostgreSQL `LISTEN/NOTIFY`.
+- **Two-Layer Security Suite**:
+  - `TokenBlacklist`: Engine pembatalan (revocation) token JWT instan berbasis Moka cache dengan auto-eviction TTL 7 hari untuk mengamankan alur logout REST API (`req.revoke_token().await`).
+  - Native HMAC-SHA256 signature verification (`verify_hmac_sha256`) dengan perbandingan waktu konstan (*constant-time comparison*) menggunakan trait `subtle::ConstantTimeEq` anti timing-attacks.
+  - Perlindungan anti replay attack dan toleransi clock-drift maksimal 300 detik pada middleware `verify_api_signature`.
+
+---
+
 ## [0.3.0] - 2026-10-25
 
 ### 🚀 Ditambahkan (Added)

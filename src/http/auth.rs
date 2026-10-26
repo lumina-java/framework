@@ -22,3 +22,11 @@ pub fn validate_token(token: &str) -> Result<AuthUser, jsonwebtoken::errors::Err
     )?;
     Ok(data.claims)
 }
+
+/// Validasi dan decode JWT token dengan pengecekan blacklist token revocation.
+pub async fn validate_token_with_blacklist(token: &str) -> Result<AuthUser, String> {
+    if crate::core::auth::TokenBlacklist::is_revoked(token).await {
+        return Err("Token telah dibatalkan (revoked).".to_string());
+    }
+    validate_token(token).map_err(|e| e.to_string())
+}

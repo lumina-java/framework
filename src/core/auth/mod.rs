@@ -6,6 +6,9 @@ use tower_sessions::Session;
 
 pub mod hash;
 pub mod socialite;
+pub mod blacklist;
+
+pub use blacklist::TokenBlacklist;
 
 /// AuthUser — Representasi pengguna yang terautentikasi.
 /// Berfungsi sebagai Model data JWT sekaligus Custom Extractor (Dependency Injection).

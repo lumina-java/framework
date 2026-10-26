@@ -260,16 +260,29 @@ async fn test_jwt_with_signature_and_pairing_guards() {
     let res = router.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 
-    // b. Valid signature + timestamp -> 200 OK
+    // b. Valid signature + fresh timestamp -> 200 OK
+    let now_ts = chrono::Utc::now().to_rfc3339();
     let req = Request::builder()
         .uri("/api/signature/check")
         .method("GET")
         .header("X-Signature", "hmac-sha256-abcdef1234567890")
-        .header("X-Timestamp", "2026-10-16T19:30:00Z")
+        .header("X-Timestamp", &now_ts)
         .body(Body::empty())
         .unwrap();
     let res = router.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
+
+    // c. Replay attack rejection (timestamp > 300 detik yang lalu) -> 401 UNAUTHORIZED
+    let old_ts = (chrono::Utc::now() - chrono::Duration::seconds(600)).to_rfc3339();
+    let req = Request::builder()
+        .uri("/api/signature/check")
+        .method("GET")
+        .header("X-Signature", "hmac-sha256-abcdef1234567890")
+        .header("X-Timestamp", &old_ts)
+        .body(Body::empty())
+        .unwrap();
+    let res = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 
     // ── Test 3: api_secure_guard (Composite) ───────────────────
     // All 3 present: JWT + X-Signature + X-Token-Pairing -> 200 OK
@@ -283,4 +296,80 @@ async fn test_jwt_with_signature_and_pairing_guards() {
         .unwrap();
     let res = router.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
+
+    // ── Test 4: TokenBlacklist revocation (Logout / Ban) ───────
+    lumina::core::auth::TokenBlacklist::revoke(&token).await;
+    assert!(lumina::core::auth::TokenBlacklist::is_revoked(&token).await);
+
+    // Calling again with revoked token -> 401 UNAUTHORIZED
+    let req = Request::builder()
+        .uri("/api/pairing/info")
+        .method("GET")
+        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .header("X-Token-Pairing", "device-uuid-987654321")
+        .body(Body::empty())
+        .unwrap();
+    let res = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    // ── Test 5: Native HMAC-SHA256 Signature Verification ──────
+    let secret = b"my-pos-super-secret-key-32-bytes!";
+    let payload = b"GET /api/v1/orders/123 2026-10-26T15:00:00Z";
+    
+    // Hitung manual HMAC-SHA256
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret).unwrap();
+    mac.update(payload);
+    let valid_sig_hex = hex::encode(mac.finalize().into_bytes());
+
+    // Verifikasi valid
+    assert!(lumina::http::middleware::verify_hmac_sha256(secret, payload, &valid_sig_hex));
+    // Verifikasi tampered payload
+    let tampered_payload = b"GET /api/v1/orders/999 2026-10-26T15:00:00Z";
+    assert!(!lumina::http::middleware::verify_hmac_sha256(secret, tampered_payload, &valid_sig_hex));
 }
+
+#[tokio::test]
+async fn test_router_guard_and_middleware_fn_ergonomics() {
+    async fn sample_guard(req: axum::extract::Request, next: Next) -> Response {
+        let mut res = next.run(req).await;
+        res.headers_mut().insert("X-Guarded-By", "LuminaNativeGuard".parse().unwrap());
+        res
+    }
+
+    async fn dummy_handler() -> impl IntoResponse {
+        Json(serde_json::json!({ "status": "guarded_ok" }))
+    }
+
+    // 1. Test .guard(sample_guard) directly without from_fn
+    let r1 = Router::new()
+        .guard(sample_guard)
+        .get("/direct-guard", dummy_handler);
+
+    let req1 = Request::builder().uri("/direct-guard").method("GET").body(Body::empty()).unwrap();
+    let res1 = r1.into_axum().oneshot(req1).await.unwrap();
+    assert_eq!(res1.status(), StatusCode::OK);
+    assert_eq!(res1.headers().get("X-Guarded-By").unwrap(), "LuminaNativeGuard");
+
+    // 2. Test .middleware_fn(sample_guard)
+    let r2 = Router::new()
+        .middleware_fn(sample_guard)
+        .get("/middleware-fn", dummy_handler);
+
+    let req2 = Request::builder().uri("/middleware-fn").method("GET").body(Body::empty()).unwrap();
+    let res2 = r2.into_axum().oneshot(req2).await.unwrap();
+    assert_eq!(res2.status(), StatusCode::OK);
+    assert_eq!(res2.headers().get("X-Guarded-By").unwrap(), "LuminaNativeGuard");
+
+    // 3. Test .middleware(from_fn(sample_guard)) with from_fn re-exported in prelude
+    let r3 = Router::new()
+        .middleware(from_fn(sample_guard))
+        .get("/prelude-from-fn", dummy_handler);
+
+    let req3 = Request::builder().uri("/prelude-from-fn").method("GET").body(Body::empty()).unwrap();
+    let res3 = r3.into_axum().oneshot(req3).await.unwrap();
+    assert_eq!(res3.status(), StatusCode::OK);
+    assert_eq!(res3.headers().get("X-Guarded-By").unwrap(), "LuminaNativeGuard");
+}
+

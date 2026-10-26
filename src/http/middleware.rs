@@ -143,6 +143,10 @@ pub async fn api_auth_with_pairing(mut req: Request, next: Next) -> Response {
         }
     };
 
+    if crate::core::auth::TokenBlacklist::is_revoked(&token).await {
+        return unauthorized_json("Token ini telah dibatalkan (revoked/logout).");
+    }
+
     let user = match crate::http::auth::validate_token(&token) {
         Ok(u) => u,
         Err(e) => return unauthorized_json(&format!("Token JWT tidak valid atau expired: {}", e)),
@@ -161,8 +165,46 @@ pub async fn api_auth_with_pairing(mut req: Request, next: Next) -> Response {
     next.run(req).await
 }
 
+/// Helper verifikasi HMAC-SHA256 dengan perbandingan waktu konstan (constant-time comparison anti timing attack).
+pub fn verify_hmac_sha256(secret: &[u8], message: &[u8], signature_hex: &str) -> bool {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    use subtle::ConstantTimeEq;
+
+    type HmacSha256 = Hmac<Sha256>;
+
+    let mut mac = match HmacSha256::new_from_slice(secret) {
+        Ok(m) => m,
+        Err(_) => return false,
+    };
+    mac.update(message);
+    let expected = mac.finalize().into_bytes();
+
+    let sig_bytes = match hex::decode(signature_hex.trim_start_matches("sha256=").trim()) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+
+    if expected.len() != sig_bytes.len() {
+        return false;
+    }
+
+    expected.as_slice().ct_eq(sig_bytes.as_slice()).into()
+}
+
+/// Helper untuk parsing timestamp (mendukung UNIX timestamp seconds/millis dan ISO 8601 RFC3339).
+pub fn parse_timestamp_seconds(ts: &str) -> Option<i64> {
+    if let Ok(sec) = ts.parse::<i64>() {
+        return Some(if sec > 100_000_000_000 { sec / 1000 } else { sec });
+    }
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(ts) {
+        return Some(dt.timestamp());
+    }
+    None
+}
+
 /// Middleware verifikasi API Signature (misal untuk integrasi webhook, perbankan / SNAP BI, HMAC).
-/// Memvalidasi header `X-Signature` dan `X-Timestamp`.
+/// Memvalidasi header `X-Signature` dan `X-Timestamp` lengkap dengan replay & clock-drift protection (300 detik).
 pub async fn verify_api_signature(req: Request, next: Next) -> Response {
     let signature = match get_header(&req, "X-Signature") {
         Some(sig) if !sig.trim().is_empty() => sig.trim(),
@@ -178,6 +220,15 @@ pub async fn verify_api_signature(req: Request, next: Next) -> Response {
         return unauthorized_json("Nilai signature atau timestamp tidak valid.");
     }
 
+    // Replay / Clock-drift protection (toleransi 300 detik / 5 menit)
+    if let Some(ts_val) = parse_timestamp_seconds(timestamp) {
+        let now_sec = chrono::Utc::now().timestamp();
+        let diff = (now_sec - ts_val).abs();
+        if diff > 300 {
+            return unauthorized_json("Timestamp kedaluwarsa atau perbedaan waktu melebihi 300 detik.");
+        }
+    }
+
     next.run(req).await
 }
 
@@ -191,6 +242,10 @@ pub async fn api_secure_guard(mut req: Request, next: Next) -> Response {
             )
         }
     };
+
+    if crate::core::auth::TokenBlacklist::is_revoked(&token).await {
+        return unauthorized_json("Token ini telah dibatalkan (revoked/logout).");
+    }
 
     let user = match crate::http::auth::validate_token(&token) {
         Ok(u) => u,

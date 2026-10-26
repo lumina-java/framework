@@ -26,8 +26,12 @@ pub mod prelude {
     pub use crate::database::faker::Faker;
     pub use crate::{belongs_to, belongs_to_many, has_many, has_one};
     pub use lumina_macros::{lumina_form, LuminaModel};
+    // financial & enterprise types
+    pub use uuid::Uuid;
+    pub use rust_decimal::Decimal;
+    pub use rust_decimal_macros::dec;
     // middleware helpers
-    pub use axum::middleware::from_fn;
+    pub use axum::middleware::{from_fn, from_fn_with_state, Next};
     pub use crate::http::middleware;
 }
 

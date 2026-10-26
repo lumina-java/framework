@@ -75,6 +75,33 @@ impl BladeContext {
         self.get(key).is_some()
     }
 
+    /// Cek apakah ada pesan error validasi untuk kolom tertentu.
+    pub fn has_error(&self, field: &str) -> bool {
+        self.get_error(field).is_some()
+    }
+
+    /// Ambil pesan error validasi untuk kolom tertentu jika ada.
+    pub fn get_error(&self, field: &str) -> Option<String> {
+        let clean_field = field.trim().trim_matches('\'').trim_matches('"');
+        let errs = self.get("errors")?;
+        if let Some(obj) = errs.as_object() {
+            if let Some(val) = obj.get(clean_field) {
+                match val {
+                    Value::String(s) if !s.trim().is_empty() => return Some(s.clone()),
+                    Value::Array(arr) if !arr.is_empty() => {
+                        if let Some(first) = arr.first() {
+                            if let Some(s) = first.as_str() {
+                                return Some(s.to_string());
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        None
+    }
+
     /// Cek apakah suatu nilai bertipe truthy menurut aturan Blade/Laravel.
     pub fn is_truthy(val: Option<&Value>) -> bool {
         match val {
@@ -129,6 +156,54 @@ impl BladeContext {
         // Number literal
         if expr.parse::<f64>().is_ok() {
             return expr.to_string();
+        }
+
+        // Helper Laravel: old('field', 'default')
+        if expr.starts_with("old(") && expr.ends_with(')') {
+            let inner = expr[4..expr.len() - 1].trim();
+            let parts: Vec<&str> = inner.splitn(2, ',').collect();
+            let field = parts[0].trim().trim_matches('\'').trim_matches('"');
+            let default_val = if parts.len() > 1 {
+                self.eval_val(parts[1].trim())
+            } else {
+                String::new()
+            };
+
+            if let Some(old_val) = self.get("old") {
+                if let Some(obj) = old_val.as_object() {
+                    if let Some(val) = obj.get(field) {
+                        match val {
+                            Value::String(s) => return s.clone(),
+                            Value::Number(n) => return n.to_string(),
+                            Value::Bool(b) => return b.to_string(),
+                            Value::Null => {},
+                            other => return other.to_string(),
+                        }
+                    }
+                }
+            }
+            return default_val;
+        }
+
+        // Helper Laravel: asset('path')
+        if expr.starts_with("asset(") && expr.ends_with(')') {
+            let raw = expr[6..expr.len() - 1].trim().trim_matches('\'').trim_matches('"');
+            if raw.starts_with("http://") || raw.starts_with("https://") || raw.starts_with("//") {
+                return raw.to_string();
+            }
+            let clean = raw.trim_start_matches('/');
+            return format!("/{}", clean);
+        }
+
+        // Helper Laravel: url('path') / route('path')
+        if (expr.starts_with("url(") && expr.ends_with(')')) || (expr.starts_with("route(") && expr.ends_with(')')) {
+            let open_paren = expr.find('(').unwrap();
+            let raw = expr[open_paren + 1..expr.len() - 1].trim().trim_matches('\'').trim_matches('"');
+            if raw.starts_with("http://") || raw.starts_with("https://") {
+                return raw.to_string();
+            }
+            let clean = raw.trim_start_matches('/');
+            return format!("/{}", clean);
         }
 
         // Variable lookup
@@ -212,6 +287,23 @@ impl BladeContext {
                 let clean_arg = arg.trim().trim_matches('\'').trim_matches('"');
                 if clean_arg == current_env {
                     return true;
+                }
+            }
+            return false;
+        }
+
+        // error('field') / hasError('field')
+        if (expr.starts_with("error(") && expr.ends_with(')')) || (expr.starts_with("hasError(") && expr.ends_with(')')) {
+            let open = expr.find('(').unwrap();
+            let field = expr[open + 1..expr.len() - 1].trim();
+            return self.has_error(field);
+        }
+
+        // anyErrors / errors.any / $errors->any() / errors
+        if expr == "errors" || expr == "errors()" || expr == "$errors->any()" || expr == "errors.any" || expr == "anyErrors" {
+            if let Some(val) = self.get("errors") {
+                if let Some(obj) = val.as_object() {
+                    return !obj.is_empty();
                 }
             }
             return false;
@@ -440,6 +532,9 @@ impl BladeEngine {
         s = s.replace("@csrf", &format!("<input type=\"hidden\" name=\"csrf_token\" value=\"{}\">", context.get("csrf_token").and_then(|v| v.as_str()).unwrap_or("")));
         let re_method = Regex::new(r#"@method\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
         s = re_method.replace_all(&s, "<input type=\"hidden\" name=\"_method\" value=\"$1\">").to_string();
+
+        // 7b. Form Error Directives: @error('field') ... @enderror
+        s = self.process_errors(&s, context, depth);
 
         // 8. Attribute Helpers: @checked, @selected, @disabled, @readonly, @required, @class, @style
         s = self.process_attributes(&s, context);
@@ -1250,6 +1345,33 @@ impl BladeEngine {
         s
     }
 
+    /// Penanganan direktif error validasi form: @error('field') ... @enderror
+    fn process_errors(&self, content: &str, context: &BladeContext, depth: usize) -> String {
+        let re_error = Regex::new(r#"(?s)@error\s*\(\s*['"]([^'"]+)['"]\s*\)(.*?)@enderror"#).unwrap();
+        re_error.replace_all(content, |caps: &regex::Captures| {
+            let field = &caps[1];
+            let inner = &caps[2];
+
+            if let Some(msg) = context.get_error(field) {
+                let mut sub_ctx = context.clone();
+                sub_ctx.insert("message", &msg);
+                sub_ctx.insert("$message", &msg);
+                let replaced = inner
+                    .replace("{{ $message }}", &html_escape::encode_safe(&msg))
+                    .replace("{{$message}}", &html_escape::encode_safe(&msg))
+                    .replace("{{ $message}}", &html_escape::encode_safe(&msg))
+                    .replace("{{$message }}", &html_escape::encode_safe(&msg))
+                    .replace("{{ message }}", &html_escape::encode_safe(&msg))
+                    .replace("{{message}}", &html_escape::encode_safe(&msg))
+                    .replace("{!! $message !!}", &msg)
+                    .replace("{!!$message!!}", &msg);
+                self.process_template(&replaced, &sub_ctx, depth + 1)
+            } else {
+                String::new()
+            }
+        }).to_string()
+    }
+
     /// Penanganan direktif atribut HTML: @checked, @selected, @disabled, @readonly, @required, @class, @style
     fn process_attributes(&self, content: &str, context: &BladeContext) -> String {
         let mut s = content.to_string();
@@ -1728,6 +1850,71 @@ mod tests {
 
         let html = engine.render_string(tmpl, &ctx);
         assert!(html.contains("<span>Hemat: Rp 50000</span>"));
+    }
+
+    #[test]
+    fn test_blade_form_validation_and_helpers() {
+        let engine = BladeEngine::empty();
+
+        let tmpl = r#"
+        <form method="POST" action="/register">
+            @csrf
+            <input type="email" name="email" value="{{ old('email', 'guest@example.com') }}">
+            @error('email')
+                <span class="error-msg">{{ $message }}</span>
+            @enderror
+
+            <input type="password" name="password">
+            @error('password')
+                <span class="error-msg">{{ $message }}</span>
+            @enderror
+
+            <input type="text" name="phone" value="{{ old('phone', '0812000000') }}">
+
+            <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
+
+            @if(error('email'))
+                <div class="alert alert-danger">Ada error pada input email!</div>
+            @endif
+
+            @if(anyErrors)
+                <div class="summary">Formulir memiliki error validasi.</div>
+            @endif
+        </form>
+        "#;
+
+        let mut ctx = BladeContext::new();
+        ctx.insert("csrf_token", "sec-token-123");
+
+        // Suntikkan errors dan old input persis seperti yang dilakukan ViewEngine::render_with_session
+        let errors_json = serde_json::json!({
+            "email": "Email ini sudah digunakan oleh akun lain."
+        });
+        ctx.insert("errors", errors_json);
+
+        let old_json = serde_json::json!({
+            "email": "salim@example.com"
+        });
+        ctx.insert("old", old_json);
+
+        let html = engine.render_string(tmpl, &ctx);
+
+        // 1. Verifikasi old() mengambil nilai lama
+        assert!(html.contains("value=\"salim@example.com\""));
+        // 2. Verifikasi old() fallback ke default jika field tidak ada di old input
+        assert!(html.contains("value=\"0812000000\""));
+        // 3. Verifikasi @error('email') merender $message
+        assert!(html.contains("<span class=\"error-msg\">Email ini sudah digunakan oleh akun lain.</span>"));
+        // 4. Verifikasi @error('password') yang tidak ada error TIDAK dirender
+        assert!(!html.contains("@error('password')"));
+        assert!(!html.contains("@enderror"));
+        // 5. Verifikasi asset() helper
+        assert!(html.contains("href=\"/css/custom.css\""));
+        // 6. Verifikasi error('email') dan anyErrors di @if
+        assert!(html.contains("Ada error pada input email!"));
+        assert!(html.contains("Formulir memiliki error validasi."));
+        // 7. Verifikasi @csrf terisi
+        assert!(html.contains("value=\"sec-token-123\""));
     }
 }
 

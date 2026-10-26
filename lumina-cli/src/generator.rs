@@ -1190,3 +1190,75 @@ impl HasFactory<{factory_name}> for {model_name} {{
     print_hint(&format!("Or shortcut on model: {}::factory().count(10).create(req.db()).await\n", model_name));
 }
 
+pub fn generate_view(name: &str) {
+    if !guard_project() {
+        return;
+    }
+
+    // Normalisasi nama view: "products.index" -> "products/index"
+    let clean_name = name
+        .trim()
+        .trim_end_matches(".blade.rs")
+        .trim_end_matches(".html")
+        .replace('.', "/");
+
+    let relative_path = if clean_name.starts_with("resources/views/") {
+        clean_name.clone()
+    } else {
+        format!("resources/views/{}", clean_name)
+    };
+
+    let file_path = format!("{}.blade.rs", relative_path);
+    let path = Path::new(&file_path);
+
+    if path.exists() {
+        println!("  {} View file already exists: {}", "⚠".yellow(), file_path.yellow());
+        return;
+    }
+
+    if let Some(parent) = path.parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            println!("{} Failed to create directory {:?}: {}", "❌".red(), parent, e);
+            return;
+        }
+    }
+
+    let view_dot_name = clean_name.trim_start_matches("resources/views/").replace('/', ".");
+    let title_name = clean_name
+        .split('/')
+        .last()
+        .unwrap_or("View")
+        .split('_')
+        .map(|w| capitalize_first(w))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let content = format!(
+r#"@extends('layouts.app')
+
+@section('title', '{title}')
+
+@section('content')
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white mb-4">{title}</h1>
+        <p class="text-gray-600 dark:text-gray-300">
+            Halaman view baru Lumina: <code class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-purple-600 dark:text-purple-400 font-mono text-sm">{view_dot}</code>
+        </p>
+    </div>
+</div>
+@endsection
+"#,
+        title = title_name,
+        view_dot = view_dot_name,
+    );
+
+    if let Err(e) = fs::write(&file_path, content) {
+        println!("{} Failed to write view file: {}", "❌".red(), e);
+        return;
+    }
+
+    print_success(&format!("View template created: {}", file_path.bright_green()));
+    print_hint(&format!("Render in controller: View::make(\"{}\").render(req).await\n", view_dot_name));
+}
+

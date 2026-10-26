@@ -100,6 +100,13 @@ enum Commands {
         name: String,
     },
 
+    /// Generate a new Blade view template (e.g., products.index)
+    #[command(name = "make:view")]
+    MakeView {
+        /// The name of the view (e.g., products.index or auth.profile)
+        name: String,
+    },
+
     // ─── Security & Auditing ──────────────────────────────────────────────────
     /// Run Lumina Shield to audit security, secrets, and environment configuration
     Audit,
@@ -190,6 +197,9 @@ fn main() {
         }
         Commands::MakeFactory { name } => {
             generator::generate_factory(&name);
+        }
+        Commands::MakeView { name } => {
+            generator::generate_view(&name);
         }
         Commands::Audit => {
             audit::run_audit();

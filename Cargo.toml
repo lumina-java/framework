@@ -65,7 +65,7 @@ subtle = "2"
 
 
 [features]
-default = ["postgres"]
+default = ["postgres", "sqlite"]
 all = ["sqlite", "postgres", "mysql", "mssql"]
 sqlite = ["sqlx/sqlite", "tower-sessions-sqlx-store/sqlite"]
 postgres = ["sqlx/postgres", "tower-sessions-sqlx-store/postgres"]

@@ -130,7 +130,7 @@ edition = "2021"
 default-run = "{}-server"
 
 [dependencies]
-lumina = {{ package = "lumina-framework", version = "0.3.0" }}
+lumina = {{ package = "lumina-framework", version = "0.3.2", git = "https://github.com/lumina-java/framework.git", branch = "0.x" }}
 tokio = {{ version = "1", features = ["full"] }}
 axum = {{ version = "0.7", features = ["macros", "multipart"] }}
 serde = {{ version = "1", features = ["derive"] }}

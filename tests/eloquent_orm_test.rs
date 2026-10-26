@@ -109,6 +109,26 @@ async fn test_eloquent_crud_and_query_builder() {
     let all_after_delete = Contact::all(&pool).await.unwrap();
     assert_eq!(all_after_delete.len(), 1);
     assert_eq!(all_after_delete[0].id, id1);
+
+    // 10. Instance Soft Delete & Restore
+    let c1_obj = Contact::find(&pool, id1).await.unwrap().unwrap();
+    c1_obj.soft_delete(&pool).await.unwrap();
+    assert!(Contact::find(&pool, id1).await.unwrap().is_none());
+
+    // Restore c1 instance
+    c1_obj.restore(&pool).await.unwrap();
+    assert!(Contact::find(&pool, id1).await.unwrap().is_some());
+
+    // 11. Static Restore by ID (restore c2)
+    Contact::restore_by_id(&pool, id2).await.unwrap();
+    assert!(Contact::find(&pool, id2).await.unwrap().is_some());
+
+    // 12. Instance Force Delete (Permanently remove c1)
+    c1_obj.force_delete(&pool).await.unwrap();
+    assert!(Contact::find(&pool, id1).await.unwrap().is_none());
+    // Even with with_trashed, c1 is permanently deleted
+    let with_trashed = Contact::query(&pool).with_trashed().where_eq("id", id1).first().await.unwrap();
+    assert!(with_trashed.is_none());
 }
 
 struct TestContactController;

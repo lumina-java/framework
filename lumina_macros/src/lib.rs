@@ -397,6 +397,31 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
                 <Self as lumina::database::model::Model>::delete(pool, self.#primary_key_ident).await
             }
 
+            /// Soft delete instance record ini (Laravel: $model->soft_delete())
+            pub async fn soft_delete(&self, pool: &lumina::database::connection::DatabasePool) -> Result<bool, sqlx::Error> {
+                <Self as lumina::database::model::Model>::delete(pool, self.#primary_key_ident).await
+            }
+
+            /// Pulihkan instance record ini dari soft delete (Laravel: $model->restore())
+            pub async fn restore(&self, pool: &lumina::database::connection::DatabasePool) -> Result<bool, sqlx::Error> {
+                <Self as lumina::database::model::Model>::restore(pool, self.#primary_key_ident).await
+            }
+
+            /// Hapus permanen instance record ini dari database (Laravel: $model->forceDelete())
+            pub async fn force_delete(&self, pool: &lumina::database::connection::DatabasePool) -> Result<bool, sqlx::Error> {
+                <Self as lumina::database::model::Model>::force_delete(pool, self.#primary_key_ident).await
+            }
+
+            /// Pulihkan record berdasarkan ID (Laravel: Model::restore(id))
+            pub async fn restore_by_id(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
+                <Self as lumina::database::model::Model>::restore(pool, id).await
+            }
+
+            /// Hapus permanen record berdasarkan ID (Laravel: Model::forceDelete(id))
+            pub async fn force_delete_by_id(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
+                <Self as lumina::database::model::Model>::force_delete(pool, id).await
+            }
+
             /// Relasi Has Many (Laravel: $this->hasMany(Post::class, 'user_id'))
             pub async fn has_many<R>(&self, pool: &lumina::database::connection::DatabasePool, foreign_key: &str) -> Result<Vec<R>, sqlx::Error>
             where

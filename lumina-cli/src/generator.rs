@@ -1262,3 +1262,91 @@ r#"@extends('layouts.app')
     print_hint(&format!("Render in controller: View::make(\"{}\").render(req).await\n", view_dot_name));
 }
 
+pub fn generate_job(name: &str) {
+    if !guard_project() {
+        return;
+    }
+
+    let job_name = capitalize_first(name.trim());
+    let mut snake = to_snake_case(&job_name);
+    let mut converted_snake = String::new();
+    for (i, c) in job_name.chars().enumerate() {
+        if c.is_uppercase() && i > 0 {
+            converted_snake.push('_');
+        }
+        converted_snake.push(c.to_ascii_lowercase());
+    }
+    if !converted_snake.is_empty() {
+        snake = converted_snake;
+    }
+
+    let jobs_dir = Path::new("src/app/jobs");
+    if let Err(e) = fs::create_dir_all(jobs_dir) {
+        println!("{} Failed to create directory {:?}: {}", "❌".red(), jobs_dir, e);
+        return;
+    }
+
+    let file_path = format!("src/app/jobs/{}.rs", snake);
+    if Path::new(&file_path).exists() {
+        println!("  {} Job file already exists: {}", "⚠".yellow(), file_path.yellow());
+        return;
+    }
+
+    let content = format!(
+r#"use async_trait::async_trait;
+use lumina::prelude::*;
+use serde::{{Deserialize, Serialize}};
+use serde_json::Value;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct {job_name} {{
+    pub user_id: i64,
+}}
+
+impl Dispatchable for {job_name} {{
+    fn job_name() -> &'static str {{
+        "{job_name}"
+    }}
+}}
+
+#[async_trait]
+impl Job for {job_name} {{
+    fn name(&self) -> &'static str {{
+        Self::job_name()
+    }}
+
+    async fn handle(&self, state: std::sync::Arc<AppState>, payload: Value) -> Result<(), String> {{
+        let job: Self = serde_json::from_value(payload).map_err(|e| e.to_string())?;
+        tracing::info!("Executing {job_name} for user_id: {{}}", job.user_id);
+        
+        // Letakkan logika asynchronous background task Anda di sini:
+        // misal: kirim email, kirim webhook, proses transaksi/laporan, dsb.
+
+        Ok(())
+    }}
+}}
+"#,
+        job_name = job_name,
+    );
+
+    if let Err(e) = fs::write(&file_path, content) {
+        println!("{} Failed to write job file: {}", "❌".red(), e);
+        return;
+    }
+
+    // Register into src/app/jobs/mod.rs
+    let mod_file = "src/app/jobs/mod.rs";
+    let mod_line = format!("pub mod {};\npub use {}::{};\n", snake, snake, job_name);
+    if Path::new(mod_file).exists() {
+        let existing = fs::read_to_string(mod_file).unwrap_or_default();
+        if !existing.contains(&format!("pub mod {};", snake)) {
+            append_to_file(mod_file, &mod_line);
+        }
+    } else {
+        let _ = fs::write(mod_file, format!("// Lumina Background Jobs Registry\n{}", mod_line));
+    }
+
+    print_success(&format!("Job class created: {}", file_path.bright_green()));
+    print_hint(&format!("Dispatch in controller: {} {{ user_id: 123 }}.dispatch(&req).await?\n", job_name));
+}
+

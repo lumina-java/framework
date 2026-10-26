@@ -40,7 +40,8 @@ impl TestApp {
         let telescope = Arc::new(crate::core::telescope::TelescopeManager::new());
         let echo = Arc::new(crate::core::echo::EchoManager::new());
         let registry = Arc::new(crate::core::queue::JobRegistry::new());
-        let queue = Arc::new(crate::core::queue::QueueManager::new(pool.pool.clone()));
+        let pool_arc = Arc::new(pool);
+        let queue = Arc::new(crate::core::queue::QueueManager::new_with_pool(pool_arc.clone()));
         let storage = Arc::new(crate::core::storage::Storage::new("local"));
         let mail = Arc::new(crate::core::mail::Mail::new(
             Arc::new(crate::core::mail::LogDriver),
@@ -49,7 +50,7 @@ impl TestApp {
         let socialite = Arc::new(crate::core::auth::socialite::SocialiteManager::new());
 
         let state = AppState {
-            db: Some(Arc::new(pool)),
+            db: Some(pool_arc),
             view,
             db_error: None,
             csrf_config: crate::core::security::csrf::config(),

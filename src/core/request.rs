@@ -142,6 +142,16 @@ impl Request {
         self.user.clone()
     }
 
+    /// Shortcut untuk mengakses Queue Manager
+    pub fn queue(&self) -> &crate::core::queue::QueueManager {
+        &self.state.queue
+    }
+
+    /// Shortcut untuk dispatch background job
+    pub async fn dispatch(&self, job_name: &str, payload: serde_json::Value) -> Result<(), String> {
+        self.state.queue.dispatch(job_name, payload).await
+    }
+
     /// Shortcut untuk membuat instance ViewBuilder.
     pub fn view(&self, template: &str) -> crate::core::view::ViewBuilder {
         crate::core::view::View::make(template)

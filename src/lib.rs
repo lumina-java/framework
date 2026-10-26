@@ -33,6 +33,8 @@ pub mod prelude {
     // middleware helpers
     pub use axum::middleware::{from_fn, from_fn_with_state, Next};
     pub use crate::http::middleware;
+    // background queue jobs
+    pub use crate::core::queue::{Job, Dispatchable, QueueManager, JobRegistry};
 }
 
 pub use lumina_macros::{lumina_form, LuminaModel};

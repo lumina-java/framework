@@ -4,6 +4,28 @@ Semua perubahan penting pada proyek **Lumina Framework** didokumentasikan di dal
 
 Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) dan mengikuti standar [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-10-27
+
+### 🚀 Ditambahkan (Added)
+- **Pilar 1: Testing DX & CLI View Generator**:
+  - Cargo features default disederhanakan menjadi `default = ["postgres", "sqlite"]`, sehingga pengujian aplikasi pengguna berjalan instan tanpa wajib menginstal dependensi database ganda.
+  - Perintah CLI baru `lumina make:view <nama>` (e.g. `lumina make:view products.index` atau `auth.profile`) yang otomatis membuat direktori hirarkis dan template `.blade.rs` standar dengan layout `@extends('layouts.app')`.
+- **Pilar 2: Blade Real-World Form DX & Helpers**:
+  - Direktif validasi form `@error('field') ... @enderror` yang otomatis menyuntikkan variabel lokal `$message`.
+  - Helper fungsi Blade `old('field', 'default')` untuk mempertahankan input form saat validasi gagal (*old input repopulation*).
+  - Helper fungsi URL: `asset('path')`, `url('path')`, dan `route('name')`.
+  - Pemeriksaan error kondisional di Blade: `@if(error('field'))`, `@if(hasError('field'))`, dan `@if(anyErrors)`.
+- **Pilar 3: Model Soft-Deletes & Entity Lifecycle**:
+  - Penambahan method instance fluen pada seluruh model yang me-derive `LuminaModel`: `.soft_delete(db)`, `.restore(db)`, dan `.force_delete(db)`.
+  - Static model helpers: `<Model>::restore_by_id(db, id)` dan `<Model>::force_delete_by_id(db, id)`.
+  - Penambahan method `.soft_delete()` pada `QueryBuilder` di samping `.restore()`, `.with_trashed()`, dan `.only_trashed()`.
+- **Pilar 4: Lumina Background Queue Suite**:
+  - Trait `Job` dan `Dispatchable` untuk eksekusi tugas di latar belakang (background queue).
+  - Dispatching fluen dari controller: `SendWelcomeEmail { email }.dispatch(&req).await?` atau `req.dispatch(name, payload)`.
+  - `QueueManager::new_with_pool` dengan auto-translation placeholder SQL (`$1` PostgreSQL vs `?` MySQL/SQLite) saat menyimpan antrean ke tabel `jobs`.
+  - CLI Generator `lumina make:job <Name>` untuk membangkitkan kelas job terstruktur di `src/app/jobs/` dan meregistrasikannya secara otomatis.
+  - CLI Worker Daemon `lumina queue:work` yang memantau antrean database dan mengeksekusi tugas secara terus-menerus (*persistent queue daemon*).
+
 ---
 
 ## [0.3.1] - 2026-10-26

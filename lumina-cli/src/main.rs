@@ -107,6 +107,22 @@ enum Commands {
         name: String,
     },
 
+    /// Generate a new Background Job class (e.g., SendWelcomeEmail)
+    #[command(name = "make:job")]
+    MakeJob {
+        /// The name of the job (e.g., SendWelcomeEmail or ProcessInvoice)
+        name: String,
+    },
+
+    // ─── Queue & Background Workers ──────────────────────────────────────────
+    /// Start processing background jobs from the queue
+    #[command(name = "queue:work")]
+    QueueWork {
+        /// The queue name to listen to (default: default)
+        #[arg(short, long, default_value = "default")]
+        queue: String,
+    },
+
     // ─── Security & Auditing ──────────────────────────────────────────────────
     /// Run Lumina Shield to audit security, secrets, and environment configuration
     Audit,
@@ -200,6 +216,14 @@ fn main() {
         }
         Commands::MakeView { name } => {
             generator::generate_view(&name);
+        }
+        Commands::MakeJob { name } => {
+            generator::generate_job(&name);
+        }
+        Commands::QueueWork { queue } => {
+            tokio::runtime::Runtime::new()
+                .expect("Failed to start Tokio runtime for queue worker")
+                .block_on(migrator::run_queue_worker_async(&queue));
         }
         Commands::Audit => {
             audit::run_audit();

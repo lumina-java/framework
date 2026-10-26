@@ -649,6 +649,11 @@ where
         Ok(res.rows_affected())
     }
 
+    /// Alias eksplisit untuk delete() (Soft Delete semua record yang cocok).
+    pub async fn soft_delete(self) -> Result<u64, sqlx::Error> {
+        self.delete().await
+    }
+
     /// Check if any matching rows exist.
     pub async fn exists(self) -> Result<bool, sqlx::Error> {
         Ok(self.count().await? > 0)

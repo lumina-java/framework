@@ -321,7 +321,7 @@ impl Application {
 
         // ── 4. Bangun AppState ─────────────────────────────────────────────
         let queue_manager = match db_pool.as_ref() {
-            Some(pool) => Arc::new(crate::core::queue::QueueManager::new(pool.pool.clone())),
+            Some(pool) => Arc::new(crate::core::queue::QueueManager::new_with_pool(pool.clone())),
             None => {
                 // Fallback jika DB tidak ada (tidak bisa persistent)
                 // Ini butuh penanganan lebih lanjut jika ingin benar-benar fallback ke memory

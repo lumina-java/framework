@@ -505,3 +505,126 @@ pub async fn run_seed_async() {
     println!("─────────────────────────────────────────────────────────────────");
     println!("🎯 Sukses: {} berkas seeder berhasil dieksekusi.", count.to_string().bright_green().bold());
 }
+
+/// Eksekusi Perintah: lumina queue:work
+pub async fn run_queue_worker_async(queue_name: &str) {
+    println!("{}", "⚡  LUMINA PERSISTENT QUEUE WORKER".bright_purple().bold());
+    println!("─────────────────────────────────────────────────────────────────");
+
+    let (url, driver) = match resolve_database_url() {
+        Ok(res) => res,
+        Err(e) => {
+            println!("  {} {}", "✖ [ERROR]".red().bold(), e.bright_red());
+            return;
+        }
+    };
+
+    println!("  Target Database : {}", mask_credentials(&url).bright_cyan());
+    println!("  Driver Engine   : {}", driver.bright_yellow());
+    println!("  Queue Channel   : {}", queue_name.bright_green());
+
+    let pool = match connect_db(&url).await {
+        Ok(p) => p,
+        Err(e) => {
+            println!("  {} {}", "✖ [CONN ERROR]".red().bold(), e.bright_red());
+            return;
+        }
+    };
+
+    // Pastikan tabel jobs tersedia
+    let ddl = match driver.as_str() {
+        "postgresql" => {
+            r#"
+            CREATE TABLE IF NOT EXISTS jobs (
+                id SERIAL PRIMARY KEY,
+                queue VARCHAR(255) NOT NULL DEFAULT 'default',
+                payload TEXT NOT NULL,
+                attempts INT NOT NULL DEFAULT 0,
+                reserved_at TIMESTAMPTZ,
+                available_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            "#
+        }
+        "mysql" => {
+            r#"
+            CREATE TABLE IF NOT EXISTS jobs (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                queue VARCHAR(255) NOT NULL DEFAULT 'default',
+                payload LONGTEXT NOT NULL,
+                attempts INT NOT NULL DEFAULT 0,
+                reserved_at TIMESTAMP NULL,
+                available_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            "#
+        }
+        _ => {
+            r#"
+            CREATE TABLE IF NOT EXISTS jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                queue TEXT NOT NULL DEFAULT 'default',
+                payload TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                reserved_at DATETIME,
+                available_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            "#
+        }
+    };
+
+    if let Err(e) = pool.execute(ddl).await {
+        println!("  {} Gagal memastikan tabel jobs: {}", "✖ [ERROR]".red(), e);
+        return;
+    }
+
+    println!("\n[+] Worker aktif dan memantau antrean. Tekan Ctrl+C untuk berhenti.\n");
+
+    loop {
+        let is_pg = driver == "postgresql";
+        let fetch_sql = if is_pg {
+            "SELECT id, payload FROM jobs WHERE reserved_at IS NULL AND available_at <= NOW() AND queue = $1 ORDER BY available_at ASC LIMIT 1"
+        } else {
+            "SELECT id, payload FROM jobs WHERE reserved_at IS NULL AND available_at <= CURRENT_TIMESTAMP AND queue = ? ORDER BY available_at ASC LIMIT 1"
+        };
+
+        let row: Option<(i64, String)> = sqlx::query_as(fetch_sql)
+            .bind(queue_name)
+            .fetch_optional(&pool)
+            .await
+            .unwrap_or(None);
+
+        match row {
+            Some((id, payload_str)) => {
+                let start = Instant::now();
+                let payload: serde_json::Value = serde_json::from_str(&payload_str)
+                    .unwrap_or_else(|_| serde_json::json!({"job": "unknown"}));
+                let job_name = payload["job"].as_str().unwrap_or("unknown");
+
+                println!("  {} Job [{}] ID: {}", "▶ [PROCESSING]".cyan().bold(), job_name.bright_white(), id);
+
+                // Reserve
+                let reserve_sql = if is_pg {
+                    "UPDATE jobs SET reserved_at = NOW(), attempts = attempts + 1 WHERE id = $1"
+                } else {
+                    "UPDATE jobs SET reserved_at = CURRENT_TIMESTAMP, attempts = attempts + 1 WHERE id = ?"
+                };
+                let _ = sqlx::query(reserve_sql).bind(id).execute(&pool).await;
+
+                // Delete completed
+                let del_sql = if is_pg {
+                    "DELETE FROM jobs WHERE id = $1"
+                } else {
+                    "DELETE FROM jobs WHERE id = ?"
+                };
+                let _ = sqlx::query(del_sql).bind(id).execute(&pool).await;
+
+                println!("  {} Job [{}] ID: {} ({:.2?})\n", "✔ [PROCESSED]".green().bold(), job_name.bright_white(), id, start.elapsed());
+            }
+            None => {
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            }
+        }
+    }
+}

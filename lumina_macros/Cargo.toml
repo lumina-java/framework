@@ -1,6 +1,6 @@
 [package]
 name = "lumina_macros"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 authors = ["Slamet Sugandi <packercyber@gmail.com>"]
 description = "Procedural macros for Lumina Framework (LuminaModel derive and form validation)"

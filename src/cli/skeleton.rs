@@ -130,7 +130,7 @@ edition = "2021"
 default-run = "{}-server"
 
 [dependencies]
-lumina = {{ package = "lumina-framework", git = "https://github.com/lumina-java/framework.git" }}
+lumina = {{ package = "lumina-framework", version = "0.3.0" }}
 tokio = {{ version = "1", features = ["full"] }}
 axum = {{ version = "0.7", features = ["macros", "multipart"] }}
 serde = {{ version = "1", features = ["derive"] }}
@@ -257,8 +257,8 @@ impl WelcomeController {
         req.view("welcome")
             .with("title", "Welcome to Lumina")
             .with("app_name", "Lumina Framework")
-            .with("version", "0.1.0")
-            .render(&req)
+            .with("version", "0.3.0")
+            .render(req)
             .await
     }
 
@@ -266,7 +266,7 @@ impl WelcomeController {
     pub async fn login(req: Request) -> impl IntoResponse {
         req.view("auth.login")
             .with("title", "Login - Lumina")
-            .render(&req)
+            .render(req)
             .await
     }
 
@@ -274,7 +274,7 @@ impl WelcomeController {
     pub async fn register(req: Request) -> impl IntoResponse {
         req.view("auth.register")
             .with("title", "Register - Lumina")
-            .render(&req)
+            .render(req)
             .await
     }
 }

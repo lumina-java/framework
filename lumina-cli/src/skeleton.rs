@@ -126,7 +126,9 @@ DATABASE_URL=sqlite:./database.sqlite"#.to_string(),
     // 2. Cargo.toml
     let lib_name = name.replace("-", "_");
     let cargo_toml = format!(
-        r#"[package]
+        r#"[workspace]
+
+[package]
 name = "{}"
 version = "0.1.0"
 edition = "2021"
@@ -141,7 +143,7 @@ name = "{}-server"
 path = "src/main.rs"
 
 [dependencies]
-lumina = {{ package = "lumina-framework", version = "0.2.0" }}
+lumina = {{ package = "lumina-framework", version = "0.3.0" }}
 tokio = {{ version = "1", features = ["full"] }}
 axum = {{ version = "0.7", features = ["macros", "multipart"] }}
 serde = {{ version = "1", features = ["derive"] }}
@@ -248,6 +250,7 @@ pub mod requests;
 
 /// Application Prelude Hub — Satu baris import untuk seluruh controller & service:
 /// `use crate::app::prelude::*;`
+#[allow(unused_imports)]
 pub mod prelude {
     pub use lumina::prelude::*;
     pub use crate::app::models::*;
@@ -299,10 +302,10 @@ impl WelcomeController {
             || req.header("accept").map(|a| a.contains("json")).unwrap_or(false);
 
         if wants_json {
-            return req.json(json!({
+            return axum::Json(json!({
                 "name": "Lumina Framework",
                 "tagline": "The High-Performance Rust Backend for Modern APIs",
-                "version": "0.1.6",
+                "version": "0.3.0",
                 "rust_edition": "2021",
                 "engine": "Axum 0.7 + Tokio Async",
                 "environment": "local",
@@ -317,19 +320,19 @@ impl WelcomeController {
                     "api_index": "/api",
                     "api_health": "/api/health"
                 }
-            }));
+            })).into_response();
         }
 
         // 2. Jika diakses via Web Browser biasa, render Blade HTML Dashboard
         req.view("welcome")
             .with("title", "Lumina Framework - High Performance Rust Backend")
             .with("app_name", "Lumina Framework")
-            .with("version", "0.1.6")
+            .with("version", "0.3.0")
             .with("rust_edition", "2021")
-            .with("db_driver", &db_info.0)
+            .with("db_driver", db_info.0)
             .with("db_status", db_info.1)
             .with("docs_url", "https://github.com/lumina-java/framework")
-            .render(&req)
+            .render(req)
             .await
             .into_response()
     }
@@ -338,7 +341,7 @@ impl WelcomeController {
     pub async fn login(req: Request) -> impl IntoResponse {
         req.view("auth.login")
             .with("title", "Login - Lumina")
-            .render(&req)
+            .render(req)
             .await
             .into_response()
     }
@@ -347,7 +350,7 @@ impl WelcomeController {
     pub async fn register(req: Request) -> impl IntoResponse {
         req.view("auth.register")
             .with("title", "Register - Lumina")
-            .render(&req)
+            .render(req)
             .await
             .into_response()
     }
@@ -400,11 +403,11 @@ pub fn router() -> Router<AppState> {
 }
 
 /// Endpoint: GET /api
-async fn api_index() -> impl IntoResponse {
-    Json(json!({
+async fn api_index(req: Request) -> LuminaResult {
+    req.ok(json!({
         "framework": "Lumina Framework",
         "tagline": "The High-Performance Rust Backend for Modern APIs",
-        "version": "0.1.6",
+        "version": "0.3.0",
         "status": "online",
         "endpoints": {
             "health": "/api/health",
@@ -414,8 +417,8 @@ async fn api_index() -> impl IntoResponse {
 }
 
 /// Endpoint: GET /api/health
-async fn api_health(State(state): State<AppState>) -> impl IntoResponse {
-    let db_status = if let Some(pool) = &state.db {
+async fn api_health(req: Request) -> LuminaResult {
+    let db_status = if let Some(pool) = &req.state.db {
         if sqlx::query("SELECT 1").execute(&pool.pool).await.is_ok() {
             "connected"
         } else {
@@ -425,7 +428,7 @@ async fn api_health(State(state): State<AppState>) -> impl IntoResponse {
         "disabled"
     };
 
-    Json(json!({
+    req.ok(json!({
         "status": "ok",
         "database": db_status,
         "timestamp": chrono::Utc::now().to_rfc3339()
@@ -433,8 +436,8 @@ async fn api_health(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 /// Endpoint: GET /api/v1
-async fn api_v1_index() -> impl IntoResponse {
-    Json(json!({
+async fn api_v1_index(req: Request) -> LuminaResult {
+    req.ok(json!({
         "version": "v1",
         "message": "Lumina API v1 is ready. Register your controllers in src/routes/api.rs!"
     }))
@@ -831,11 +834,57 @@ CREATE TABLE IF NOT EXISTS users (
     )
     .ok();
 
+    // 14b. database/factories/mod.rs & user_factory.rs
+    fs::write(
+        base.join("database/factories/mod.rs"),
+        "pub mod user_factory;\n",
+    )
+    .ok();
+
+    let user_factory = r#"use lumina::prelude::*;
+use crate::app::models::user::User;
+
+// =========================================================================
+//  UserFactory (Lumina Model Factory)
+// =========================================================================
+
+pub struct UserFactory;
+
+impl UserFactory {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Factory<User> for UserFactory {
+    /// Definisikan nilai dummy default untuk model User
+    fn definition(&self) -> User {
+        User {
+            name: Faker::name(),
+            email: Faker::unique_email(),
+            password: "password".to_string(),
+            role: "user".to_string(),
+            ..Default::default()
+        }
+    }
+}
+
+impl HasFactory<UserFactory> for User {
+    fn factory() -> UserFactory {
+        UserFactory::new()
+    }
+}
+"#;
+    fs::write(
+        base.join("database/factories/user_factory.rs"),
+        user_factory,
+    )
+    .ok();
+
     // 15. src/app/models/mod.rs & user.rs
     fs::write(base.join("src/app/models/mod.rs"), "pub mod user;\n").ok();
 
     let user_model = r#"#![allow(dead_code)]
-use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use sqlx::FromRow;
 use lumina::prelude::*;

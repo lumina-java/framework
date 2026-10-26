@@ -23,13 +23,16 @@ struct LuminaCli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Create a new Lumina project from skeleton
+    /// Create a new Lumina project
     New {
         /// The name of the new project
         name: String,
         /// Database engine to configure: sqlite, postgres, mysql, all [default: sqlite]
         #[arg(short, long, default_value = "sqlite")]
         db: String,
+        /// Force offline generation using embedded templates without fetching from GitHub
+        #[arg(long)]
+        offline: bool,
     },
 
     /// Start the application server (cargo run)
@@ -140,8 +143,8 @@ fn main() {
     let args = LuminaCli::parse();
 
     match args.command {
-        Commands::New { name, db } => {
-            handle_new_project(&name, &db);
+        Commands::New { name, db, offline } => {
+            handle_new_project(&name, &db, offline);
         }
         Commands::Serve => {
             generator::cmd_serve();
@@ -200,7 +203,7 @@ fn main() {
     }
 }
 
-fn handle_new_project(name: &str, db: &str) {
+fn handle_new_project(name: &str, db: &str, offline: bool) {
     let db_normalized = db.to_lowercase();
     println!(
         "{}",
@@ -215,10 +218,8 @@ fn handle_new_project(name: &str, db: &str) {
             .unwrap(),
     );
 
-    pb.set_message("Preparing Lumina skeleton...");
+    pb.set_message("Preparing Lumina project...");
     pb.enable_steady_tick(std::time::Duration::from_millis(120));
-
-    std::thread::sleep(std::time::Duration::from_secs(1));
 
     let path = Path::new(name);
     if path.exists() {
@@ -226,13 +227,40 @@ fn handle_new_project(name: &str, db: &str) {
         std::process::exit(1);
     }
 
-    if let Err(e) = fs::create_dir_all(path) {
-        pb.finish_with_message(format!("❌ Error: Could not create directory: {}", e));
-        std::process::exit(1);
+    let mut cloned_successfully = false;
+
+    // Fetch live template from GitHub (lumina-java/lumina) unless offline flag is set
+    if !offline {
+        pb.set_message("Fetching latest starter template from GitHub (lumina-java/lumina)...");
+        let git_clone_status = std::process::Command::new("git")
+            .args(["clone", "--depth", "1", "https://github.com/lumina-java/lumina.git", name])
+            .output();
+
+        if let Ok(output) = git_clone_status {
+            if output.status.success() {
+                // Clean up cloned .git folder
+                let _ = fs::remove_dir_all(path.join(".git"));
+                // Personalize Cargo.toml with project name
+                let cargo_path = path.join("Cargo.toml");
+                if let Ok(content) = fs::read_to_string(&cargo_path) {
+                    let customized = content.replace("name = \"lumina-app\"", &format!("name = \"{}\"", name));
+                    let _ = fs::write(&cargo_path, customized);
+                }
+                // Initialize fresh git repo
+                let _ = std::process::Command::new("git").args(["init", name]).output();
+                cloned_successfully = true;
+            }
+        }
     }
 
-    pb.set_message("Building project structure...");
-    skeleton::create_full_skeleton(path, name, &db_normalized);
+    if !cloned_successfully {
+        pb.set_message("Building project using internal offline template...");
+        if let Err(e) = fs::create_dir_all(path) {
+            pb.finish_with_message(format!("❌ Error: Could not create directory: {}", e));
+            std::process::exit(1);
+        }
+        skeleton::create_full_skeleton(path, name, &db_normalized);
+    }
 
     pb.finish_with_message("✅ Project created successfully!");
 

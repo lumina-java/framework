@@ -23,6 +23,9 @@ pub fn run_upgrade(cli_only: bool, project_only: bool, local_path: Option<String
         );
         pb.enable_steady_tick(std::time::Duration::from_millis(120));
 
+        #[cfg(windows)]
+        prepare_windows_binary_for_replacement();
+
         let install_status = if let Some(local) = local_path {
             let cli_folder = Path::new(&local).join("lumina-cli");
             let target = if cli_folder.exists() {
@@ -127,3 +130,30 @@ fn upgrade_project_dependencies() {
         }
     }
 }
+
+/// Menyiapkan executable Windows yang sedang aktif untuk di-overwrite oleh cargo install
+/// dengan me-rename ke .old (karena Windows mengizinkan rename running exe).
+#[cfg(windows)]
+fn prepare_windows_binary_for_replacement() {
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(parent) = current_exe.parent() {
+            let old_exe = parent.join("lumina.exe.old");
+            let _ = fs::remove_file(&old_exe);
+            let _ = fs::rename(&current_exe, &old_exe);
+        }
+    }
+}
+
+/// Membersihkan lumina.exe.old jika ada dari sesi update sebelumnya
+pub fn cleanup_old_binary() {
+    #[cfg(windows)]
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(parent) = current_exe.parent() {
+            let old_exe = parent.join("lumina.exe.old");
+            if old_exe.exists() {
+                let _ = fs::remove_file(&old_exe);
+            }
+        }
+    }
+}
+

@@ -160,6 +160,7 @@ enum Commands {
 }
 
 fn main() {
+    upgrader::cleanup_old_binary();
     let args = LuminaCli::parse();
 
     match args.command {

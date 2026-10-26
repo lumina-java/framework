@@ -37,7 +37,7 @@ pub fn run_upgrade(cli_only: bool, project_only: bool, local_path: Option<String
         } else {
             pb.set_message("Mengunduh & mengompilasi rilis terbaru dari GitHub (lumina-java/framework)...");
             Command::new("cargo")
-                .args(["install", "--git", "https://github.com/lumina-java/framework.git", "lumina-cli", "--force"])
+                .args(["install", "--git", "https://github.com/lumina-java/framework.git", "cargo-lumina", "--force"])
                 .output()
         };
 
@@ -53,7 +53,7 @@ pub fn run_upgrade(cli_only: bool, project_only: bool, local_path: Option<String
                     println!("    {}", line.dimmed());
                 }
                 println!("\n  {} Anda dapat mencoba manual:", "Saran:".cyan());
-                println!("    cargo install --git https://github.com/lumina-java/framework.git lumina-cli --force\n");
+                println!("    cargo install --git https://github.com/lumina-java/framework.git cargo-lumina --force\n");
             }
             Err(e) => {
                 pb.finish_with_message("✖ [ERROR]".red().to_string());

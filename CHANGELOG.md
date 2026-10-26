@@ -15,6 +15,10 @@ Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/
   - `lumina migrate:status`: Menampilkan tabel ringkasan status setiap berkas migrasi (`Ran` vs `Pending`, batch, dan tanggal eksekusi).
   - `lumina db:seed`: Eksekusi berkas seeder `database/seeders/*.sql` secara terurut dan transaksional.
   - Resolusi otomatis string koneksi database dari berkas `.env` (`DATABASE_URL` atau variabel granular `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`).
+- **One-Command CLI & Project Upgrader (`lumina upgrade` / `lumina update`)**:
+  - Perintah baru untuk meng-upgrade binary CLI secara mandiri langsung dari repositori resmi GitHub (`lumina upgrade`).
+  - Mendeteksi dan menyinkronkan dependensi `lumina-framework` di `Cargo.toml` proyek aktif secara otomatis.
+  - Opsi fleksibel: `--cli-only`, `--project-only`, dan `--local <path>`.
 - **Ergonomi Middleware Router Tingkat Lanjut**:
   - `Router::guard(async_fn)` dan `Router::middleware_fn(async_fn)`: Menghubungkan fungsi middleware asinkron secara langsung tanpa kewajiban membungkus `axum::middleware::from_fn(...)`.
   - Re-export `from_fn`, `from_fn_with_state`, dan `Next` langsung di `lumina::prelude::*`.

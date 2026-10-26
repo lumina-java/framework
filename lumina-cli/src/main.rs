@@ -8,6 +8,7 @@ mod generator;
 mod skeleton;
 mod audit;
 mod migrator;
+mod upgrader;
 
 #[derive(Parser)]
 #[command(
@@ -41,6 +42,20 @@ enum Commands {
 
     /// Start the server with auto-reload on code change (cargo-watch)
     Watch,
+
+    /// Upgrade Lumina CLI toolchain and current project dependencies
+    #[command(name = "upgrade", alias = "update")]
+    Upgrade {
+        /// Upgrade only the CLI toolchain without updating the current project
+        #[arg(long)]
+        cli_only: bool,
+        /// Update only current project dependencies without upgrading the CLI
+        #[arg(long)]
+        project_only: bool,
+        /// Upgrade CLI from a local directory path instead of GitHub
+        #[arg(long)]
+        local: Option<String>,
+    },
 
     // ─── Generators ──────────────────────────────────────────────────────────
     /// Generate a new Controller
@@ -215,6 +230,9 @@ fn main() {
         }
         Commands::PluginList => {
             generator::cmd_plugin_list();
+        }
+        Commands::Upgrade { cli_only, project_only, local } => {
+            upgrader::run_upgrade(cli_only, project_only, local);
         }
     }
 }

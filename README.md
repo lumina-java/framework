@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://crates.io/crates/lumina-framework"><img src="https://img.shields.io/crates/v/lumina-framework.svg" alt="Crates.io Version"></a>
-  <a href="https://crates.io/crates/cargo-lumina"><img src="https://img.shields.io/badge/CLI-cargo--lumina-ec4899.svg" alt="Cargo Lumina CLI"></a>
+  <a href="https://crates.io/crates/lumina-cli"><img src="https://img.shields.io/badge/CLI-lumina--cli-ec4899.svg" alt="Lumina CLI"></a>
   <a href="https://github.com/lumina-java/framework"><img src="https://img.shields.io/badge/GitHub-lumina--java%2Fframework-blue.svg" alt="GitHub Repo"></a>
   <a href="https://github.com/lumina-java/lumina"><img src="https://img.shields.io/badge/Starter%20Kit-lumina--java%2Flumina-6366f1.svg" alt="Starter Kit"></a>
   <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Database-PostgreSQL%20|%20MySQL%20|%20SQLite-06b6d4.svg" alt="Databases"></a>
@@ -52,21 +52,31 @@ Rust terkenal dengan kecepatan ekstrem dan keamanannya, namun sering kali memili
 
 ---
 
-## 🛠️ Instalasi Lumina CLI (Crates.io)
+## 🛠️ Instalasi Lumina CLI (`lumina-cli`)
 
 Lumina CLI (`lumina`) adalah toolchain utama untuk membuat dan mengelola project Lumina.
 
 ### Instalasi Resmi via Cargo (Crates.io):
 ```bash
-cargo install cargo-lumina
+cargo install lumina-cli
 ```
 
-> **Catatan:** Paket `cargo-lumina` akan memasang executable binary `lumina` secara global di sistem Anda.
+### Atau Instalasi Langsung dari GitHub Resmi:
+```bash
+cargo install --git https://github.com/lumina-java/framework.git lumina-cli --force
+```
+
+> **Catatan:** Paket `lumina-cli` akan memasang executable binary `lumina` secara global di sistem Anda.
 
 Verifikasi instalasi CLI:
 ```bash
 lumina --version
 lumina --help
+```
+
+### Upgrade Toolchain & Project Otomatis:
+```bash
+lumina upgrade
 ```
 
 ---

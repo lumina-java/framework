@@ -23,20 +23,32 @@ Sebelum menggunakan Lumina, pastikan sistem komputer Anda telah terpasang:
 
 ---
 
-## 2. Instalasi Lumina CLI (`cargo-lumina`)
+## 2. Instalasi Lumina CLI (`lumina-cli`)
 
 Lumina dilengkapi dengan toolchain Command Line Interface (CLI) bawaan yang elegan dan canggih bernama `lumina`.
 
-### Cara 1: Pasang Global via Crates.io (Direkomendasikan)
+### Cara 1: Pasang Global via Crates.io
 ```bash
-cargo install cargo-lumina --force
+cargo install lumina-cli --force
 ```
+
+### Cara 2: Pasang Langsung dari Repositori GitHub Resmi
+```bash
+cargo install --git https://github.com/lumina-java/framework.git lumina-cli --force
+```
+
 Setelah instalasi selesai, verifikasi dengan menjalankan:
 ```bash
 lumina --version
+lumina --help
 ```
 
-### Cara 2: Instalasi Lokal dari Source Code
+### Cara 3: Auto-Upgrade Toolchain & Dependensi Proyek
+```bash
+lumina upgrade
+```
+
+### Cara 4: Instalasi Lokal dari Source Code
 Jika Anda berkontribusi atau memodifikasi source code Lumina:
 ```bash
 # Clone repositori framework

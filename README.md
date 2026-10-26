@@ -10,11 +10,12 @@
 </p>
 
 <p align="center">
-  <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Architecture-MVC%20%2B%20Services-6366f1.svg" alt="MVC"></a>
-  <a href="#-database--human-orm"><img src="https://img.shields.io/badge/Database-PostgreSQL%20|%20MySQL%20|%20SQLite-06b6d4.svg" alt="Databases"></a>
-  <a href="#-cli--smart-scaffolding"><img src="https://img.shields.io/badge/CLI-Smart%20Scaffolding-ec4899.svg" alt="CLI"></a>
-  <a href="#-real-time-broadcaster-lumina-echo"><img src="https://img.shields.io/badge/WebSocket-Lumina%20Echo-10b981.svg" alt="Echo"></a>
-  <a href="#-license"><img src="https://img.shields.io/badge/License-MIT-amber.svg" alt="License"></a>
+  <a href="https://crates.io/crates/lumina-framework"><img src="https://img.shields.io/crates/v/lumina-framework.svg" alt="Crates.io Version"></a>
+  <a href="https://crates.io/crates/cargo-lumina"><img src="https://img.shields.io/badge/CLI-cargo--lumina-ec4899.svg" alt="Cargo Lumina CLI"></a>
+  <a href="https://github.com/lumina-java/framework"><img src="https://img.shields.io/badge/GitHub-lumina--java%2Fframework-blue.svg" alt="GitHub Repo"></a>
+  <a href="https://github.com/lumina-java/lumina"><img src="https://img.shields.io/badge/Starter%20Kit-lumina--java%2Flumina-6366f1.svg" alt="Starter Kit"></a>
+  <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Database-PostgreSQL%20|%20MySQL%20|%20SQLite-06b6d4.svg" alt="Databases"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-amber.svg" alt="License"></a>
 </p>
 
 ---
@@ -51,22 +52,20 @@ Rust terkenal dengan kecepatan ekstrem dan keamanannya, namun sering kali memili
 
 ---
 
-## 🛠️ Instalasi Lumina CLI
+## 🛠️ Instalasi Lumina CLI (Crates.io)
 
 Lumina CLI (`lumina`) adalah toolchain utama untuk membuat dan mengelola project Lumina.
 
-### 1. Instalasi Secara Global (Lokal untuk Development)
-Untuk menggunakan Lumina dari repositori lokal:
+### Instalasi Resmi via Cargo (Crates.io):
 ```bash
-# Masuk ke direktori framework
-cd "d:\FRAMEWORK RUST\framework"
-
-# Install binary lumina secara global dari folder lumina-cli
-cargo install --path lumina-cli --force
+cargo install cargo-lumina
 ```
+
+> **Catatan:** Paket `cargo-lumina` akan memasang executable binary `lumina` secara global di sistem Anda.
 
 Verifikasi instalasi CLI:
 ```bash
+lumina --version
 lumina --help
 ```
 
@@ -74,14 +73,25 @@ lumina --help
 
 ## ⚡ Quick Start: Membuat Project Baru
 
-### 1. Generate Project Skeleton
-Jalankan perintah ini di direktori kerja Anda (misalnya di `D:\FRAMEWORK RUST`):
+### 1. Cara 1: Menggunakan Lumina CLI (Rekomendasi)
 ```bash
+# Membuat project baru (otomatis mengambil template starter terbaru dari GitHub)
 lumina new kontak_manager
-```
-Perintah ini akan menyiapkan seluruh struktur MVC, routing, dan file konfigurasi.
 
-### 2. Konfigurasi Database (.env)
+# Atau pilih driver database tertentu (--db sqlite / postgres / mysql / all):
+lumina new kontak_manager --db postgres
+```
+
+### 2. Cara 2: Clone Starter Template Langsung dari GitHub
+```bash
+git clone https://github.com/lumina-java/lumina.git kontak_manager
+cd kontak_manager
+cargo run
+```
+
+---
+
+### 3. Konfigurasi Database (.env)
 Buka file `.env` di dalam folder project baru Anda, lalu sesuaikan koneksi database.
 
 #### Contoh PostgreSQL (Port Kustom, misal 54322):

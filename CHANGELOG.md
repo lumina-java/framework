@@ -4,6 +4,25 @@ Semua perubahan penting pada proyek **Lumina Framework** didokumentasikan di dal
 
 Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) dan mengikuti standar [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-28
+
+### 🚀 Ditambahkan (Added)
+- **Lumina Live — Server-Driven Reactive UI Suite**:
+  - Trait `LiveComponent` di Rust dengan lifecycle `mount()`, `view()`, `call_action()`, dan `render_html()`.
+  - **Tri-Dialect Runtime Engine**: Pemrosesan simultan 22 direktif interaksi dalam 3 dialek bahasa:
+    - 🇮🇩 Dialek Indonesia (`kilat:*`): `kilat:klik`, `kilat:kirim`, `kilat:model`, `kilat:tunggu`, `kilat:target`, `kilat:yakin`, `kilat:pantau`, `kilat:navigasi`, dsb.
+    - 🌐 Dialek Universal (`live:*`): `live:click`, `live:submit`, `live:model`, `live:loading`, `live:confirm`, `live:poll`, dsb.
+    - 🅰️ Dialek Laravel Legacy (`wire:*`): `wire:click`, `wire:submit`, `wire:model`, `wire:loading`, `wire:confirm`, `wire:poll`, dsb.
+  - **Cryptographic Tamper-Proof Snapshot**: Pengamanan state komponen menggunakan signature HMAC-SHA256 (`APP_KEY`) dengan *constant-time comparison* (`subtle::ConstantTimeEq`) anti manipulasi browser DevTools.
+  - **Embedded Micro-Runtime (`lumina-live.js`)**: Script vanilla JS mandiri (~6.5 KB) tanpa dependensi eksternal, disajikan langsung dari biner via route `GET /_lumina/live/live.js` dengan HTTP cache headers.
+  - **Idiomorph DOM Morpher**: Algoritma diff DOM cerdas yang mempertahankan fokus input, posisi kursor pengetikan, dan scroll bar pengguna saat HTML diperbarui secara reaktif.
+  - **Transport Endpoint**: Route HTTP Micro-RPC stateless `POST /_lumina/live/call` untuk eksekusi aksi dan re-rendering berlatensi sub-milidetik.
+  - **Integrasi Blade Engine**: Direktif `@kilatScripts`, `@luminaLive`, `@livewireScripts`, serta render tag `@kilat('name')` dan `@live('name')`.
+  - **CLI Scaffolding**: Perintah `lumina make:live <Name>` untuk membangkitkan komponen Rust dan template Blade reaktif dalam 1 detik.
+  - **Showcase Demo**: Halaman `/live-demo` dengan komponen reaktif `Counter` yang memamerkan interaksi dua arah dan tombol aksi instan.
+
+---
+
 ## [0.3.2] - 2026-10-27
 
 ### 🚀 Ditambahkan (Added)

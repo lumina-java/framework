@@ -22,6 +22,7 @@ Klik tautan di bawah untuk mempelajari setiap modul secara mendalam:
 | **10** | [**Queue, Jobs & Scheduler**](./10_queue_jobs_dan_scheduler.md) | Background Jobs (`lumina make:job`), dispatching asinkron, persistent queue database, dan cron-style task scheduler. |
 | **11** | [**Observabilitas & Lumina Telescope**](./11_observabilitas_dan_telescope.md) | Dasbor pemantauan `/lumina/telescope`, request logger, query tracer, exception viewer, health checks `/up`, dan Tab Sandbox Metrics. |
 | **12** | [**Deployment & DevOps**](./12_deployment_dan_devops.md) | Kompilasi produksi `cargo build --release`, Dockerfile multi-stage (`make:docker`), reverse proxy Nginx (`make:nginx`), Supervisor daemon (`make:supervisor`), dan backup otomatis. |
+| **13** | [**Lumina Live (Reactive UI)**](./13_lumina_live_server_driven_ui.md) | Server-Driven Reactive UI ala Livewire/LiveView, Tri-Dialect (`kilat:*`, `live:*`, `wire:*`), Idiomorph DOM Morphing, Two-way Binding, dan `lumina make:live`. |
 
 ---
 

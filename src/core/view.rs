@@ -30,6 +30,11 @@ impl ViewEngine {
         self.inner.render(template_name, context)
     }
 
+    /// Akses ke internal BladeEngine
+    pub fn blade_engine(&self) -> &Arc<BladeEngine> {
+        &self.inner
+    }
+
     /// Render template dengan dukungan Session, Flash Messages, dan Validation Errors
     pub async fn render_with_session(
         &self,

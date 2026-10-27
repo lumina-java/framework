@@ -44,6 +44,12 @@ enum Commands {
         /// Name of the job (e.g. SendEmailJob)
         name: String,
     },
+    /// Generate a new Lumina Live reactive component
+    #[command(name = "make:live")]
+    MakeLive {
+        /// Name of the live component (e.g. Counter)
+        name: String,
+    },
     /// Generate a new request for validation
     #[command(name = "make:request")]
     MakeRequest {
@@ -128,6 +134,13 @@ enum Commands {
     /// List all installed WASM plugins and Indonesian Script files
     #[command(name = "plugin:list")]
     PluginList,
+    /// Clean build artifacts, target cache, and temporary files
+    #[command(name = "clean")]
+    Clean {
+        /// Force full clean (cargo clean) instead of smart sweep
+        #[arg(long)]
+        purge: bool,
+    },
 }
 
 #[tokio::main]
@@ -150,6 +163,9 @@ async fn main() {
         }
         Commands::MakeJob { name } => {
             cli::handle_make_job(&name).await;
+        }
+        Commands::MakeLive { name } => {
+            cli::handle_make_live(&name).await;
         }
         Commands::MakeRequest { name } => {
             cli::handle_make_request(&name).await;
@@ -247,6 +263,9 @@ async fn main() {
         }
         Commands::PluginList => {
             cli::handle_plugin_list().await;
+        }
+        Commands::Clean { purge } => {
+            cli::handle_clean(purge).await;
         }
     }
 }

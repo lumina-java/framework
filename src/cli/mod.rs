@@ -100,6 +100,112 @@ pub async fn handle_make_job(name: &str) {
     }
 }
 
+pub async fn handle_make_live(name: &str) {
+    let file_name = camel_to_snake(name);
+    let comp_path_str = format!("src/app/live/{}.rs", file_name);
+    let view_path_str = format!("resources/views/live/{}.blade.rs", file_name);
+
+    let _ = fs::create_dir_all("src/app/live");
+    let _ = fs::create_dir_all("resources/views/live");
+
+    if Path::new(&comp_path_str).exists() {
+        println!("❌ Live Component {} sudah ada!", comp_path_str);
+        return;
+    }
+
+    let comp_content = format!(
+r#"use async_trait::async_trait;
+use lumina::prelude::*;
+use serde::{{Deserialize, Serialize}};
+use serde_json::Value;
+
+/// Komponen Reaktif Lumina Live: {name}
+/// Mendukung Tri-Dialect: `kilat:*` (Indonesia), `live:*` (Universal), `wire:*` (Laravel Legacy).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct {name} {{
+    pub count: i32,
+    pub title: String,
+}}
+
+impl Default for {name} {{
+    fn default() -> Self {{
+        Self {{
+            count: 0,
+            title: "{name}".to_string(),
+        }}
+    }}
+}}
+
+#[async_trait]
+impl LiveComponent for {name} {{
+    fn name(&self) -> &'static str {{
+        "{file_name}"
+    }}
+
+    fn view(&self) -> &'static str {{
+        "live.{file_name}"
+    }}
+
+    async fn call_action(&mut self, action: &str, _params: Vec<Value>) -> Result<(), AppError> {{
+        match action {{
+            "tambah" | "increment" => self.count += 1,
+            "kurang" | "decrement" => if self.count > 0 {{ self.count -= 1; }},
+            "reset" => self.count = 0,
+            _ => return Err(AppError::BadRequest(format!("Aksi tidak dikenal: {{}}", action))),
+        }}
+        Ok(())
+    }}
+}}
+"#);
+
+    let view_content = format!(
+r#"<div class="p-6 bg-white rounded-2xl shadow-xl border border-slate-100 max-w-md mx-auto my-6 text-center">
+    <div class="mb-4">
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+            ⚡ Lumina Live ({name})
+        </span>
+    </div>
+
+    <h2 class="text-xl font-bold text-slate-700">{{{{ $title }}}}</h2>
+    <div class="my-4">
+        <span class="text-5xl font-black text-slate-800">{{{{ $count }}}}</span>
+    </div>
+
+    <!-- Tombol Interaksi (Mendukung kilat:klik, live:click, wire:click) -->
+    <div class="flex items-center justify-center space-x-3">
+        <button kilat:klik="kurang" class="w-10 h-10 flex items-center justify-center bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-lg transition">-</button>
+        <button live:click="reset" kilat:yakin="Yakin ingin mereset?" class="px-3 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition">Reset</button>
+        <button kilat:klik="tambah" class="w-10 h-10 flex items-center justify-center bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg transition">+</button>
+    </div>
+
+    <div class="mt-4">
+        <span kilat:tunggu class="text-xs text-slate-400 animate-pulse">Menyinkronkan...</span>
+    </div>
+</div>
+"#);
+
+    let _ = fs::write(&comp_path_str, comp_content);
+    let _ = fs::write(&view_path_str, view_content);
+
+    let mod_file = "src/app/live/mod.rs";
+    let mod_line = format!("pub mod {};\npub use {}::{};\n", file_name, file_name, name);
+    if Path::new(mod_file).exists() {
+        let existing = fs::read_to_string(mod_file).unwrap_or_default();
+        if !existing.contains(&format!("pub mod {};", file_name)) {
+            use std::io::Write;
+            if let Ok(mut f) = fs::OpenOptions::new().append(true).open(mod_file) {
+                let _ = writeln!(f, "pub mod {};\npub use {}::{};", file_name, file_name, name);
+            }
+        }
+    } else {
+        let _ = fs::write(mod_file, format!("// Lumina Live Components Registry\n{}", mod_line));
+    }
+
+    println!("✅ Live Component berhasil dibuat: {}", comp_path_str);
+    println!("✅ Live View template berhasil dibuat: {}", view_path_str);
+    println!("💡 Pasang di template Blade: @kilat('{}') atau @live('{}')", file_name, file_name);
+}
+
 pub async fn handle_make_request(name: &str) {
     let file_name = camel_to_snake(name);
     let path_str = format!("src/app/requests/{}.rs", file_name);
@@ -1518,6 +1624,34 @@ pub async fn handle_plugin_list() {
     }
     println!("{:-<32} {:-<15} {:-<12} {:-<35}", "", "", "", "");
     println!("Total item terdeteksi: {}\n", items.len());
+}
+
+pub async fn handle_clean(purge: bool) {
+    if purge {
+        println!("🧹 Menjalankan pembersihan total (cargo clean)...");
+        let _ = std::process::Command::new("cargo").arg("clean").status();
+        println!("✅ Seluruh target cache berhasil dibersihkan.");
+        return;
+    }
+
+    println!("✨ Menjalankan Lumina Smart Clean (Optimasi Cache)...");
+
+    let sweep_status = std::process::Command::new("cargo")
+        .args(["sweep", "-m", "8GB"])
+        .status();
+
+    if let Err(_) = sweep_status {
+        println!("   💡 cargo-sweep tidak terdeteksi. Silakan pasang: cargo install cargo-sweep");
+    }
+
+    let inc_path = Path::new("target/debug/incremental");
+    if inc_path.exists() {
+        if fs::remove_dir_all(inc_path).is_ok() {
+            println!("   ✅ Sesi kompilasi inkremental usang dibersihkan.");
+        }
+    }
+
+    println!("\n🎉 Cache berhasil dioptimasi! Build aktif tetap hangat dan cepat.");
 }
 
 #[cfg(test)]

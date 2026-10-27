@@ -605,7 +605,41 @@ impl BladeEngine {
             }
         }).to_string();
 
-        // 13. Interpolasi Variabel & Filter: {!! raw !!} dan {{ escaped }}
+        // 13. Lumina Live Scripts: @kilatScripts, @luminaLive, @livewireScripts
+        s = s.replace("@kilatScripts", r#"<script src="/_lumina/live/live.js" defer></script>"#);
+        s = s.replace("@luminaLive", r#"<script src="/_lumina/live/live.js" defer></script>"#);
+        s = s.replace("@livewireScripts", r#"<script src="/_lumina/live/live.js" defer></script>"#);
+
+        // 14. Lumina Live Component Rendering: @kilat('name'), @live('name'), @livewire('name')
+        let re_live = Regex::new(r#"@(?:kilat|live|livewire)\s*\(\s*['"]([^'"]+)['"]\s*(?:,\s*(\[.*?\]|\{.*?\}|.*?))?\s*\)"#).unwrap();
+        s = re_live.replace_all(&s, |caps: &regex::Captures| {
+            let name = &caps[1];
+            let registry = crate::core::live::registry::LiveRegistry::global();
+            if let Some(handler) = registry.get(name) {
+                let initial_data = if let Some(args_match) = caps.get(2) {
+                    serde_json::from_str(args_match.as_str()).unwrap_or(serde_json::json!({}))
+                } else {
+                    serde_json::json!({})
+                };
+
+                match handler.render_initial(initial_data, self) {
+                    Ok((state_val, html)) => {
+                        let id = format!("c-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]);
+                        let snapshot = crate::core::live::snapshot::LiveSnapshot::new(&id, name, state_val);
+                        let sealed = crate::core::live::snapshot::SnapshotManager::seal(&snapshot).unwrap_or_default();
+                        format!(
+                            r#"<div data-kilat-id="{}" data-kilat-name="{}" data-kilat-snapshot="{}" data-live-id="{}" data-live-name="{}" data-live-snapshot="{}">{}</div>"#,
+                            id, name, sealed, id, name, sealed, html
+                        )
+                    }
+                    Err(e) => format!("<!-- Lumina Live Error: {} -->", e),
+                }
+            } else {
+                format!("<!-- Lumina Live Component '{}' not registered -->", name)
+            }
+        }).to_string();
+
+        // 15. Interpolasi Variabel & Filter: {!! raw !!} dan {{ escaped }}
 
         let re_raw = Regex::new(r"\{!!\s*(.*?)\s*!!\}").unwrap();
         s = re_raw.replace_all(&s, |caps: &regex::Captures| {

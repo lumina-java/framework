@@ -50,6 +50,7 @@ pub struct AppState {
     pub echo: Arc<crate::core::echo::EchoManager>,
     pub socialite: Arc<crate::core::auth::socialite::SocialiteManager>,
     pub sandbox: Arc<crate::core::sandbox::LuminaPluginManager>,
+    pub live: Arc<crate::core::live::LiveRegistry>,
 }
 
 impl AppState {
@@ -141,6 +142,12 @@ impl Application {
         self.with_global_middleware(layer)
     }
 
+    /// Daftarkan komponen reaktif Lumina Live secara deklaratif.
+    pub fn with_live_component<T: crate::core::live::LiveComponent>(self, name: &str) -> Self {
+        crate::core::live::LiveRegistry::global().register::<T>(name);
+        self
+    }
+
     /// Tambahkan middleware khusus untuk pipeline Web (semua route di `with_web`).
     pub fn with_web_middleware<L>(mut self, layer: L) -> Self
     where
@@ -221,6 +228,14 @@ impl Application {
             .route(
                 "/lumina/echo/auth",
                 axum::routing::post(crate::core::echo::handler::echo_auth_handler),
+            )
+            .route(
+                "/_lumina/live/live.js",
+                axum::routing::get(crate::core::live::transport::serve_live_js),
+            )
+            .route(
+                "/_lumina/live/call",
+                axum::routing::post(crate::core::live::transport::call_action_handler),
             )
             .nest_service("/js", ServeDir::new("resources/js"))
             .nest_service("/images", ServeDir::new("resources/images"))
@@ -389,6 +404,7 @@ impl Application {
                 let _ = s.load_directory("resources/plugins");
                 s
             },
+            live: Arc::new(crate::core::live::LiveRegistry::new()),
         };
 
 

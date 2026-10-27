@@ -43,6 +43,13 @@ enum Commands {
     /// Start the server with auto-reload on code change (cargo-watch)
     Watch,
 
+    /// Clean unused build artifacts, compiler cache, and temporary files
+    Clean {
+        /// Force full clean (cargo clean) instead of smart sweep
+        #[arg(long)]
+        purge: bool,
+    },
+
     /// Upgrade Lumina CLI toolchain and current project dependencies
     #[command(name = "upgrade", alias = "update")]
     Upgrade {
@@ -111,6 +118,13 @@ enum Commands {
     #[command(name = "make:job")]
     MakeJob {
         /// The name of the job (e.g., SendWelcomeEmail or ProcessInvoice)
+        name: String,
+    },
+
+    /// Generate a new Lumina Live reactive component
+    #[command(name = "make:live")]
+    MakeLive {
+        /// The name of the live component (e.g., Counter, SearchUser)
         name: String,
     },
 
@@ -196,6 +210,9 @@ fn main() {
         Commands::Watch => {
             generator::cmd_watch();
         }
+        Commands::Clean { purge } => {
+            generator::cmd_clean(purge);
+        }
         Commands::MakeController { name } => {
             generator::generate_controller(&name);
         }
@@ -219,6 +236,9 @@ fn main() {
         }
         Commands::MakeJob { name } => {
             generator::generate_job(&name);
+        }
+        Commands::MakeLive { name } => {
+            generator::generate_live(&name);
         }
         Commands::QueueWork { queue } => {
             tokio::runtime::Runtime::new()

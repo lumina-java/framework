@@ -66,6 +66,7 @@ impl TestApp {
             echo,
             socialite,
             sandbox: Arc::new(crate::core::sandbox::LuminaPluginManager::new()),
+            live: Arc::new(crate::core::live::LiveRegistry::new()),
         };
 
 

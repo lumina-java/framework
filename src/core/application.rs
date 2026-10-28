@@ -50,7 +50,6 @@ pub struct AppState {
     pub echo: Arc<crate::core::echo::EchoManager>,
     pub socialite: Arc<crate::core::auth::socialite::SocialiteManager>,
     pub sandbox: Arc<crate::core::sandbox::LuminaPluginManager>,
-    pub live: Arc<crate::core::live::LiveRegistry>,
 }
 
 impl AppState {
@@ -88,6 +87,7 @@ pub struct Application {
     global_middlewares: Vec<Arc<dyn Fn(Router<AppState>) -> Router<AppState> + Send + Sync>>,
     web_middlewares: Vec<Arc<dyn Fn(Router<AppState>) -> Router<AppState> + Send + Sync>>,
     api_middlewares: Vec<Arc<dyn Fn(Router<AppState>) -> Router<AppState> + Send + Sync>>,
+    extra_routers: Vec<axum::Router<AppState>>,
 }
 
 impl Application {
@@ -99,6 +99,7 @@ impl Application {
             global_middlewares: Vec::new(),
             web_middlewares: Vec::new(),
             api_middlewares: Vec::new(),
+            extra_routers: Vec::new(),
         }
     }
 
@@ -142,9 +143,9 @@ impl Application {
         self.with_global_middleware(layer)
     }
 
-    /// Daftarkan komponen reaktif Lumina Live secara deklaratif.
-    pub fn with_live_component<T: crate::core::live::LiveComponent>(self, name: &str) -> Self {
-        crate::core::live::LiveRegistry::global().register::<T>(name);
+    /// Pasang router Axum tambahan dari ekstensi modular (misal: lumina-live).
+    pub fn with_raw_router(mut self, router: axum::Router<AppState>) -> Self {
+        self.extra_routers.push(router);
         self
     }
 
@@ -211,7 +212,7 @@ impl Application {
         // Terapkan Global Middleware dari Kernel
         let router = kernel.global_middleware(router);
 
-        router
+        let mut axum_app = router
             .into_axum()
             .route(
                 "/up",
@@ -229,20 +230,18 @@ impl Application {
                 "/lumina/echo/auth",
                 axum::routing::post(crate::core::echo::handler::echo_auth_handler),
             )
-            .route(
-                "/_lumina/live/live.js",
-                axum::routing::get(crate::core::live::transport::serve_live_js),
-            )
-            .route(
-                "/_lumina/live/call",
-                axum::routing::post(crate::core::live::transport::call_action_handler),
-            )
             .nest_service("/js", ServeDir::new("resources/js"))
             .nest_service("/images", ServeDir::new("resources/images"))
             .nest_service(
                 "/storage",
                 tower_http::services::ServeDir::new("storage/app/public"),
-            )
+            );
+
+        for extra in self.extra_routers.clone() {
+            axum_app = axum_app.merge(extra);
+        }
+
+        axum_app
             // .fallback(ErrorController::not_found)
             .with_state(state.clone())
             // ── Middleware dasar (urutan: dari luar ke dalam) ──────────────
@@ -404,7 +403,6 @@ impl Application {
                 let _ = s.load_directory("resources/plugins");
                 s
             },
-            live: Arc::new(crate::core::live::LiveRegistry::new()),
         };
 
 

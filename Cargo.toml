@@ -1,6 +1,6 @@
 [package]
 name = "lumina-framework"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 authors = ["Lumina Java <admin@lumina-java.com>"]
 description = "A beautiful, fast, and elegant web framework for Rust"
@@ -14,7 +14,7 @@ name = "lumina"
 path = "src/lib.rs"
 
 [workspace]
-members = ["lumina_macros", "lumina-cli", "indonesian-script"]
+members = ["lumina_macros", "lumina-cli", "indonesian-script", "lumina-live"]
 
 [dependencies]
 lumina_macros = { path = "lumina_macros", version = "0.1.4" }
@@ -90,3 +90,6 @@ lto = "thin"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+
+

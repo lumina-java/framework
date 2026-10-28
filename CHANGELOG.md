@@ -4,6 +4,20 @@ Semua perubahan penting pada proyek **Lumina Framework** didokumentasikan di dal
 
 Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) dan mengikuti standar [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-10-29
+
+### 🚀 Ditambahkan & Ditingkatkan (Added & Improved)
+- **Ekstraksi Crate Mandiri `lumina-live`**:
+  - Memisahkan runtime reaktif Lumina Live ke crate terpisah (`lumina-live`) dan repositori mandiri (`https://github.com/lumina-java/lumina-live`) agar inti framework tetap ramping dan modular.
+  - Menambahkan trait ekstensi `LiveApplicationExt` (`with_live()`, `with_live_component()`).
+- **Arsitektur Modular Extensibility pada Inti Framework**:
+  - `Application::with_raw_router(router)`: Mendukung penggabungan sub-router Axum dari ekstensi/plugin modular pihak ketiga.
+  - `blade::register_global_directive(name, handler)`: Registrasi direktif kustom Blade Engine secara dinamis tanpa mengotori inti engine.
+- **Validasi Integrasi End-to-End**:
+  - Uji coba aplikasi Todo List reaktif (`apptodolist`) membuktikan interaksi WebSocket & HTTP micro-RPC tanpa ketergantungan frontend eksternal.
+
+---
+
 ## [0.4.0] - 2026-10-28
 
 ### 🚀 Ditambahkan (Added)

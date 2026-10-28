@@ -3,9 +3,13 @@ name = "lumina_macros"
 version = "0.1.4"
 edition = "2021"
 authors = ["Slamet Sugandi <packercyber@gmail.com>"]
-description = "Procedural macros for Lumina Framework (LuminaModel derive and form validation)"
+description = "Procedural macros for Lumina Framework (LuminaModel ORM derive and declarative form validation)"
 license = "MIT"
-repository = "https://github.com/lumina-java/framework"
+repository = "https://github.com/lumina-java/lumina-macros"
+homepage = "https://github.com/lumina-java/lumina-macros"
+readme = "README.md"
+keywords = ["lumina", "proc-macro", "orm", "validation", "laravel"]
+categories = ["development-tools::procedural-macro-helpers"]
 
 [lib]
 proc-macro = true

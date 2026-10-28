@@ -35,8 +35,6 @@ pub mod prelude {
     pub use crate::http::middleware;
     // background queue jobs
     pub use crate::core::queue::{Job, Dispatchable, QueueManager, JobRegistry};
-    // Lumina Live reactive components
-    pub use crate::core::live::{LiveComponent, LiveRegistry, SnapshotManager};
 }
 
 pub use lumina_macros::{lumina_form, LuminaModel};

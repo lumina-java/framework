@@ -164,10 +164,11 @@
         }
     }
 
-    // Core Lumina Live Client
+    // Core Lumina Live Client (Dual Transport: WebSocket Streaming + HTTP Micro-RPC)
     class LuminaLive {
         constructor() {
             this.endpoint = '/_lumina/live/call';
+            this.ws = null;
             this.pendingCalls = new Map();
         }
 
@@ -180,11 +181,65 @@
                 }
             });
 
+            this.initWebSocket();
             this.setupEventListeners();
             this.setupPolling();
             this.setupOffline();
             this.setupInitHooks();
             this.setupNavigation();
+        }
+
+        initWebSocket() {
+            if (typeof window === 'undefined' || !window.WebSocket) return;
+            try {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/_lumina/live/ws`;
+                const socket = new WebSocket(wsUrl);
+
+                socket.onopen = () => {
+                    this.ws = socket;
+                };
+
+                socket.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.id && data.html) {
+                            this.applyUpdate(data);
+                        }
+                    } catch (e) {
+                        console.error('[Lumina Live WS Parse Error]', e);
+                    }
+                };
+
+                socket.onclose = () => {
+                    this.ws = null;
+                };
+
+                socket.onerror = () => {
+                    this.ws = null;
+                };
+            } catch (e) {
+                this.ws = null;
+            }
+        }
+
+        applyUpdate(data) {
+            const componentEl = document.querySelector(`[data-kilat-id="${data.id}"], [data-live-id="${data.id}"], [data-wire-id="${data.id}"]`);
+            if (!componentEl) return;
+
+            const temp = document.createElement('div');
+            temp.innerHTML = data.html.trim();
+            const newRoot = temp.firstElementChild || temp;
+
+            morph(componentEl, newRoot);
+
+            if (data.snapshot) {
+                componentEl.setAttribute('data-kilat-snapshot', data.snapshot);
+                if (componentEl.hasAttribute('data-live-snapshot')) componentEl.setAttribute('data-live-snapshot', data.snapshot);
+                if (componentEl.hasAttribute('data-wire-snapshot')) componentEl.setAttribute('data-wire-snapshot', data.snapshot);
+            }
+
+            this.setLoading(componentEl, false);
         }
 
         async callAction(componentEl, action, params = []) {
@@ -200,11 +255,24 @@
             // Set loading states
             this.setLoading(componentEl, true, action);
 
+            const payload = { id, name, snapshot, action, params };
+
+            // 1. Jalur Utama: WebSocket Streaming (< 1ms Latency)
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                try {
+                    this.ws.send(JSON.stringify(payload));
+                    return;
+                } catch (e) {
+                    console.warn('[Lumina Live WS fallback to HTTP]', e);
+                }
+            }
+
+            // 2. Jalur Cadangan: HTTP Micro-RPC (Stateless fallback)
             try {
                 const res = await fetch(this.endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id, name, snapshot, action, params })
+                    body: JSON.stringify(payload)
                 });
 
                 if (!res.ok) {
@@ -215,18 +283,7 @@
 
                 const data = await res.json();
                 if (data.html) {
-                    const temp = document.createElement('div');
-                    temp.innerHTML = data.html.trim();
-                    const newRoot = temp.firstElementChild || temp;
-
-                    morph(componentEl, newRoot);
-
-                    // Update snapshot attribute
-                    if (data.snapshot) {
-                        componentEl.setAttribute('data-kilat-snapshot', data.snapshot);
-                        if (componentEl.hasAttribute('data-live-snapshot')) componentEl.setAttribute('data-live-snapshot', data.snapshot);
-                        if (componentEl.hasAttribute('data-wire-snapshot')) componentEl.setAttribute('data-wire-snapshot', data.snapshot);
-                    }
+                    this.applyUpdate(data);
                 }
             } catch (err) {
                 console.error('[Lumina Live Network Error]', err);

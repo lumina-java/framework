@@ -368,6 +368,22 @@ impl Default for BladeEngine {
     }
 }
 
+
+pub type CustomDirectiveHandler = std::sync::Arc<dyn Fn(&str, &BladeEngine, &BladeContext) -> String + Send + Sync>;
+
+static GLOBAL_DIRECTIVES: std::sync::OnceLock<std::sync::RwLock<std::collections::HashMap<String, CustomDirectiveHandler>>> = std::sync::OnceLock::new();
+
+/// Daftarkan custom directive ke Blade engine secara global.
+/// Contoh: `@directiveName` atau `@directiveName(argumen)`
+pub fn register_global_directive<F>(name: &str, handler: F)
+where
+    F: Fn(&str, &BladeEngine, &BladeContext) -> String + Send + Sync + 'static,
+{
+    let lock = GLOBAL_DIRECTIVES.get_or_init(|| std::sync::RwLock::new(std::collections::HashMap::new()));
+    let mut map = lock.write().unwrap();
+    map.insert(name.to_string(), std::sync::Arc::new(handler));
+}
+
 impl BladeEngine {
     /// Membuat BladeEngine kosong (tanpa membaca views path, cocok untuk test/memory engine)
     pub fn empty() -> Self {
@@ -605,39 +621,27 @@ impl BladeEngine {
             }
         }).to_string();
 
-        // 13. Lumina Live Scripts: @kilatScripts, @luminaLive, @livewireScripts
-        s = s.replace("@kilatScripts", r#"<script src="/_lumina/live/live.js" defer></script>"#);
-        s = s.replace("@luminaLive", r#"<script src="/_lumina/live/live.js" defer></script>"#);
-        s = s.replace("@livewireScripts", r#"<script src="/_lumina/live/live.js" defer></script>"#);
-
-        // 14. Lumina Live Component Rendering: @kilat('name'), @live('name'), @livewire('name')
-        let re_live = Regex::new(r#"@(?:kilat|live|livewire)\s*\(\s*['"]([^'"]+)['"]\s*(?:,\s*(\[.*?\]|\{.*?\}|.*?))?\s*\)"#).unwrap();
-        s = re_live.replace_all(&s, |caps: &regex::Captures| {
-            let name = &caps[1];
-            let registry = crate::core::live::registry::LiveRegistry::global();
-            if let Some(handler) = registry.get(name) {
-                let initial_data = if let Some(args_match) = caps.get(2) {
-                    serde_json::from_str(args_match.as_str()).unwrap_or(serde_json::json!({}))
-                } else {
-                    serde_json::json!({})
-                };
-
-                match handler.render_initial(initial_data, self) {
-                    Ok((state_val, html)) => {
-                        let id = format!("c-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]);
-                        let snapshot = crate::core::live::snapshot::LiveSnapshot::new(&id, name, state_val);
-                        let sealed = crate::core::live::snapshot::SnapshotManager::seal(&snapshot).unwrap_or_default();
-                        format!(
-                            r#"<div data-kilat-id="{}" data-kilat-name="{}" data-kilat-snapshot="{}" data-live-id="{}" data-live-name="{}" data-live-snapshot="{}">{}</div>"#,
-                            id, name, sealed, id, name, sealed, html
-                        )
-                    }
-                    Err(e) => format!("<!-- Lumina Live Error: {} -->", e),
+        // 13. Ekstensi Custom Directives (didukung oleh lumina-live atau plugin pihak ketiga)
+        if let Some(lock) = GLOBAL_DIRECTIVES.get() {
+            let directives = lock.read().unwrap();
+            for (name, handler) in directives.iter() {
+                // a. Directives dengan parameter: @name(...)
+                let pattern_args = format!(r#"@{}\s*\((.*?)\)"#, regex::escape(name));
+                if let Ok(re) = Regex::new(&pattern_args) {
+                    s = re.replace_all(&s, |caps: &regex::Captures| {
+                        handler(&caps[1], self, context)
+                    }).to_string();
                 }
-            } else {
-                format!("<!-- Lumina Live Component '{}' not registered -->", name)
+
+                // b. Directives tanpa parameter: @name
+                let pattern_no_args = format!(r#"@{}\b"#, regex::escape(name));
+                if let Ok(re) = Regex::new(&pattern_no_args) {
+                    s = re.replace_all(&s, |_caps: &regex::Captures| {
+                        handler("", self, context)
+                    }).to_string();
+                }
             }
-        }).to_string();
+        }
 
         // 15. Interpolasi Variabel & Filter: {!! raw !!} dan {{ escaped }}
 

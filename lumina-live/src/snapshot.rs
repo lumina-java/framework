@@ -3,8 +3,11 @@ use sha2::Sha256;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use lumina::core::error::AppError;
+use std::sync::OnceLock;
 
 type HmacSha256 = Hmac<Sha256>;
+
+static SECRET_KEY: OnceLock<Vec<u8>> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LiveSnapshot {
@@ -26,10 +29,12 @@ impl LiveSnapshot {
 pub struct SnapshotManager;
 
 impl SnapshotManager {
-    fn get_secret_key() -> Vec<u8> {
-        std::env::var("APP_KEY")
-            .unwrap_or_else(|_| "lumina-live-insecure-default-key-change-in-production".to_string())
-            .into_bytes()
+    fn get_secret_key() -> &'static [u8] {
+        SECRET_KEY.get_or_init(|| {
+            std::env::var("APP_KEY")
+                .unwrap_or_else(|_| "lumina-live-insecure-default-key-change-in-production".to_string())
+                .into_bytes()
+        })
     }
 
     pub fn seal(snapshot: &LiveSnapshot) -> Result<String, AppError> {
@@ -37,7 +42,7 @@ impl SnapshotManager {
             .map_err(|e| AppError::Generic(format!("Failed to serialize snapshot: {}", e)))?;
         let encoded_payload = hex::encode(json_str.as_bytes());
 
-        let mut mac = HmacSha256::new_from_slice(&Self::get_secret_key())
+        let mut mac = HmacSha256::new_from_slice(Self::get_secret_key())
             .map_err(|e| AppError::Generic(format!("HMAC init failed: {}", e)))?;
         mac.update(encoded_payload.as_bytes());
         let signature = hex::encode(mac.finalize().into_bytes());
@@ -53,7 +58,7 @@ impl SnapshotManager {
 
         let (payload_hex, signature_hex) = (parts[0], parts[1]);
 
-        let mut mac = HmacSha256::new_from_slice(&Self::get_secret_key())
+        let mut mac = HmacSha256::new_from_slice(Self::get_secret_key())
             .map_err(|e| AppError::Generic(format!("HMAC init failed: {}", e)))?;
         mac.update(payload_hex.as_bytes());
         let expected_signature = hex::encode(mac.finalize().into_bytes());
@@ -62,10 +67,11 @@ impl SnapshotManager {
             return Err(AppError::BadRequest("Signature snapshot Livewire tidak sah! (Tampering terdeteksi)".to_string()));
         }
 
-        let raw_bytes = hex::decode(payload_hex)
-            .map_err(|_| AppError::BadRequest("Payload snapshot tidak bisa didecode (Hex invalid)".to_string()))?;
-        let snapshot: LiveSnapshot = serde_json::from_slice(&raw_bytes)
-            .map_err(|e| AppError::BadRequest(format!("Format snapshot korup: {}", e)))?;
+        let json_bytes = hex::decode(payload_hex)
+            .map_err(|e| AppError::BadRequest(format!("Format payload snapshot rusak: {}", e)))?;
+
+        let snapshot: LiveSnapshot = serde_json::from_slice(&json_bytes)
+            .map_err(|e| AppError::BadRequest(format!("Deserialisasi snapshot gagal: {}", e)))?;
 
         Ok(snapshot)
     }

@@ -26,6 +26,9 @@ pub enum AppError {
     #[error("Akses tidak diizinkan")]
     Unauthorized,
 
+    #[error("Akses ditolak (Forbidden): {0}")]
+    Forbidden(String),
+
     #[error("Kesalahan internal server")]
     InternalServerError,
 }
@@ -50,6 +53,11 @@ impl IntoResponse for AppError {
                 StatusCode::UNAUTHORIZED,
                 "401",
                 "Anda harus login terlebih dahulu".to_string(),
+            ),
+            AppError::Forbidden(msg) => (
+                StatusCode::FORBIDDEN,
+                "403",
+                msg,
             ),
             AppError::InternalServerError => (
                 StatusCode::INTERNAL_SERVER_ERROR,

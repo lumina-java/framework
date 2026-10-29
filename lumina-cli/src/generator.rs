@@ -1533,3 +1533,65 @@ r#"<div class="p-6 bg-white rounded-2xl shadow-xl border border-slate-100 max-w-
     print_hint(&format!("Embed in any Blade template: @kilat('{}') or @live('{}')\n", snake, snake));
 }
 
+
+/// Generate complete Lumina Aurora starter kit
+pub fn generate_aurora() {
+    if !guard_project() {
+        return;
+    }
+    println!(
+        "{}",
+        "⚡ Installing Lumina Aurora Starter Kit..."
+            .bright_purple()
+            .bold()
+    );
+
+    let view_dirs = [
+        "resources/views/aurora/layouts",
+        "resources/views/aurora/auth",
+        "resources/views/aurora/dashboard",
+        "resources/views/aurora/profile",
+        "src/app/controllers/aurora",
+    ];
+
+    for dir in view_dirs {
+        let _ = fs::create_dir_all(dir);
+    }
+
+    let guest_layout = include_str!("../../resources/views/aurora/layouts/guest.blade.rs");
+    let app_layout = include_str!("../../resources/views/aurora/layouts/app.blade.rs");
+    let login_view = include_str!("../../resources/views/aurora/auth/login.blade.rs");
+    let register_view = include_str!("../../resources/views/aurora/auth/register.blade.rs");
+    let dashboard_view = include_str!("../../resources/views/aurora/dashboard/index.blade.rs");
+    let profile_view = include_str!("../../resources/views/aurora/profile/edit.blade.rs");
+
+    let auth_ctrl = include_str!("../../src/app/controllers/aurora/auth_controller.rs");
+    let dash_ctrl = include_str!("../../src/app/controllers/aurora/dashboard_controller.rs");
+    let prof_ctrl = include_str!("../../src/app/controllers/aurora/profile_controller.rs");
+    let mod_ctrl = include_str!("../../src/app/controllers/aurora/mod.rs");
+
+    let files = [
+        ("resources/views/aurora/layouts/guest.blade.rs", guest_layout),
+        ("resources/views/aurora/layouts/app.blade.rs", app_layout),
+        ("resources/views/aurora/auth/login.blade.rs", login_view),
+        ("resources/views/aurora/auth/register.blade.rs", register_view),
+        ("resources/views/aurora/dashboard/index.blade.rs", dashboard_view),
+        ("resources/views/aurora/profile/edit.blade.rs", profile_view),
+        ("src/app/controllers/aurora/auth_controller.rs", auth_ctrl),
+        ("src/app/controllers/aurora/dashboard_controller.rs", dash_ctrl),
+        ("src/app/controllers/aurora/profile_controller.rs", prof_ctrl),
+        ("src/app/controllers/aurora/mod.rs", mod_ctrl),
+    ];
+
+    for (path, content) in files {
+        if let Err(e) = fs::write(path, content) {
+            println!("  ❌ Failed to write {}: {}", path, e);
+        } else {
+            print_success(&format!("Generated {}", path));
+        }
+    }
+
+    println!("\n{}", "🎉 Lumina Aurora Starter Kit installed successfully!".bright_green().bold());
+    println!("{}", "Mount all Aurora routes in your router:".bright_cyan());
+    println!("  {}", "router.merge(lumina::app::controllers::aurora::routes())".yellow());
+}

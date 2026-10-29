@@ -1,4 +1,3 @@
-// use crate::app::models::user::User;
 use async_trait::async_trait;
 use axum::{extract::FromRequestParts, http::request::Parts};
 use serde::{Deserialize, Serialize};
@@ -7,8 +6,10 @@ use tower_sessions::Session;
 pub mod hash;
 pub mod socialite;
 pub mod blacklist;
+pub mod rbac;
 
 pub use blacklist::TokenBlacklist;
+pub use rbac::{HasRolesAndPermissions, Role, Permission};
 
 /// AuthUser — Representasi pengguna yang terautentikasi.
 /// Berfungsi sebagai Model data JWT sekaligus Custom Extractor (Dependency Injection).
@@ -45,12 +46,14 @@ impl AuthUser {
         }
     }
 
+    /// Cek izin secara langsung.
     pub fn can(&self, permission: &str) -> bool {
-        self.permissions.iter().any(|p| p == permission)
+        <Self as HasRolesAndPermissions>::can(self, permission)
     }
 
+    /// Cek peran secara langsung.
     pub fn has_role(&self, role: &str) -> bool {
-        self.role == role || self.role == "admin"
+        <Self as HasRolesAndPermissions>::has_role(self, role)
     }
 }
 
@@ -71,6 +74,7 @@ where
             .ok_or(crate::core::error::AppError::Unauthorized)
     }
 }
+
 /// Auth Facade — Memberikan API yang bersih untuk operasi autentikasi.
 pub struct Auth;
 

@@ -11,6 +11,7 @@ use axum::{
 use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use lumina::prelude::AppState;
 use lumina::core::error::AppError;
 use crate::registry::LiveRegistry;
@@ -26,6 +27,8 @@ pub struct LiveCallRequest {
     pub action: String,
     #[serde(default)]
     pub params: Vec<Value>,
+    #[serde(default)]
+    pub updates: HashMap<String, Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -116,19 +119,31 @@ pub async fn execute_live_call(
             AppError::NotFound(format!("Live Component '{}' belum terdaftar", req.name))
         })?;
 
-    let (new_state, html) = if req.action == "$set" && req.params.len() >= 2 {
-        let mut state_data = snapshot.data;
-        if let Some(prop_name) = req.params[0].as_str() {
-            if let Some(obj) = state_data.as_object_mut() {
-                obj.insert(prop_name.to_string(), req.params[1].clone());
+    let mut state_data = snapshot.data;
+
+    // Terapkan update deferred model yang dikirim bersama aksi (Livewire v3 standard)
+    if !req.updates.is_empty() {
+        if let Some(obj) = state_data.as_object_mut() {
+            for (k, v) in req.updates {
+                obj.insert(k, v);
+            }
+        }
+    }
+
+    let (new_state, html) = if req.action == "$set" {
+        if req.params.len() >= 2 {
+            if let Some(prop_name) = req.params[0].as_str() {
+                if let Some(obj) = state_data.as_object_mut() {
+                    obj.insert(prop_name.to_string(), req.params[1].clone());
+                }
             }
         }
         handler.render_initial(state_data, state.view.blade_engine())?
     } else if req.action == "$refresh" {
-        handler.render_initial(snapshot.data, state.view.blade_engine())?
+        handler.render_initial(state_data, state.view.blade_engine())?
     } else {
         handler
-            .call(snapshot.data, &req.action, req.params, state.view.blade_engine())
+            .call(state_data, &req.action, req.params, state.view.blade_engine())
             .await?
     };
 

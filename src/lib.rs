@@ -40,4 +40,3 @@ pub mod prelude {
 pub use lumina_macros::{lumina_form, LuminaModel};
 pub use validator;
 pub use tower_sessions;
-

@@ -202,6 +202,67 @@ impl Request {
         self.user.is_none()
     }
 
+    /// Cek apakah user yang sedang login memiliki izin (Permission).
+    pub fn can(&self, permission: &str) -> bool {
+        self.user.as_ref().map(|u| u.can(permission)).unwrap_or(false)
+    }
+
+    /// Cek apakah user tidak memiliki izin (Permission).
+    pub fn cannot(&self, permission: &str) -> bool {
+        !self.can(permission)
+    }
+
+    /// Cek apakah user memiliki peran (Role).
+    pub fn has_role(&self, role: &str) -> bool {
+        self.user.as_ref().map(|u| u.has_role(role)).unwrap_or(false)
+    }
+
+    /// Otorisasi izin secara deklaratif di Controller.
+    /// Mengembalikan Ok(()) jika diizinkan, atau Err(AppError::Forbidden) jika ditolak.
+    pub fn authorize(&self, permission: &str) -> Result<(), AppError> {
+        match &self.user {
+            Some(u) if u.can(permission) => Ok(()),
+            Some(_) => Err(AppError::Forbidden(format!("Anda tidak memiliki izin '{}'", permission))),
+            None => Err(AppError::Unauthorized),
+        }
+    }
+
+    /// Otorisasi peran (Role) secara deklaratif di Controller.
+    pub fn authorize_role(&self, role: &str) -> Result<(), AppError> {
+        match &self.user {
+            Some(u) if u.has_role(role) => Ok(()),
+            Some(_) => Err(AppError::Forbidden(format!("Role '{}' diperlukan untuk aksi ini", role))),
+            None => Err(AppError::Unauthorized),
+        }
+    }
+
+    /// Catat log audit secara asinkron (Enterprise Audit Trail).
+    pub fn audit_log(
+        &self,
+        action: &str,
+        resource: &str,
+        resource_id: Option<String>,
+        details: Option<serde_json::Value>,
+        status: &str,
+    ) {
+        let user_id = self.user.as_ref().map(|u| u.sub.clone());
+        let ip = self.header("x-forwarded-for")
+            .or_else(|| self.header("x-real-ip"))
+            .unwrap_or("127.0.0.1");
+        let ua = self.header("user-agent").map(|s| s.to_string());
+
+        crate::core::security::AuditTrail::record(
+            user_id,
+            ip,
+            ua,
+            action,
+            resource,
+            resource_id,
+            details,
+            status,
+        );
+    }
+
     /// Redirect jika user sudah login (misal: di halaman login/register).
     pub async fn redirect_if_authenticated(&self, path: &str) -> Option<axum::response::Response> {
         if self.is_authenticated() {

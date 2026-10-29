@@ -259,6 +259,57 @@ where
         self.route_layer(layer)
     }
 
+    /// Lindungi semua route pada router ini dengan pengecekan izin (Permission).
+    /// Mengembalikan 401 Unauthorized jika belum login, atau 403 Forbidden jika tidak punya izin.
+    pub fn can(self, permission: &'static str) -> Self {
+        self.route_layer(axum::middleware::from_fn(
+            move |req: axum::extract::Request, next: axum::middleware::Next| async move {
+                let user = req.extensions().get::<crate::core::auth::AuthUser>();
+                match user {
+                    Some(u) if u.can(permission) => next.run(req).await,
+                    Some(_) => crate::http::middleware::forbidden_json(&format!(
+                        "Akses ditolak: Izin '{}' diperlukan.",
+                        permission
+                    )),
+                    None => crate::http::middleware::unauthorized_json("Silakan login terlebih dahulu."),
+                }
+            },
+        ))
+    }
+
+    /// Lindungi semua route pada router ini dengan pengecekan peran (Role).
+    /// Mengembalikan 401 Unauthorized jika belum login, atau 403 Forbidden jika role tidak sesuai.
+    pub fn has_role(self, role: &'static str) -> Self {
+        self.route_layer(axum::middleware::from_fn(
+            move |req: axum::extract::Request, next: axum::middleware::Next| async move {
+                let user = req.extensions().get::<crate::core::auth::AuthUser>();
+                match user {
+                    Some(u) if u.has_role(role) => next.run(req).await,
+                    Some(_) => crate::http::middleware::forbidden_json(&format!(
+                        "Akses ditolak: Role '{}' diperlukan.",
+                        role
+                    )),
+                    None => crate::http::middleware::unauthorized_json("Silakan login terlebih dahulu."),
+                }
+            },
+        ))
+    }
+
+    /// Lindungi route dengan Zero-Panic Error Boundary.
+    /// Menjamin bahwa panic di dalam handler tidak akan pernah meruntuhkan server.
+    pub fn panic_boundary(self) -> Self {
+        self.layer(axum::middleware::from_fn(
+            crate::core::middleware::zero_panic_boundary,
+        ))
+    }
+
+    /// Tambahkan security headers standar industri (OWASP) ke semua route pada router ini.
+    pub fn security_headers(self) -> Self {
+        self.layer(axum::middleware::from_fn(
+            crate::http::middleware::security_headers,
+        ))
+    }
+
     /// Konsumsi Router ini menjadi `axum::Router` beserta seluruh layer middleware-nya.
     pub fn into_axum(self) -> ax_router<S> {
         let mut inner = self.inner;

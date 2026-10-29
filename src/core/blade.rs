@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 
 mod html_escape {
@@ -76,6 +76,40 @@ impl BladeContext {
     }
 
     /// Cek apakah ada pesan error validasi untuk kolom tertentu.
+    /// Cek apakah user memiliki izin tertentu (RBAC support di Blade view)
+    pub fn check_user_can(&self, permission: &str) -> bool {
+        if let Some(user_val) = self.get("user") {
+            if let Some(role) = user_val.get("role").and_then(|r| r.as_str()) {
+                if role == "superadmin" || role == "admin" {
+                    return true;
+                }
+            }
+            if let Some(perms) = user_val.get("permissions").and_then(|p| p.as_array()) {
+                if perms.iter().any(|p| p.as_str() == Some(permission) || p.as_str() == Some("*")) {
+                    return true;
+                }
+            }
+        }
+        if let Some(perms_val) = self.get("permissions") {
+            if let Some(perms) = perms_val.as_array() {
+                if perms.iter().any(|p| p.as_str() == Some(permission) || p.as_str() == Some("*")) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Cek apakah user memiliki peran tertentu (RBAC support di Blade view)
+    pub fn check_user_has_role(&self, role: &str) -> bool {
+        if let Some(user_val) = self.get("user") {
+            if let Some(r) = user_val.get("role").and_then(|r| r.as_str()) {
+                return r == role || r == "superadmin";
+            }
+        }
+        false
+    }
+
     pub fn has_error(&self, field: &str) -> bool {
         self.get_error(field).is_some()
     }
@@ -263,6 +297,21 @@ impl BladeContext {
             let uid = self.get("user_id").or_else(|| self.get("user")).or_else(|| self.get("auth"));
             return !Self::is_truthy(uid);
         }
+        // can('permission')
+        if expr.starts_with("can(") && expr.ends_with(')') {
+            let perm = expr[4..expr.len() - 1].trim().trim_matches('\'').trim_matches('"');
+            return self.check_user_can(perm);
+        }
+        // cannot('permission')
+        if expr.starts_with("cannot(") && expr.ends_with(')') {
+            let perm = expr[7..expr.len() - 1].trim().trim_matches('\'').trim_matches('"');
+            return !self.check_user_can(perm);
+        }
+        // role('role')
+        if expr.starts_with("role(") && expr.ends_with(')') {
+            let role_name = expr[5..expr.len() - 1].trim().trim_matches('\'').trim_matches('"');
+            return self.check_user_has_role(role_name);
+        }
         // isset($var)
         if expr.starts_with("isset(") && expr.ends_with(')') {
             let var = &expr[6..expr.len() - 1].trim();
@@ -369,9 +418,64 @@ impl Default for BladeEngine {
 }
 
 
+
 pub type CustomDirectiveHandler = std::sync::Arc<dyn Fn(&str, &BladeEngine, &BladeContext) -> String + Send + Sync>;
 
-static GLOBAL_DIRECTIVES: std::sync::OnceLock<std::sync::RwLock<std::collections::HashMap<String, CustomDirectiveHandler>>> = std::sync::OnceLock::new();
+#[derive(Clone)]
+pub struct RegisteredDirective {
+    pub name: String,
+    pub re_args: Regex,
+    pub re_no_args: Regex,
+    pub handler: CustomDirectiveHandler,
+}
+
+static RE_COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)\{\{--.*?--\}\}").unwrap());
+static RE_METHOD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@method\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+static RE_WASM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@wasm\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*(?:,\s*(.*?))?\s*\)"#).unwrap());
+static RE_EVAL_IS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@eval_is\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*(?:,\s*(.*?))?\s*\)"#).unwrap());
+static RE_RAW: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{!!\s*(.*?)\s*!!\}").unwrap());
+static RE_VAR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\{\s*(.*?)\s*\}\}").unwrap());
+static RE_UNLESS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@unless\s*\((.*?)\)").unwrap());
+static RE_ISSET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@isset\s*\((.*?)\)").unwrap());
+static RE_EMPTY: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@empty\s*\((.*?)\)").unwrap());
+static RE_AUTH: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@auth\b").unwrap());
+static RE_GUEST: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@guest\b").unwrap());
+static RE_CAN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@can\s*\((.*?)\)").unwrap());
+static RE_CANNOT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@cannot\s*\((.*?)\)").unwrap());
+static RE_ROLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@role\s*\((.*?)\)").unwrap());
+static RE_PROD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@production\b").unwrap());
+static RE_ENV: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@env\s*\((.*?)\)").unwrap());
+static RE_EXTENDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@extends\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+static RE_SHORT_SECTION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@section\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+static RE_SECTION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)@section\s*\(\s*['"]([^'"]+)['"]\s*\)(.*?)@(?:endsection|stop|show)"#).unwrap());
+static RE_YIELD_DEFAULT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@yield\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+static RE_YIELD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@yield\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+static RE_HAS_SEC: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@hasSection\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+static RE_INC_WHEN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@includeWhen\s*\((.*?)\s*,\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+static RE_INC_UNLESS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@includeUnless\s*\((.*?)\s*,\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+static RE_INC_IF: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@includeIf\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+static RE_INC: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"@include\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+static RE_FOREACH_OPEN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@foreach\s*\((.*?)\)").unwrap());
+static RE_FORELSE_OPEN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@forelse\s*\((.*?)\)").unwrap());
+static RE_FOR_OPEN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@for\s*\((.*?)\)").unwrap());
+static RE_INIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\$?(\w+)\s*=\s*(\d+)").unwrap());
+static RE_COND: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<\s*(\d+)").unwrap());
+static RE_SWITCH: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)@switch\s*\((.*?)\)(.*?)@endswitch"#).unwrap());
+static RE_CASES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)@case\s*\(\s*['"]?([^'"]+)['"]?\s*\)(.*?)(?:@break|@case|@default|$)"#).unwrap());
+static RE_DEFAULT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)@default(.*?)(?:@break|$)"#).unwrap());
+static RE_ERROR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)@error\s*\(\s*['"]([^'"]+)['"]\s*\)(.*?)@enderror"#).unwrap());
+static RE_CHECKED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@checked\s*\((.*?)\)").unwrap());
+static RE_SELECTED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@selected\s*\((.*?)\)").unwrap());
+static RE_DISABLED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@disabled\s*\((.*?)\)").unwrap());
+static RE_READONLY: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@readonly\s*\((.*?)\)").unwrap());
+static RE_REQUIRED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@required\s*\((.*?)\)").unwrap());
+static RE_CLASS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@class\s*\(\s*\[(.*?)\]\s*\)").unwrap());
+static RE_STYLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@style\s*\(\s*\[(.*?)\]\s*\)").unwrap());
+static RE_JSON: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@json\s*\((.*?)\)").unwrap());
+static RE_DUMP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@(?:dump|dd)\s*\((.*?)\)").unwrap());
+static RE_IS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?:@is|@script)\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+
+static GLOBAL_DIRECTIVES: std::sync::OnceLock<std::sync::RwLock<std::collections::HashMap<String, RegisteredDirective>>> = std::sync::OnceLock::new();
 
 /// Daftarkan custom directive ke Blade engine secara global.
 /// Contoh: `@directiveName` atau `@directiveName(argumen)`
@@ -380,8 +484,21 @@ where
     F: Fn(&str, &BladeEngine, &BladeContext) -> String + Send + Sync + 'static,
 {
     let lock = GLOBAL_DIRECTIVES.get_or_init(|| std::sync::RwLock::new(std::collections::HashMap::new()));
+    let pattern_args = format!(r#"@{}\s*\((.*?)\)"#, regex::escape(name));
+    let pattern_no_args = format!(r#"@{}\b"#, regex::escape(name));
+    let re_args = Regex::new(&pattern_args).expect("Valid regex for custom directive with args");
+    let re_no_args = Regex::new(&pattern_no_args).expect("Valid regex for custom directive without args");
+
     let mut map = lock.write().unwrap();
-    map.insert(name.to_string(), std::sync::Arc::new(handler));
+    map.insert(
+        name.to_string(),
+        RegisteredDirective {
+            name: name.to_string(),
+            re_args,
+            re_no_args,
+            handler: std::sync::Arc::new(handler),
+        },
+    );
 }
 
 impl BladeEngine {
@@ -523,8 +640,7 @@ impl BladeEngine {
         let mut s = content.to_string();
 
         // 0. {{-- Comment --}}
-        let re_comment = Regex::new(r"(?s)\{\{--.*?--\}\}").unwrap();
-        s = re_comment.replace_all(&s, "").to_string();
+        s = RE_COMMENT.replace_all(&s, "").to_string();
 
         // 1. Template Inheritance: @extends, @section, @yield, @hasSection
         s = self.process_inheritance(&s, context, depth);
@@ -546,8 +662,7 @@ impl BladeEngine {
 
         // 7. Form & Security Helpers: @csrf, @method
         s = s.replace("@csrf", &format!("<input type=\"hidden\" name=\"csrf_token\" value=\"{}\">", context.get("csrf_token").and_then(|v| v.as_str()).unwrap_or("")));
-        let re_method = Regex::new(r#"@method\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-        s = re_method.replace_all(&s, "<input type=\"hidden\" name=\"_method\" value=\"$1\">").to_string();
+        s = RE_METHOD.replace_all(&s, "<input type=\"hidden\" name=\"_method\" value=\"$1\">").to_string();
 
         // 7b. Form Error Directives: @error('field') ... @enderror
         s = self.process_errors(&s, context, depth);
@@ -562,8 +677,7 @@ impl BladeEngine {
         s = self.process_indonesian_script(&s);
 
         // 11. Direktif WASM: @wasm('plugin_name', 'function_name', $arg)
-        let re_wasm = Regex::new(r#"@wasm\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*(?:,\s*(.*?))?\s*\)"#).unwrap();
-        s = re_wasm.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_WASM.replace_all(&s, |caps: &regex::Captures| {
             let plugin_name = &caps[1];
             let func_name = &caps[2];
             let arg = caps.get(3).map(|m| context.eval_val(m.as_str())).unwrap_or_default();
@@ -574,8 +688,7 @@ impl BladeEngine {
         }).to_string();
 
         // 12. Direktif Evaluasi Backend Indonesian Script: @eval_is('file.is', 'func', $arg1, $arg2, ...)
-        let re_eval_is = Regex::new(r#"@eval_is\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*(?:,\s*(.*?))?\s*\)"#).unwrap();
-        s = re_eval_is.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_EVAL_IS.replace_all(&s, |caps: &regex::Captures| {
             let script_path = &caps[1];
             let func_name = &caps[2];
             let mut args_vec = Vec::new();
@@ -621,37 +734,31 @@ impl BladeEngine {
             }
         }).to_string();
 
-        // 13. Ekstensi Custom Directives (didukung oleh lumina-live atau plugin pihak ketiga)
-        if let Some(lock) = GLOBAL_DIRECTIVES.get() {
-            let directives = lock.read().unwrap();
-            for (name, handler) in directives.iter() {
-                // a. Directives dengan parameter: @name(...)
-                let pattern_args = format!(r#"@{}\s*\((.*?)\)"#, regex::escape(name));
-                if let Ok(re) = Regex::new(&pattern_args) {
-                    s = re.replace_all(&s, |caps: &regex::Captures| {
-                        handler(&caps[1], self, context)
+        // 13. Ekstensi Custom Directives (didukung oleh lumina-live atau plugin pihak ketiga - zero regex compilation)
+        if s.contains('@') {
+            if let Some(lock) = GLOBAL_DIRECTIVES.get() {
+                let directives = lock.read().unwrap();
+                for dir in directives.values() {
+                    if !s.contains(&dir.name) {
+                        continue;
+                    }
+                    s = dir.re_args.replace_all(&s, |caps: &regex::Captures| {
+                        (dir.handler)(&caps[1], self, context)
                     }).to_string();
-                }
 
-                // b. Directives tanpa parameter: @name
-                let pattern_no_args = format!(r#"@{}\b"#, regex::escape(name));
-                if let Ok(re) = Regex::new(&pattern_no_args) {
-                    s = re.replace_all(&s, |_caps: &regex::Captures| {
-                        handler("", self, context)
+                    s = dir.re_no_args.replace_all(&s, |_caps: &regex::Captures| {
+                        (dir.handler)("", self, context)
                     }).to_string();
                 }
             }
         }
-
         // 15. Interpolasi Variabel & Filter: {!! raw !!} dan {{ escaped }}
 
-        let re_raw = Regex::new(r"\{!!\s*(.*?)\s*!!\}").unwrap();
-        s = re_raw.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_RAW.replace_all(&s, |caps: &regex::Captures| {
             self.eval_expr_with_filters(&caps[1], context)
         }).to_string();
 
-        let re_var = Regex::new(r"\{\{\s*(.*?)\s*\}\}").unwrap();
-        s = re_var.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_VAR.replace_all(&s, |caps: &regex::Captures| {
             html_escape::encode_safe(&self.eval_expr_with_filters(&caps[1], context))
         }).to_string();
 
@@ -813,38 +920,43 @@ impl BladeEngine {
         let mut s = input.to_string();
 
         // @unless(expr) -> @if(!(expr)) & @endunless -> @endif
-        let re_unless = Regex::new(r"@unless\s*\((.*?)\)").unwrap();
-        s = re_unless.replace_all(&s, "@if(!($1))").to_string();
+        s = RE_UNLESS.replace_all(&s, "@if(!($1))").to_string();
         s = s.replace("@endunless", "@endif");
 
         // @isset(var) -> @if(isset(var)) & @endisset -> @endif
-        let re_isset = Regex::new(r"@isset\s*\((.*?)\)").unwrap();
-        s = re_isset.replace_all(&s, "@if(isset($1))").to_string();
+        s = RE_ISSET.replace_all(&s, "@if(isset($1))").to_string();
         s = s.replace("@endisset", "@endif");
 
         // @empty(var) -> @if(empty(var)) & @endempty -> @endif
-        let re_empty = Regex::new(r"@empty\s*\((.*?)\)").unwrap();
-        s = re_empty.replace_all(&s, "@if(empty($1))").to_string();
+        s = RE_EMPTY.replace_all(&s, "@if(empty($1))").to_string();
         s = s.replace("@endempty", "@endif");
 
         // @auth -> @if(auth) & @endauth -> @endif
-        let re_auth = Regex::new(r"@auth\b").unwrap();
-        s = re_auth.replace_all(&s, "@if(auth)").to_string();
+        s = RE_AUTH.replace_all(&s, "@if(auth)").to_string();
         s = s.replace("@endauth", "@endif");
 
         // @guest -> @if(guest) & @endguest -> @endif
-        let re_guest = Regex::new(r"@guest\b").unwrap();
-        s = re_guest.replace_all(&s, "@if(guest)").to_string();
+        s = RE_GUEST.replace_all(&s, "@if(guest)").to_string();
         s = s.replace("@endguest", "@endif");
 
+        // @can('permission') -> @if(can('permission')) & @endcan -> @endif
+        s = RE_CAN.replace_all(&s, "@if(can($1))").to_string();
+        s = s.replace("@endcan", "@endif");
+
+        // @cannot('permission') -> @if(cannot($1)) & @endcannot -> @endif
+        s = RE_CANNOT.replace_all(&s, "@if(cannot($1))").to_string();
+        s = s.replace("@endcannot", "@endif");
+
+        // @role('role') -> @if(role($1)) & @endrole -> @endif
+        s = RE_ROLE.replace_all(&s, "@if(role($1))").to_string();
+        s = s.replace("@endrole", "@endif");
+
         // @production -> @if(production) & @endproduction -> @endif
-        let re_prod = Regex::new(r"@production\b").unwrap();
-        s = re_prod.replace_all(&s, "@if(production)").to_string();
+        s = RE_PROD.replace_all(&s, "@if(production)").to_string();
         s = s.replace("@endproduction", "@endif");
 
         // @env(...) -> @if(env(...)) & @endenv -> @endif
-        let re_env = Regex::new(r"@env\s*\((.*?)\)").unwrap();
-        s = re_env.replace_all(&s, "@if(env($1))").to_string();
+        s = RE_ENV.replace_all(&s, "@if(env($1))").to_string();
         s = s.replace("@endenv", "@endif");
 
         s
@@ -854,8 +966,8 @@ impl BladeEngine {
     fn process_inheritance(&self, content: &str, context: &BladeContext, depth: usize) -> String {
         let mut s = content.to_string();
 
-        let re_extends = Regex::new(r#"@extends\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-        if let Some(caps) = re_extends.captures(&s) {
+        
+        if let Some(caps) = RE_EXTENDS.captures(&s) {
             let layout_raw = caps[1].trim().replace('\\', "/");
             let layout_content = self.templates.get(&layout_raw)
                 .or_else(|| {
@@ -871,14 +983,14 @@ impl BladeEngine {
             let mut sections: HashMap<String, String> = HashMap::new();
 
             // Short inline syntax: @section('title', 'Page Title')
-            let re_short_section = Regex::new(r#"@section\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-            for sec_caps in re_short_section.captures_iter(&s) {
+            
+            for sec_caps in RE_SHORT_SECTION.captures_iter(&s) {
                 sections.insert(sec_caps[1].to_string(), sec_caps[2].to_string());
             }
 
             // Block syntax: @section('name') ... @endsection / @stop / @show
-            let re_section = Regex::new(r#"(?s)@section\s*\(\s*['"]([^'"]+)['"]\s*\)(.*?)@(?:endsection|stop|show)"#).unwrap();
-            for sec_caps in re_section.captures_iter(&s) {
+            
+            for sec_caps in RE_SECTION.captures_iter(&s) {
                 let sec_name = sec_caps[1].to_string();
                 let sec_content = sec_caps[2].to_string();
                 sections.insert(sec_name, sec_content);
@@ -889,23 +1001,20 @@ impl BladeEngine {
                 let mut layout_processed = parent_content.clone();
 
                 // 1. @yield('name', 'default fallback')
-                let re_yield_default = Regex::new(r#"@yield\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-                layout_processed = re_yield_default.replace_all(&layout_processed, |y_caps: &regex::Captures| {
+                layout_processed = RE_YIELD_DEFAULT.replace_all(&layout_processed, |y_caps: &regex::Captures| {
                     let y_name = &y_caps[1];
                     let y_default = &y_caps[2];
                     sections.get(y_name).cloned().unwrap_or_else(|| y_default.to_string())
                 }).to_string();
 
                 // 2. @yield('name')
-                let re_yield = Regex::new(r#"@yield\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-                layout_processed = re_yield.replace_all(&layout_processed, |y_caps: &regex::Captures| {
+                layout_processed = RE_YIELD.replace_all(&layout_processed, |y_caps: &regex::Captures| {
                     let y_name = &y_caps[1];
                     sections.get(y_name).cloned().unwrap_or_default()
                 }).to_string();
 
                 // 3. @hasSection('name')
-                let re_has_sec = Regex::new(r#"@hasSection\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-                layout_processed = re_has_sec.replace_all(&layout_processed, |h_caps: &regex::Captures| {
+                layout_processed = RE_HAS_SEC.replace_all(&layout_processed, |h_caps: &regex::Captures| {
                     if sections.contains_key(&h_caps[1]) {
                         "@if(true)".to_string()
                     } else {
@@ -925,8 +1034,7 @@ impl BladeEngine {
         let mut s = content.to_string();
 
         // @includeWhen(cond, 'path')
-        let re_inc_when = Regex::new(r#"@includeWhen\s*\((.*?),\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-        s = re_inc_when.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_INC_WHEN.replace_all(&s, |caps: &regex::Captures| {
             let cond = &caps[1];
             let path = &caps[2];
             if context.eval_truthy(cond) {
@@ -937,8 +1045,7 @@ impl BladeEngine {
         }).to_string();
 
         // @includeUnless(cond, 'path')
-        let re_inc_unless = Regex::new(r#"@includeUnless\s*\((.*?),\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-        s = re_inc_unless.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_INC_UNLESS.replace_all(&s, |caps: &regex::Captures| {
             let cond = &caps[1];
             let path = &caps[2];
             if !context.eval_truthy(cond) {
@@ -949,14 +1056,12 @@ impl BladeEngine {
         }).to_string();
 
         // @includeIf('path')
-        let re_inc_if = Regex::new(r#"@includeIf\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-        s = re_inc_if.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_INC_IF.replace_all(&s, |caps: &regex::Captures| {
             self.resolve_include(&caps[1], context, depth, true)
         }).to_string();
 
         // @include('path')
-        let re_inc = Regex::new(r#"@include\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-        s = re_inc.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_INC.replace_all(&s, |caps: &regex::Captures| {
             self.resolve_include(&caps[1], context, depth, false)
         }).to_string();
 
@@ -990,10 +1095,10 @@ impl BladeEngine {
         let mut s = content.to_string();
 
         // @foreach ($collection as $item) / @foreach ($collection as $key => $item)
-        let re_foreach_open = Regex::new(r"@foreach\s*\((.*?)\)").unwrap();
-        while let Some(m) = re_foreach_open.find(&s) {
+        
+        while let Some(m) = RE_FOREACH_OPEN.find(&s) {
             let start = m.start();
-            let header = re_foreach_open.captures(&s[start..]).unwrap()[1].to_string();
+            let header = RE_FOREACH_OPEN.captures(&s[start..]).unwrap()[1].to_string();
             let body_start = m.end();
 
             // Cari matching @endforeach
@@ -1028,10 +1133,10 @@ impl BladeEngine {
         }
 
         // @forelse ($collection as $item) ... @empty ... @endforelse
-        let re_forelse_open = Regex::new(r"@forelse\s*\((.*?)\)").unwrap();
-        while let Some(m) = re_forelse_open.find(&s) {
+        
+        while let Some(m) = RE_FORELSE_OPEN.find(&s) {
             let start = m.start();
-            let header = re_forelse_open.captures(&s[start..]).unwrap()[1].to_string();
+            let header = RE_FORELSE_OPEN.captures(&s[start..]).unwrap()[1].to_string();
             let body_start = m.end();
 
             let mut nesting = 1;
@@ -1074,10 +1179,10 @@ impl BladeEngine {
         }
 
         // @for ($i = 0; $i < N; $i++) atau @for ($i in 0..N)
-        let re_for_open = Regex::new(r"@for\s*\((.*?)\)").unwrap();
-        while let Some(m) = re_for_open.find(&s) {
+        
+        while let Some(m) = RE_FOR_OPEN.find(&s) {
             let start = m.start();
-            let header = re_for_open.captures(&s[start..]).unwrap()[1].to_string();
+            let header = RE_FOR_OPEN.captures(&s[start..]).unwrap()[1].to_string();
             let body_start = m.end();
 
             let mut nesting = 1;
@@ -1221,9 +1326,9 @@ impl BladeEngine {
         // Support standard C/PHP style: $i = 0; $i < 5; $i++
         let parts: Vec<&str> = header.split(';').collect();
         if parts.len() == 3 {
-            let re_init = Regex::new(r"\$?(\w+)\s*=\s*(\d+)").unwrap();
-            let re_cond = Regex::new(r"<\s*(\d+)").unwrap();
-            if let (Some(init_caps), Some(cond_caps)) = (re_init.captures(parts[0]), re_cond.captures(parts[1])) {
+            
+            
+            if let (Some(init_caps), Some(cond_caps)) = (RE_INIT.captures(parts[0]), RE_COND.captures(parts[1])) {
                 let var_name = &init_caps[1];
                 let start: i64 = init_caps[2].parse().unwrap_or(0);
                 let end: i64 = cond_caps[1].parse().unwrap_or(0);
@@ -1350,17 +1455,15 @@ impl BladeEngine {
     /// Penanganan @switch ... @case ... @default ... @endswitch
     fn process_switch(&self, content: &str, context: &BladeContext, depth: usize) -> String {
         let mut s = content.to_string();
-        let re_switch = Regex::new(r#"(?s)@switch\s*\((.*?)\)(.*?)@endswitch"#).unwrap();
-
-        s = re_switch.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_SWITCH.replace_all(&s, |caps: &regex::Captures| {
             let target_val = context.eval_val(&caps[1]);
             let body = &caps[2];
 
-            let re_cases = Regex::new(r#"(?s)@case\s*\(\s*['"]?([^'"]+)['"]?\s*\)(.*?)(?:@break|@case|@default|$)"#).unwrap();
+            
             let mut matched = false;
             let mut output = String::new();
 
-            for case_caps in re_cases.captures_iter(body) {
+            for case_caps in RE_CASES.captures_iter(body) {
                 let case_val = case_caps[1].trim();
                 let case_body = case_caps[2].trim();
                 if case_val == target_val {
@@ -1371,8 +1474,8 @@ impl BladeEngine {
             }
 
             if !matched {
-                let re_default = Regex::new(r#"(?s)@default(.*?)(?:@break|$)"#).unwrap();
-                if let Some(def_caps) = re_default.captures(body) {
+                
+                if let Some(def_caps) = RE_DEFAULT.captures(body) {
                     output = self.process_template(def_caps[1].trim(), context, depth + 1);
                 }
             }
@@ -1385,8 +1488,7 @@ impl BladeEngine {
 
     /// Penanganan direktif error validasi form: @error('field') ... @enderror
     fn process_errors(&self, content: &str, context: &BladeContext, depth: usize) -> String {
-        let re_error = Regex::new(r#"(?s)@error\s*\(\s*['"]([^'"]+)['"]\s*\)(.*?)@enderror"#).unwrap();
-        re_error.replace_all(content, |caps: &regex::Captures| {
+        RE_ERROR.replace_all(content, |caps: &regex::Captures| {
             let field = &caps[1];
             let inner = &caps[2];
 
@@ -1415,38 +1517,32 @@ impl BladeEngine {
         let mut s = content.to_string();
 
         // @checked(cond)
-        let re_checked = Regex::new(r"@checked\s*\((.*?)\)").unwrap();
-        s = re_checked.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_CHECKED.replace_all(&s, |caps: &regex::Captures| {
             if context.eval_truthy(&caps[1]) { "checked" } else { "" }
         }).to_string();
 
         // @selected(cond)
-        let re_selected = Regex::new(r"@selected\s*\((.*?)\)").unwrap();
-        s = re_selected.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_SELECTED.replace_all(&s, |caps: &regex::Captures| {
             if context.eval_truthy(&caps[1]) { "selected" } else { "" }
         }).to_string();
 
         // @disabled(cond)
-        let re_disabled = Regex::new(r"@disabled\s*\((.*?)\)").unwrap();
-        s = re_disabled.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_DISABLED.replace_all(&s, |caps: &regex::Captures| {
             if context.eval_truthy(&caps[1]) { "disabled" } else { "" }
         }).to_string();
 
         // @readonly(cond)
-        let re_readonly = Regex::new(r"@readonly\s*\((.*?)\)").unwrap();
-        s = re_readonly.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_READONLY.replace_all(&s, |caps: &regex::Captures| {
             if context.eval_truthy(&caps[1]) { "readonly" } else { "" }
         }).to_string();
 
         // @required(cond)
-        let re_required = Regex::new(r"@required\s*\((.*?)\)").unwrap();
-        s = re_required.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_REQUIRED.replace_all(&s, |caps: &regex::Captures| {
             if context.eval_truthy(&caps[1]) { "required" } else { "" }
         }).to_string();
 
         // @class(['p-4', 'font-bold' => $active, 'hidden' => !$show])
-        let re_class = Regex::new(r"@class\s*\(\s*\[(.*?)\]\s*\)").unwrap();
-        s = re_class.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_CLASS.replace_all(&s, |caps: &regex::Captures| {
             let inner = &caps[1];
             let mut active_classes: Vec<String> = Vec::new();
             for item in inner.split(',') {
@@ -1475,8 +1571,7 @@ impl BladeEngine {
         }).to_string();
 
         // @style(['background-color: red' => $hasError])
-        let re_style = Regex::new(r"@style\s*\(\s*\[(.*?)\]\s*\)").unwrap();
-        s = re_style.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_STYLE.replace_all(&s, |caps: &regex::Captures| {
             let inner = &caps[1];
             let mut active_styles: Vec<String> = Vec::new();
             for item in inner.split(',') {
@@ -1512,8 +1607,7 @@ impl BladeEngine {
         let mut s = content.to_string();
 
         // @json($variable)
-        let re_json = Regex::new(r"@json\s*\((.*?)\)").unwrap();
-        s = re_json.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_JSON.replace_all(&s, |caps: &regex::Captures| {
             let var = caps[1].trim();
             if let Some(val) = context.get(var) {
                 serde_json::to_string(val).unwrap_or_else(|_| "null".to_string())
@@ -1523,8 +1617,7 @@ impl BladeEngine {
         }).to_string();
 
         // @dump($variable) / @dd($variable)
-        let re_dump = Regex::new(r"@(?:dump|dd)\s*\((.*?)\)").unwrap();
-        s = re_dump.replace_all(&s, |caps: &regex::Captures| {
+        s = RE_DUMP.replace_all(&s, |caps: &regex::Captures| {
             let var = caps[1].trim();
             let json_str = if let Some(val) = context.get(var) {
                 serde_json::to_string_pretty(val).unwrap_or_default()
@@ -1542,8 +1635,7 @@ impl BladeEngine {
 
     /// Penanganan direktif Indonesian Script (@is, @script)
     fn process_indonesian_script(&self, content: &str) -> String {
-        let re_is = Regex::new(r#"(?:@is|@script)\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
-        re_is.replace_all(content, |caps: &regex::Captures| {
+        RE_IS.replace_all(content, |caps: &regex::Captures| {
             let script_name = caps[1].trim();
             let mut file_path = format!("resources/scripts/{}", script_name);
             if !file_path.ends_with(".is") {

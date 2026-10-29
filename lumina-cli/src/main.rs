@@ -100,6 +100,10 @@ enum Commands {
     #[command(name = "make:auth")]
     MakeAuth,
 
+    /// Install Lumina Aurora starter kit (Auth, Dashboard, Profile, Blade views & Tailwind)
+    #[command(name = "aurora:install")]
+    AuroraInstall,
+
     /// Generate a new Model Factory for testing and seeding
     #[command(name = "make:factory")]
     MakeFactory {
@@ -227,6 +231,9 @@ fn main() {
         }
         Commands::MakeAuth => {
             generator::generate_auth();
+        }
+        Commands::AuroraInstall => {
+            generator::generate_aurora();
         }
         Commands::MakeFactory { name } => {
             generator::generate_factory(&name);

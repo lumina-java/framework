@@ -136,8 +136,12 @@
         if (oldNode.tagName === 'INPUT' || oldNode.tagName === 'TEXTAREA') {
             if (oldNode.type === 'checkbox' || oldNode.type === 'radio') {
                 oldNode.checked = newNode.checked;
-            } else if (oldNode.value !== newNode.value && oldNode !== document.activeElement) {
-                oldNode.value = newNode.value;
+            } else if (oldNode.value !== newNode.value) {
+                if (oldNode !== document.activeElement) {
+                    oldNode.value = newNode.value;
+                } else if (newNode.value === '') {
+                    oldNode.value = '';
+                }
             }
         } else if (oldNode.tagName === 'SELECT') {
             if (oldNode.value !== newNode.value) {
@@ -242,7 +246,7 @@
             this.setLoading(componentEl, false);
         }
 
-        async callAction(componentEl, action, params = []) {
+        async callAction(componentEl, action, params = [], explicitUpdates = null) {
             const id = componentEl.getAttribute('data-kilat-id') || componentEl.getAttribute('data-live-id') || componentEl.getAttribute('data-wire-id');
             const name = componentEl.getAttribute('data-kilat-name') || componentEl.getAttribute('data-live-name') || componentEl.getAttribute('data-wire-name');
             const snapshot = componentEl.getAttribute('data-kilat-snapshot') || componentEl.getAttribute('data-live-snapshot') || componentEl.getAttribute('data-wire-snapshot');
@@ -252,10 +256,22 @@
                 return;
             }
 
+            // Collect all current model values from component inputs (deferred by default ala Livewire v3)
+            const updates = explicitUpdates || {};
+            if (!explicitUpdates) {
+                componentEl.querySelectorAll('[kilat\\:model], [live\\:model], [wire\\:model]').forEach(el => {
+                    const dir = getDirective(el, 'model');
+                    if (!dir) return;
+                    const prop = dir.value;
+                    const val = el.type === 'checkbox' ? el.checked : el.value;
+                    updates[prop] = val;
+                });
+            }
+
             // Set loading states
             this.setLoading(componentEl, true, action);
 
-            const payload = { id, name, snapshot, action, params };
+            const payload = { id, name, snapshot, action, params, updates };
 
             // 1. Jalur Utama: WebSocket Streaming (< 1ms Latency)
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -348,7 +364,7 @@
                 this.callAction(root, action, params);
             });
 
-            // Model / Two-Way Binding Handler
+            // Model / Two-Way Binding Handler (Deferred by default ala Livewire v3)
             const inputDebounces = new Map();
             const handleModel = (e) => {
                 const target = e.target;
@@ -361,8 +377,22 @@
                 const propName = dir.value;
                 let val = target.type === 'checkbox' ? target.checked : target.value;
 
+                const isLive = dir.name.includes('.live') || dir.name.includes('.langsung');
+                const isBlur = dir.name.includes('.blur') || dir.name.includes('.ubah');
+
+                // DEFAULT: DEFERRED (Livewire v3 standard)
+                // When typing into standard kilat:model, DO NOT send network request on every key!
+                // It is automatically bundled and synced when any action or form submit is executed!
+                if (e.type === 'input') {
+                    if (!isLive) return;
+                }
+
+                if (e.type === 'change' && isLive) {
+                    return;
+                }
+
                 // Extract debounce duration (e.g. kilat:tunda.300ms or live:model.debounce.500ms)
-                let delay = 150;
+                let delay = isLive ? 250 : 0;
                 for (const attr of target.attributes) {
                     const match = attr.name.match(/\.(?:debounce|tunda)\.(\d+)(ms|s)?/);
                     if (match) {
@@ -372,9 +402,17 @@
                 }
 
                 if (inputDebounces.has(target)) clearTimeout(inputDebounces.get(target));
-                inputDebounces.set(target, setTimeout(() => {
-                    this.callAction(root, '$set', [propName, val]);
-                }, delay));
+                const sendUpdate = () => {
+                    const updates = {};
+                    updates[propName] = val;
+                    this.callAction(root, '$set', [propName, val], updates);
+                };
+
+                if (delay > 0) {
+                    inputDebounces.set(target, setTimeout(sendUpdate, delay));
+                } else {
+                    sendUpdate();
+                }
             };
 
             document.addEventListener('input', handleModel);

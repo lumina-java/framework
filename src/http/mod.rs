@@ -3,3 +3,4 @@ pub mod health;
 pub mod kernel;
 pub mod middleware;
 pub mod server;
+pub mod aurora;

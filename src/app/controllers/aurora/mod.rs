@@ -6,8 +6,8 @@ pub use auth_controller::AuroraAuthController;
 pub use dashboard_controller::AuroraDashboardController;
 pub use profile_controller::AuroraProfileController;
 
-use crate::core::application::AppState;
-use crate::core::router::Router;
+use lumina::prelude::*;
+
 
 /// Menghasilkan Router lengkap untuk seluruh alur Lumina Aurora:
 /// - Auth: Login, Register, Logout

@@ -1,8 +1,5 @@
-use axum::response::{IntoResponse, Response};
+use lumina::prelude::*;
 use crate::app::models::user::User;
-use crate::core::request::Request;
-use crate::core::view::View;
-use crate::database::model::Model;
 
 pub struct AuroraDashboardController;
 
@@ -31,4 +28,3 @@ impl AuroraDashboardController {
             .into_response()
     }
 }
-

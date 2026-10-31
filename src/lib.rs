@@ -35,6 +35,8 @@ pub mod prelude {
     pub use crate::http::middleware;
     // background queue jobs
     pub use crate::core::queue::{Job, Dispatchable, QueueManager, JobRegistry};
+    pub use crate::core::auth::{Auth, AuthUser, HasRolesAndPermissions};
+    pub use crate::core::security::BruteForceGuard;
 }
 
 pub use lumina_macros::{lumina_form, LuminaModel};

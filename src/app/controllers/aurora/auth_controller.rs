@@ -1,17 +1,10 @@
-use axum::response::{IntoResponse, Response};
-use serde::Deserialize;
+use lumina::prelude::*;
+use serde::{Deserialize, Serialize};
 use validator::Validate;
-use crate::app::models::user::User;
-use crate::core::auth::{Auth, AuthUser};
-use crate::core::request::Request;
-use crate::core::security::BruteForceGuard;
-use crate::core::validation::ValidatedForm;
-use crate::core::view::View;
-use crate::database::model::Model;
 
 pub struct AuroraAuthController;
 
-#[derive(Deserialize, Validate)]
+#[derive(Serialize, Deserialize, Validate)]
 pub struct LoginForm {
     #[validate(email(message = "Format email tidak valid"))]
     pub email: String,
@@ -21,7 +14,7 @@ pub struct LoginForm {
     pub remember: Option<String>,
 }
 
-#[derive(Deserialize, Validate)]
+#[derive(Serialize, Deserialize, Validate)]
 pub struct RegisterForm {
     #[validate(length(min = 2, message = "Nama minimal 2 karakter"))]
     pub name: String,
@@ -30,6 +23,16 @@ pub struct RegisterForm {
     #[validate(length(min = 8, message = "Password minimal 8 karakter"))]
     pub password: String,
     pub password_confirmation: String,
+}
+
+#[allow(dead_code)]
+#[derive(sqlx::FromRow)]
+struct UserRow {
+    id: i64,
+    name: String,
+    email: String,
+    password: String,
+    role: String,
 }
 
 impl AuroraAuthController {
@@ -61,7 +64,14 @@ impl AuroraAuthController {
         }
 
         // 2. Verifikasi Kredensial Pengguna
-        if let Ok(Some(user)) = User::find_by_email(req.db(), &f.email).await {
+        let user_res: Result<Option<UserRow>, _> = sqlx::query_as(
+            "SELECT id, name, email, password, role FROM users WHERE email = ? LIMIT 1"
+        )
+        .bind(&f.email)
+        .fetch_optional(&req.db().pool)
+        .await;
+
+        if let Ok(Some(user)) = user_res {
             if Auth::verify(&f.password, &user.password) {
                 // Reset counter brute-force jika login berhasil
                 BruteForceGuard::reset(&brute_key).await;
@@ -131,7 +141,14 @@ impl AuroraAuthController {
                 .await;
         }
 
-        if let Ok(Some(_)) = User::find_by_email(req.db(), &f.email).await {
+        let existing: Result<Option<UserRow>, _> = sqlx::query_as(
+            "SELECT id, name, email, password, role FROM users WHERE email = ? LIMIT 1"
+        )
+        .bind(&f.email)
+        .fetch_optional(&req.db().pool)
+        .await;
+
+        if let Ok(Some(_)) = existing {
             return req
                 .back()
                 .with_error("Email sudah terdaftar. Silakan gunakan email lain.")
@@ -139,15 +156,18 @@ impl AuroraAuthController {
                 .await;
         }
 
-        let user = User {
-            name: f.name.clone(),
-            email: f.email.clone(),
-            password: Auth::make_hash(&f.password),
-            role: "member".to_string(),
-            ..Default::default()
-        };
+        let hashed_password = Auth::make_hash(&f.password);
+        let insert_res = sqlx::query(
+            "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'member')"
+        )
+        .bind(&f.name)
+        .bind(&f.email)
+        .bind(&hashed_password)
+        .execute(&req.db().pool)
+        .await;
 
-        if let Ok(new_id) = user.save(req.db()).await {
+        if let Ok(res) = insert_res {
+            let new_id = res.last_insert_id().unwrap_or(1);
             req.audit_log(
                 "REGISTER",
                 "users",
@@ -156,7 +176,7 @@ impl AuroraAuthController {
                 "SUCCESS",
             );
 
-            let auth_user = AuthUser::new(new_id, user.email, user.role, vec![], 24);
+            let auth_user = AuthUser::new(new_id, f.email.clone(), "member".to_string(), vec![], 24);
             let _ = Auth::login(&req.session, auth_user).await;
 
             return req
@@ -183,4 +203,3 @@ impl AuroraAuthController {
             .await
     }
 }
-

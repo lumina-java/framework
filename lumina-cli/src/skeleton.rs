@@ -143,7 +143,7 @@ name = "{}-server"
 path = "src/main.rs"
 
 [dependencies]
-lumina = {{ package = "lumina-framework", version = "0.4.0", git = "https://github.com/lumina-java/framework.git", branch = "0.x" }}
+lumina = {{ package = "lumina-framework", version = "0.5.0", git = "https://github.com/lumina-java/framework.git", branch = "0.x" }}
 tokio = {{ version = "1", features = ["full"] }}
 axum = {{ version = "0.7", features = ["macros", "multipart"] }}
 serde = {{ version = "1", features = ["derive"] }}
@@ -152,6 +152,7 @@ dotenv = "0.15"
 async-trait = "0.1"
 chrono = {{ version = "0.4", features = ["serde"] }}
 sqlx = {{ version = "0.8", default-features = false, {} }}
+validator = {{ version = "0.18", features = ["derive"] }}
 
 [features]
 {}

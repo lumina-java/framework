@@ -1,16 +1,10 @@
-use axum::response::{IntoResponse, Response};
-use serde::Deserialize;
+use lumina::prelude::*;
+use serde::{Deserialize, Serialize};
 use validator::Validate;
-use crate::app::models::user::User;
-use crate::core::auth::Auth;
-use crate::core::request::Request;
-use crate::core::validation::ValidatedForm;
-use crate::core::view::View;
-use crate::database::model::Model;
 
 pub struct AuroraProfileController;
 
-#[derive(Deserialize, Validate)]
+#[derive(Deserialize, Serialize, Validate)]
 pub struct UpdateProfileForm {
     #[validate(length(min = 2, message = "Nama minimal 2 karakter"))]
     pub name: String,
@@ -18,7 +12,7 @@ pub struct UpdateProfileForm {
     pub email: String,
 }
 
-#[derive(Deserialize, Validate)]
+#[derive(Deserialize, Serialize, Validate)]
 pub struct ChangePasswordForm {
     pub current_password: String,
     #[validate(length(min = 8, message = "Password baru minimal 8 karakter"))]
@@ -58,11 +52,14 @@ impl AuroraProfileController {
         let f = &form.0;
         let user_id: i64 = auth_user.sub.parse().unwrap_or(0);
 
-        if let Ok(mut user) = User::find(req.db(), user_id).await {
-            user.name = f.name.clone();
-            user.email = f.email.clone();
-            let _ = user.update(req.db()).await;
+        let update_res = sqlx::query("UPDATE users SET name = ?, email = ? WHERE id = ?")
+            .bind(&f.name)
+            .bind(&f.email)
+            .bind(user_id)
+            .execute(&req.db().pool)
+            .await;
 
+        if update_res.is_ok() {
             req.audit_log(
                 "UPDATE_PROFILE",
                 "users",
@@ -103,8 +100,14 @@ impl AuroraProfileController {
 
         let user_id: i64 = auth_user.sub.parse().unwrap_or(0);
 
-        if let Ok(mut user) = User::find(req.db(), user_id).await {
-            if !Auth::verify(&f.current_password, &user.password) {
+        let user_row: Result<Option<(String,)>, _> =
+            sqlx::query_as("SELECT password FROM users WHERE id = ? LIMIT 1")
+                .bind(user_id)
+                .fetch_optional(&req.db().pool)
+                .await;
+
+        if let Ok(Some((current_hash,))) = user_row {
+            if !Auth::verify(&f.current_password, &current_hash) {
                 return req
                     .back()
                     .with_error("Kata sandi saat ini salah.")
@@ -112,8 +115,12 @@ impl AuroraProfileController {
                     .await;
             }
 
-            user.password = Auth::make_hash(&f.new_password);
-            let _ = user.update(req.db()).await;
+            let new_hash = Auth::make_hash(&f.new_password);
+            let _ = sqlx::query("UPDATE users SET password = ? WHERE id = ?")
+                .bind(&new_hash)
+                .bind(user_id)
+                .execute(&req.db().pool)
+                .await;
 
             req.audit_log(
                 "CHANGE_PASSWORD",
@@ -136,4 +143,3 @@ impl AuroraProfileController {
             .await
     }
 }
-

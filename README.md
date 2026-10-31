@@ -30,6 +30,9 @@ Rust terkenal dengan kecepatan ekstrem dan keamanannya, namun sering kali memili
 
 ## 🚀 Fitur Utama
 
+- 🎨 **Lumina Aurora Starter Kit (`lumina aurora:install`)** — Official starter kit autentikasi & dashboard elegan berbasis Pure Native Blade + Tailwind CSS. Zero JS runtime bloat, respons instan < 0.5ms dengan performa murni 60 FPS.
+- 🛡️ **Enterprise Security & Zero-Panic Net** — Proteksi crash global via `catch_unwind`, granular RBAC (`@can`, `@role`, `req.authorize()`), Anti Brute-Force lockout cache (Moka), constant-time comparison, header keamanan OWASP, dan Audit Trail ISO 27001.
+- 📖 **Portal Dokumentasi Resmi & Benchmark** — Tersedia 16 modul dokumentasi interaktif dengan perbandingan performa terukur (Throughput 118.000+ RPS, latensi sub-milidetik, konsumsi RAM ~15-38MB) di [https://lumina-java.github.io/docs/](https://lumina-java.github.io/docs/).
 - ⚡ **Supercharged Tokio + Axum Core** — Performa HTTP async tinggi dengan konsumsi resource yang sangat hemat.
 - 🏗️ **Arsitektur MVC Lengkap** — Pembagian layer yang rapi: Controllers, Models, Services, Requests, Views, dan Providers.
 - 🗄️ **Human ORM & Macro-based Models** — Gunakan `#[derive(LuminaModel)]` untuk mendapatkan fungsi CRUD otomatis, pagination (`LengthAwarePaginator`), eager loading, soft deletes, dan query builder lancar (*fluent*).

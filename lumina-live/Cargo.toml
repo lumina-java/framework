@@ -1,6 +1,6 @@
 [package]
 name = "lumina-live"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 authors = ["Slamet Sugandi <packercyber@gmail.com>"]
 description = "Server-Driven Reactive UI for Lumina Framework (inspired by Laravel Livewire & Phoenix LiveView)"
@@ -12,7 +12,7 @@ keywords = ["lumina", "livewire", "reactive", "server-driven-ui", "fullstack"]
 categories = ["web-programming::http-server", "gui"]
 
 [dependencies]
-lumina = { package = "lumina-framework", version = "0.4.1", path = ".." }
+lumina = { package = "lumina-framework", version = "0.5.0", path = ".." }
 axum = { version = "0.7", features = ["macros", "ws"] }
 tokio = { version = "1", features = ["full"] }
 futures = "0.3"

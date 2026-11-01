@@ -339,6 +339,7 @@ impl WelcomeController {
     }
 
     /// Menampilkan Halaman Login ("/login")
+    #[allow(dead_code)]
     pub async fn login(req: Request) -> impl IntoResponse {
         req.view("auth.login")
             .with("title", "Login - Lumina")
@@ -348,6 +349,7 @@ impl WelcomeController {
     }
 
     /// Menampilkan Halaman Register ("/register")
+    #[allow(dead_code)]
     pub async fn register(req: Request) -> impl IntoResponse {
         req.view("auth.register")
             .with("title", "Register - Lumina")

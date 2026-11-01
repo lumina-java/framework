@@ -35,7 +35,7 @@
                     <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                     </svg>
-                    <span>Dashboard</span>
+                    <span>Dashboard Utama</span>
                 </a>
 
                 <a href="/profile" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
@@ -45,16 +45,12 @@
                     <span>Profil Pengguna</span>
                 </a>
 
-                @can('users.manage')
-                <div class="pt-4 pb-1 px-3.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Administrasi</div>
-                <a href="/admin/users" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
+                <a href="/" target="_blank" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
                     <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
-                    <span>Kelola Pengguna</span>
-                    <span class="ml-auto text-[10px] font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/30 px-1.5 py-0.5 rounded">RBAC</span>
+                    <span>Halaman Depan (Web)</span>
                 </a>
-                @endcan
             </nav>
         </div>
 
@@ -95,9 +91,12 @@
             </div>
 
             <div class="flex items-center gap-3">
+                <span class="text-xs text-slate-400 hidden sm:inline">Pengguna:</span>
+                <span class="text-xs font-semibold text-slate-200 hidden sm:inline">{{ $user.name }}</span>
+                <span class="text-xs text-slate-600 hidden sm:inline">&bull;</span>
                 <span class="text-xs text-slate-400 hidden sm:inline">Role:</span>
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                    {{ $user.role | uppercase }}
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-wider">
+                    {{ $user.role }}
                 </span>
             </div>
         </header>
@@ -136,4 +135,3 @@
     </div>
 </body>
 </html>
-

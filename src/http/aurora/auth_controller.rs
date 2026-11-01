@@ -7,18 +7,9 @@ use crate::core::security::BruteForceGuard;
 use crate::core::validation::ValidatedForm;
 use crate::core::view::View;
 
-#[derive(sqlx::FromRow, Clone, Debug)]
-pub struct AuroraUserRecord {
-    pub id: i64,
-    pub name: String,
-    pub email: String,
-    pub password: String,
-    pub role: String,
-}
-
 pub struct AuroraAuthController;
 
-#[derive(Deserialize, Serialize, Validate)]
+#[derive(Serialize, Deserialize, Validate)]
 pub struct LoginForm {
     #[validate(email(message = "Format email tidak valid"))]
     pub email: String,
@@ -28,7 +19,7 @@ pub struct LoginForm {
     pub remember: Option<String>,
 }
 
-#[derive(Deserialize, Serialize, Validate)]
+#[derive(Serialize, Deserialize, Validate)]
 pub struct RegisterForm {
     #[validate(length(min = 2, message = "Nama minimal 2 karakter"))]
     pub name: String,
@@ -37,6 +28,16 @@ pub struct RegisterForm {
     #[validate(length(min = 8, message = "Password minimal 8 karakter"))]
     pub password: String,
     pub password_confirmation: String,
+}
+
+#[allow(dead_code)]
+#[derive(sqlx::FromRow)]
+struct AuroraUserRecord {
+    id: i64,
+    name: String,
+    email: String,
+    password: String,
+    role: String,
 }
 
 impl AuroraAuthController {
@@ -80,8 +81,9 @@ impl AuroraAuthController {
                 // Reset counter brute-force jika login berhasil
                 BruteForceGuard::reset(&brute_key).await;
 
-                let auth_user = AuthUser::new(
+                let auth_user = AuthUser::with_name(
                     user.id,
+                    user.name.clone(),
                     user.email.clone(),
                     user.role.clone(),
                     vec!["users.view".to_string()],
@@ -145,8 +147,9 @@ impl AuroraAuthController {
                 .await;
         }
 
-        let existing: Result<Option<AuroraUserRecord>, _> = sqlx::query_as(
-            "SELECT id, name, email, password, role FROM users WHERE email = ? LIMIT 1"
+        // Cek apakah email sudah terdaftar
+        let existing: Result<Option<(i64,)>, _> = sqlx::query_as(
+            "SELECT id FROM users WHERE email = ? LIMIT 1"
         )
         .bind(&f.email)
         .fetch_optional(&req.db().pool)
@@ -180,7 +183,7 @@ impl AuroraAuthController {
                 "SUCCESS",
             );
 
-            let auth_user = AuthUser::new(new_id, f.email.clone(), "member".to_string(), vec![], 24);
+            let auth_user = AuthUser::with_name(new_id, f.name.clone(), f.email.clone(), "member".to_string(), vec![], 24);
             let _ = Auth::login(&req.session, auth_user).await;
 
             return req

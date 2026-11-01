@@ -76,8 +76,9 @@ impl AuroraAuthController {
                 // Reset counter brute-force jika login berhasil
                 BruteForceGuard::reset(&brute_key).await;
 
-                let auth_user = AuthUser::new(
+                let auth_user = AuthUser::with_name(
                     user.id,
+                    user.name.clone(),
                     user.email.clone(),
                     user.role.clone(),
                     vec!["users.view".to_string()],
@@ -176,7 +177,7 @@ impl AuroraAuthController {
                 "SUCCESS",
             );
 
-            let auth_user = AuthUser::new(new_id, f.email.clone(), "member".to_string(), vec![], 24);
+            let auth_user = AuthUser::with_name(new_id, f.name.clone(), f.email.clone(), "member".to_string(), vec![], 24);
             let _ = Auth::login(&req.session, auth_user).await;
 
             return req

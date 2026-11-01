@@ -16,6 +16,8 @@ pub use rbac::{HasRolesAndPermissions, Role, Permission};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AuthUser {
     pub sub: String, // user_id
+    #[serde(default)]
+    pub name: String,
     pub email: String,
     pub role: String,
     pub permissions: Vec<String>,
@@ -31,18 +33,43 @@ impl AuthUser {
         permissions: Vec<String>,
         hours: usize,
     ) -> Self {
+        Self::with_name(user_id, "", email, role, permissions, hours)
+    }
+
+    pub fn with_name(
+        user_id: i64,
+        name: impl Into<String>,
+        email: String,
+        role: String,
+        permissions: Vec<String>,
+        hours: usize,
+    ) -> Self {
         use std::time::{SystemTime, UNIX_EPOCH};
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs() as usize;
+        let mut n = name.into();
+        if n.is_empty() {
+            n = email.split('@').next().unwrap_or("Pengguna").to_string();
+        }
         Self {
             sub: user_id.to_string(),
+            name: n,
             email,
             role,
             permissions,
             iat: now,
             exp: now + (hours * 3600),
+        }
+    }
+
+    /// Ambil nama tampilan pengguna. Jika nama kosong, gunakan bagian awal email.
+    pub fn display_name(&self) -> &str {
+        if !self.name.is_empty() {
+            &self.name
+        } else {
+            self.email.split('@').next().unwrap_or("Pengguna")
         }
     }
 

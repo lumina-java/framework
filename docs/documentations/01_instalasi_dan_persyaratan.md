@@ -82,7 +82,13 @@ lumina new enterprise-app --db postgres
 lumina new store-app --db mysql
 ```
 
-### Opsi D: Multi-Driver (Semua Driver Aktif)
+### Opsi D: Microsoft SQL Server (MSSQL Enterprise)
+```bash
+lumina new enterprise-app --db mssql
+```
+> Menyiapkan driver pure-Rust TDS Tiberius berkecepatan tinggi tanpa memerlukan instalasi driver ODBC Microsoft eksternal di sistem operasi.
+
+### Opsi E: Multi-Driver (Semua Driver Aktif)
 ```bash
 lumina new portal-app --db all
 ```

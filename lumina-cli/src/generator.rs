@@ -1560,17 +1560,17 @@ pub fn generate_aurora() {
         let _ = fs::create_dir_all(dir);
     }
 
-    let guest_layout = include_str!("../../resources/views/aurora/layouts/guest.blade.rs");
-    let app_layout = include_str!("../../resources/views/aurora/layouts/app.blade.rs");
-    let login_view = include_str!("../../resources/views/aurora/auth/login.blade.rs");
-    let register_view = include_str!("../../resources/views/aurora/auth/register.blade.rs");
-    let dashboard_view = include_str!("../../resources/views/aurora/dashboard/index.blade.rs");
-    let profile_view = include_str!("../../resources/views/aurora/profile/edit.blade.rs");
+    let guest_layout = include_str!("../templates/views/aurora/layouts/guest.blade.rs");
+    let app_layout = include_str!("../templates/views/aurora/layouts/app.blade.rs");
+    let login_view = include_str!("../templates/views/aurora/auth/login.blade.rs");
+    let register_view = include_str!("../templates/views/aurora/auth/register.blade.rs");
+    let dashboard_view = include_str!("../templates/views/aurora/dashboard/index.blade.rs");
+    let profile_view = include_str!("../templates/views/aurora/profile/edit.blade.rs");
 
-    let auth_ctrl = include_str!("../../src/app/controllers/aurora/auth_controller.rs");
-    let dash_ctrl = include_str!("../../src/app/controllers/aurora/dashboard_controller.rs");
-    let prof_ctrl = include_str!("../../src/app/controllers/aurora/profile_controller.rs");
-    let mod_ctrl = include_str!("../../src/app/controllers/aurora/mod.rs");
+    let auth_ctrl = include_str!("../templates/controllers/aurora/auth_controller.rs");
+    let dash_ctrl = include_str!("../templates/controllers/aurora/dashboard_controller.rs");
+    let prof_ctrl = include_str!("../templates/controllers/aurora/profile_controller.rs");
+    let mod_ctrl = include_str!("../templates/controllers/aurora/mod.rs");
 
     let aurora_migration = r#"-- Users Table Migration for Lumina Aurora (RBAC Ready)
 CREATE TABLE IF NOT EXISTS users (

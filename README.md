@@ -14,7 +14,7 @@
   <a href="https://crates.io/crates/lumina-cli"><img src="https://img.shields.io/badge/CLI-lumina--cli-ec4899.svg" alt="Lumina CLI"></a>
   <a href="https://github.com/lumina-java/framework"><img src="https://img.shields.io/badge/GitHub-lumina--java%2Fframework-blue.svg" alt="GitHub Repo"></a>
   <a href="https://github.com/lumina-java/lumina"><img src="https://img.shields.io/badge/Starter%20Kit-lumina--java%2Flumina-6366f1.svg" alt="Starter Kit"></a>
-  <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Database-PostgreSQL%20|%20MySQL%20|%20SQLite-06b6d4.svg" alt="Databases"></a>
+  <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Database-PostgreSQL%20|%20MySQL%20|%20SQLite%20|%20MSSQL-06b6d4.svg" alt="Databases"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-amber.svg" alt="License"></a>
 </p>
 
@@ -37,7 +37,7 @@ Rust terkenal dengan kecepatan ekstrem dan keamanannya, namun sering kali memili
 - 🏗️ **Arsitektur MVC Lengkap** — Pembagian layer yang rapi: Controllers, Models, Services, Requests, Views, dan Providers.
 - 🗄️ **Human ORM & Macro-based Models** — Gunakan `#[derive(LuminaModel)]` untuk mendapatkan fungsi CRUD otomatis, pagination (`LengthAwarePaginator`), eager loading, soft deletes, dan query builder lancar (*fluent*).
 - 🏭 **Model Factory & Faker Engine** — Generator data tiruan (*mock / seeding*) berkecepatan tinggi dengan lokalisasi Indonesia & internasional serta chaining fluen ala Laravel (`User::factory().count(100).create(db).await`).
-- 🔄 **Universal Multi-Database Layer** — Dukungan langsung untuk **PostgreSQL**, **MySQL**, dan **SQLite** dengan auto-migration runner serta generator database flag di CLI (`--db`).
+- 🔄 **Universal Multi-Database Layer** — Dukungan langsung untuk **PostgreSQL**, **MySQL**, **SQLite**, dan **Microsoft SQL Server (MSSQL)** dengan pure-Rust TDS driver (Tiberius), auto-migration runner, serta generator database flag di CLI (`--db`).
 - 🪄 **Lumina Smart CLI (`lumina`)** — Buat project baru dengan preset database, controller, model, factory (`make:factory`), audit keamanan (`audit`), autentikasi instan (`make:auth`), plugin WASM, dan modul CRUD lengkap (`make:crud`).
 - 📦 **The Unified `Request` Extractor** — Cukup panggil `req: Request` untuk mengakses Database Pool, Session, CSRF Token, Auth User, Flash Messages, dan View Renderer.
 - 🛡️ **Lumina Shield Security Scanner (`lumina audit`)** — Audit otomatis postur keamanan aplikasi (kekuatan secret, mode debug di produksi, proteksi CSRF form, storage hardening) dengan security scoreboard dan saran perbaikan.
@@ -91,7 +91,7 @@ lumina upgrade
 # Membuat project baru (otomatis mengambil template starter terbaru dari GitHub)
 lumina new kontak_manager
 
-# Atau pilih driver database tertentu (--db sqlite / postgres / mysql / all):
+# Atau pilih driver database tertentu (--db sqlite / postgres / mysql / mssql / all):
 lumina new kontak_manager --db postgres
 ```
 
@@ -117,6 +117,18 @@ DB_USERNAME=postgres
 DB_PASSWORD=postgress
 
 DATABASE_URL=postgres://postgres:postgress@127.0.0.1:54322/lumina_kontak
+```
+
+#### Contoh Microsoft SQL Server (MSSQL):
+```env
+DB_CONNECTION=mssql
+DB_HOST=127.0.0.1
+DB_PORT=1433
+DB_DATABASE=lumina_kontak
+DB_USERNAME=sa
+DB_PASSWORD=YourPassword123
+
+DATABASE_URL="Server=tcp:127.0.0.1,1433;Database=lumina_kontak;User Id=sa;Password=YourPassword123;TrustServerCertificate=true;"
 ```
 
 #### Contoh SQLite (Default, Tanpa Setup):

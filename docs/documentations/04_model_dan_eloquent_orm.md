@@ -18,7 +18,7 @@ Perintah ini akan secara otomatis:
 
 ## 2. Menjalankan Migrasi Database
 
-Lumina memiliki migration runner otomatis yang mendukung SQLite, PostgreSQL, dan MySQL:
+Lumina memiliki migration runner otomatis yang mendukung **SQLite, PostgreSQL, MySQL, dan Microsoft SQL Server (MSSQL)**:
 
 ```bash
 # Menjalankan seluruh migrasi yang tertunda
@@ -228,6 +228,48 @@ let admins = User::factory()
 // 3. Buat objek in-memory tanpa menyentuh database
 let mock_user = User::factory().make_one();
 ```
+
+---
+
+## 8. Dukungan Multi-Database & Microsoft SQL Server (MSSQL)
+
+Lumina Framework dirancang untuk bekerja secara seragam di berbagai engine database modern:
+- **SQLite**: Pilihan ideal untuk pengembangan lokal (*Zero-Config*).
+- **PostgreSQL**: Direkomendasikan untuk aplikasi skala besar dengan query kompleks dan konkurensi tinggi.
+- **MySQL / MariaDB**: Standar industri aplikasi web modern.
+- **Microsoft SQL Server (MSSQL)**: Solusi database enterprise dengan protokol biner TDS pure-Rust (**Tiberius + bb8 pool**).
+
+### A. Fitur Driver Microsoft SQL Server (MSSQL)
+Lumina mengintegrasikan driver TDS murni tanpa memerlukan instalasi driver C/ODBC tambahan:
+1. **Auto-Translation Dialek T-SQL**:
+   - Primary Key: `INTEGER PRIMARY KEY AUTOINCREMENT` $ightarrow$ `INT IDENTITY(1,1) PRIMARY KEY`.
+   - Tipe Waktu: `DATETIME` $ightarrow$ `DATETIME2 DEFAULT CURRENT_TIMESTAMP`.
+   - Teks Panjang: `TEXT` $ightarrow$ `NVARCHAR(MAX)`.
+   - Boolean: `BOOLEAN` $ightarrow$ `BIT`.
+   - DDL Bersyarat: `CREATE TABLE IF NOT EXISTS` $ightarrow$ `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '...') CREATE TABLE (...)`.
+2. **Paginasi ANSI/T-SQL Otomatis**:
+   Method `.paginate(page, per_page)` dan `.limit().offset()` otomatis dikompilasi ke sintaks:
+   ```sql
+   ORDER BY id OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY
+   ```
+3. **Eksekusi ORM Fluen**:
+   Seluruh operasi model berjalan identik dengan database lainnya:
+   ```rust
+   // Query model di MSSQL sama persis dan sepenuhnya teroptimasi
+   let users = User::query(req.db())
+       .where_eq("role", "admin")
+       .order_by("created_at", "DESC")
+       .get()
+       .await?;
+   ```
+4. **Native Direct Access**:
+   Jika Anda membutuhkan akses langsung ke client TDS Tiberius untuk query raw atau *stored procedure*:
+   ```rust
+   if let Some(pool) = req.db().mssql() {
+       let mut conn = pool.get().await?;
+       let stream = conn.query("EXEC sp_my_procedure @P1", &[&user_id]).await?;
+   }
+   ```
 
 ---
 

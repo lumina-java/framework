@@ -1,5 +1,6 @@
 use axum::response::{IntoResponse, Response};
 use serde::Serialize;
+use sqlx::Row;
 use crate::core::request::Request;
 use crate::core::view::View;
 
@@ -31,12 +32,14 @@ impl AuroraDashboardController {
         // Jika nama di sesi masih kosong, otomatis muat nama asli dari tabel users
         if user.name.is_empty() {
             if let Ok(user_id) = user.sub.parse::<i64>() {
-                if let Ok(Some((db_name,))) = sqlx::query_as::<_, (String,)>("SELECT name FROM users WHERE id = ? LIMIT 1")
+                if let Ok(Some(row)) = sqlx::query("SELECT name FROM users WHERE id = ? LIMIT 1")
                     .bind(user_id)
                     .fetch_optional(&req.db().pool)
                     .await
                 {
-                    user.name = db_name;
+                    if let Ok(db_name) = row.try_get::<String, _>("name") {
+                        user.name = db_name;
+                    }
                 }
             }
         }
@@ -50,12 +53,28 @@ impl AuroraDashboardController {
             .unwrap_or(1);
 
         // Ambil daftar pengguna untuk tabel manajemen hak akses (Role Management)
-        let users_list: Vec<AuroraUserItem> = sqlx::query_as::<_, AuroraUserItem>(
-            "SELECT id, name, email, role, created_at FROM users ORDER BY id ASC LIMIT 50"
+        let mut users_list: Vec<AuroraUserItem> = Vec::new();
+        if let Ok(rows) = sqlx::query(
+            "SELECT id, name, email, role, CAST(created_at AS TEXT) as created_at FROM users ORDER BY id ASC LIMIT 50"
         )
         .fetch_all(&req.db().pool)
         .await
-        .unwrap_or_default();
+        {
+            for r in rows {
+                let id: i64 = r.try_get::<i64, _>("id").or_else(|_| r.try_get::<i32, _>("id").map(|v| v as i64)).unwrap_or_default();
+                let name: String = r.try_get("name").unwrap_or_default();
+                let email: String = r.try_get("email").unwrap_or_default();
+                let role: String = r.try_get("role").unwrap_or_else(|_| "member".to_string());
+                let created_at: Option<String> = r.try_get("created_at").ok();
+                users_list.push(AuroraUserItem {
+                    id,
+                    name,
+                    email,
+                    role,
+                    created_at,
+                });
+            }
+        }
 
         View::make("aurora.dashboard.index")
             .with("title", "Dashboard — Lumina Aurora")

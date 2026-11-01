@@ -4,6 +4,7 @@ pub mod faker;
 pub mod grammar;
 pub mod migration;
 pub mod model;
+pub mod mssql_adapter;
 pub mod orm;
 pub mod schema;
 pub mod seeder;

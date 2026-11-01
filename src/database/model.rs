@@ -14,7 +14,7 @@ use async_trait::async_trait;
 /// ```
 #[async_trait]
 pub trait Model:
-    Sized + Send + Sync + for<'r> sqlx::FromRow<'r, sqlx::any::AnyRow> + Unpin
+    Sized + Send + Sync + for<'r> sqlx::FromRow<'r, sqlx::any::AnyRow> + Unpin + serde::de::DeserializeOwned
 {
     /// Nama tabel di database (konstanta compile-time)
     const TABLE: &'static str;

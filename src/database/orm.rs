@@ -38,7 +38,7 @@ pub struct QueryBuilder<'a, T> {
 
 impl<'a, T> QueryBuilder<'a, T>
 where
-    T: for<'r> FromRow<'r, sqlx::any::AnyRow> + Send + Unpin,
+    T: for<'r> FromRow<'r, sqlx::any::AnyRow> + Send + Unpin + serde::de::DeserializeOwned,
 {
     pub fn new(pool: &'a DatabasePool, table: &'static str) -> Self {
         Self {
@@ -435,6 +435,15 @@ where
     where
         T: crate::database::model::Model,
     {
+        if self.pool.kind == crate::database::connection::DatabaseKind::Mssql {
+            let sql = self.build_sql();
+            let mut items = crate::database::mssql_adapter::query_models::<T>(self.pool, &sql).await?;
+            for relation in self.eager_with {
+                T::eager_load(&relation, &mut items, self.pool).await?;
+            }
+            return Ok(items);
+        }
+
         let sql = self.build_sql();
         let mut items = sqlx::query_as_with::<sqlx::Any, T, _>(&sql, self.args)
             .fetch_all(&self.pool.pool)
@@ -452,6 +461,11 @@ where
     pub async fn first(mut self) -> Result<Option<T>, sqlx::Error> {
         self.limit = Some(1);
         let sql = self.build_sql();
+
+        if self.pool.kind == crate::database::connection::DatabaseKind::Mssql {
+            return crate::database::mssql_adapter::query_first::<T>(self.pool, &sql).await;
+        }
+
         sqlx::query_as_with::<sqlx::Any, T, _>(&sql, self.args)
             .fetch_optional(&self.pool.pool)
             .await

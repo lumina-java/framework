@@ -67,6 +67,8 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
         if !applied_migrations.contains(leg) {
             let ins_leg = if kind == DatabaseKind::Postgres {
                 "INSERT INTO _lumina_migrations (migration_name, batch) VALUES ($1, 1)"
+            } else if kind == DatabaseKind::Mssql {
+                "INSERT INTO _lumina_migrations (migration_name, batch) VALUES (@p1, 1)"
             } else {
                 "INSERT INTO _lumina_migrations (migration_name, batch) VALUES (?, 1)"
             };
@@ -145,6 +147,23 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
                     sql = sql.replace("TEXT NOT NULL", "VARCHAR(255) NOT NULL");
                 }
             }
+            DatabaseKind::Mssql => {
+                sql = re_autoinc
+                    .replace_all(&sql, "INT IDENTITY(1,1) PRIMARY KEY")
+                    .to_string();
+                sql = re_datetime
+                    .replace_all(&sql, "DATETIME2 DEFAULT CURRENT_TIMESTAMP")
+                    .to_string();
+                if sql.contains("TEXT NOT NULL") {
+                    sql = sql.replace("TEXT NOT NULL", "NVARCHAR(MAX) NOT NULL");
+                }
+                if sql.contains("TEXT") {
+                    sql = sql.replace("TEXT", "NVARCHAR(MAX)");
+                }
+                if sql.contains("BOOLEAN") {
+                    sql = sql.replace("BOOLEAN", "BIT");
+                }
+            }
             _ => {}
         }
 
@@ -191,6 +210,8 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
 
         let insert_sql = if kind == DatabaseKind::Postgres {
             "INSERT INTO _lumina_migrations (migration_name, batch) VALUES ($1, 1)"
+        } else if kind == DatabaseKind::Mssql {
+            "INSERT INTO _lumina_migrations (migration_name, batch) VALUES (@p1, 1)"
         } else {
             "INSERT INTO _lumina_migrations (migration_name, batch) VALUES (?, 1)"
         };

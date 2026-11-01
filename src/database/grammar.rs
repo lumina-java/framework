@@ -2,7 +2,13 @@ use crate::database::connection::DatabaseKind;
 use crate::database::schema::{Blueprint, ColumnDefinition, ColumnType};
 
 pub fn compile_create(blueprint: &Blueprint, kind: DatabaseKind) -> String {
-    let mut sql = format!("CREATE TABLE IF NOT EXISTS {} (\n", blueprint.table_name);
+    let mut sql = match kind {
+        DatabaseKind::Mssql => format!(
+            "IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '{}')\nCREATE TABLE {} (\n",
+            blueprint.table_name, blueprint.table_name
+        ),
+        _ => format!("CREATE TABLE IF NOT EXISTS {} (\n", blueprint.table_name),
+    };
 
     let mut col_sqls = Vec::new();
     for col in &blueprint.columns {
@@ -18,8 +24,14 @@ pub fn compile_create(blueprint: &Blueprint, kind: DatabaseKind) -> String {
     sql
 }
 
-pub fn compile_drop(table_name: &str, _kind: DatabaseKind) -> String {
-    format!("DROP TABLE IF EXISTS {}", table_name)
+pub fn compile_drop(table_name: &str, kind: DatabaseKind) -> String {
+    match kind {
+        DatabaseKind::Mssql => format!(
+            "IF EXISTS (SELECT * FROM sys.tables WHERE name = '{0}') DROP TABLE {0}",
+            table_name
+        ),
+        _ => format!("DROP TABLE IF EXISTS {}", table_name),
+    }
 }
 
 fn compile_column(col: &ColumnDefinition, kind: DatabaseKind) -> String {

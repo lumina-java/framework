@@ -82,6 +82,28 @@ DATABASE_URL=mysql://root:@127.0.0.1:3306/{}_db"#,
                 name, name
             ),
         ),
+        "mssql" => (
+            r#"features = ["runtime-tokio", "macros", "any", "chrono", "sqlite"]"#,
+            r#"default = ["mssql"]
+sqlite = []
+postgres = []
+mysql = []
+mssql = ["lumina/mssql"]"#,
+            format!(
+                r#"# Database Configuration (Microsoft SQL Server / MSSQL)
+DB_CONNECTION=mssql
+DB_HOST=127.0.0.1
+DB_PORT=1433
+DB_DATABASE={}_db
+DB_USERNAME=sa
+DB_PASSWORD=YourPassword123
+
+# Atau gunakan URL eksplisit:
+DATABASE_URL="Server=tcp:127.0.0.1,1433;Database={}_db;User Id=sa;Password=YourPassword123;TrustServerCertificate=true;"
+# DATABASE_URL="sqlserver://sa:YourPassword123@127.0.0.1:1433?database={}_db&trustServerCertificate=true""#,
+                name, name, name
+            ),
+        ),
         "all" => (
             r#"features = ["runtime-tokio", "macros", "any", "chrono", "sqlite", "postgres", "mysql"]"#,
             r#"default = ["sqlite", "postgres", "mysql"]

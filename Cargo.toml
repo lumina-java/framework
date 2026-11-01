@@ -64,13 +64,19 @@ hex = "0.4"
 subtle = "2"
 
 
+# MSSQL (Microsoft SQL Server) — Optional Feature-Gated Pure-Rust TDS Stack
+tiberius = { version = "0.12", default-features = false, features = ["tds73", "rustls", "chrono", "rust_decimal"], optional = true }
+bb8 = { version = "0.9", optional = true }
+bb8-tiberius = { version = "0.16", optional = true }
+tokio-util = { version = "0.7", features = ["compat"], optional = true }
+
 [features]
 default = ["postgres", "sqlite"]
 all = ["sqlite", "postgres", "mysql", "mssql"]
 sqlite = ["sqlx/sqlite", "tower-sessions-sqlx-store/sqlite"]
 postgres = ["sqlx/postgres", "tower-sessions-sqlx-store/postgres"]
 mysql = ["sqlx/mysql", "tower-sessions-sqlx-store/mysql"]
-mssql = []
+mssql = ["dep:tiberius", "dep:bb8", "dep:bb8-tiberius", "dep:tokio-util"]
 
 [[bin]]
 name = "lumina"

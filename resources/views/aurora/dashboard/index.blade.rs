@@ -224,7 +224,7 @@
                     <tr class="hover:bg-slate-800/30 transition-colors">
                         <td class="py-3.5 px-4 font-medium text-white flex items-center gap-3">
                             <div class="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-xs border border-indigo-500/30">
-                                {{ $item.name | substring(0, 1) | uppercase }}
+                                {{ $item.name | initial }}
                             </div>
                             <span>{{ $item.name }}</span>
                         </td>

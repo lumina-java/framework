@@ -58,7 +58,7 @@
         <div class="p-4 border-t border-slate-800/80 bg-slate-900/30">
             <div class="flex items-center gap-3 mb-3">
                 <div class="h-9 w-9 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold flex items-center justify-center shrink-0">
-                    {{ $user.name | substring(0, 1) | uppercase }}
+                    {{ $user.name | initial }}
                 </div>
                 <div class="min-w-0 flex-grow">
                     <div class="text-sm font-semibold text-slate-200 truncate">{{ $user.name }}</div>

@@ -789,10 +789,18 @@ impl BladeEngine {
                 continue;
             }
 
-            // Parsing filter name dan parameter opsional: filter_name: arg1, arg2
+            // Parsing filter name dan parameter opsional:
+            // Format 1 (colon style): filter_name: arg1, arg2
+            // Format 2 (paren style): filter_name(arg1, arg2)
             let (filter_name, args) = if let Some(colon_idx) = seg.find(':') {
                 let name = seg[..colon_idx].trim();
                 let raw_args = &seg[colon_idx + 1..];
+                let args_vec: Vec<&str> = raw_args.split(',').map(|a| a.trim()).collect();
+                (name, args_vec)
+            } else if let Some(paren_idx) = seg.find('(') {
+                let name = seg[..paren_idx].trim();
+                let end_paren = seg.rfind(')').unwrap_or(seg.len());
+                let raw_args = &seg[paren_idx + 1..end_paren];
                 let args_vec: Vec<&str> = raw_args.split(',').map(|a| a.trim()).collect();
                 (name, args_vec)
             } else {
@@ -845,6 +853,25 @@ impl BladeEngine {
 
             // Native Filter: Balik Karakter
             "reverse" | "balik" => input.chars().rev().collect(),
+
+            // Native Filter: Inisial Huruf Pertama
+            "initial" | "inisial" => {
+                input.trim().chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default()
+            }
+
+            // Native Filter: Pemotongan String Substring
+            "substr" | "substring" => {
+                let start = args.first().and_then(|a| a.parse::<usize>().ok()).unwrap_or(0);
+                let len = args.get(1).and_then(|a| a.parse::<usize>().ok());
+                let chars: Vec<char> = input.chars().collect();
+                if start >= chars.len() {
+                    String::new()
+                } else if let Some(l) = len {
+                    chars.into_iter().skip(start).take(l).collect()
+                } else {
+                    chars.into_iter().skip(start).collect()
+                }
+            }
 
             // WASM Sandbox Fallback: Delegasikan ke WebAssembly Plugin
             custom_filter => {

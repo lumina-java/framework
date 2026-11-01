@@ -1552,6 +1552,8 @@ pub fn generate_aurora() {
         "resources/views/aurora/dashboard",
         "resources/views/aurora/profile",
         "src/app/controllers/aurora",
+        "database/migrations",
+        "database/seeders",
     ];
 
     for dir in view_dirs {
@@ -1570,6 +1572,32 @@ pub fn generate_aurora() {
     let prof_ctrl = include_str!("../../src/app/controllers/aurora/profile_controller.rs");
     let mod_ctrl = include_str!("../../src/app/controllers/aurora/mod.rs");
 
+    let aurora_migration = r#"-- Users Table Migration for Lumina Aurora (RBAC Ready)
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'member',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"#;
+
+    let aurora_seeder = r#"-- Lumina Aurora: Default RBAC Users Seeder
+-- Akun Bawaan untuk pengujian hak akses peran:
+-- 1. admin@lumina.dev   (Administrator) | Password: password123
+-- 2. editor@lumina.dev  (Editor)        | Password: password123
+-- 3. member@lumina.dev  (Member)        | Password: password123
+
+DELETE FROM users WHERE email IN ('admin@lumina.dev', 'editor@lumina.dev', 'member@lumina.dev');
+
+INSERT INTO users (name, email, password, role) VALUES 
+('Administrator Lumina', 'admin@lumina.dev', '$2b$12$9PoqqsF9tgdGa57MX.JIA.ejM3WzhUR.2qslio9xbRzxVWnB9rhSu', 'admin'),
+('Editor Konten', 'editor@lumina.dev', '$2b$12$9PoqqsF9tgdGa57MX.JIA.ejM3WzhUR.2qslio9xbRzxVWnB9rhSu', 'editor'),
+('Member Komunitas', 'member@lumina.dev', '$2b$12$9PoqqsF9tgdGa57MX.JIA.ejM3WzhUR.2qslio9xbRzxVWnB9rhSu', 'member');
+"#;
+
     let files = [
         ("resources/views/aurora/layouts/guest.blade.rs", guest_layout),
         ("resources/views/aurora/layouts/app.blade.rs", app_layout),
@@ -1581,6 +1609,8 @@ pub fn generate_aurora() {
         ("src/app/controllers/aurora/dashboard_controller.rs", dash_ctrl),
         ("src/app/controllers/aurora/profile_controller.rs", prof_ctrl),
         ("src/app/controllers/aurora/mod.rs", mod_ctrl),
+        ("database/seeders/0001_aurora_users_seeder.sql", aurora_seeder),
+        ("database/migrations/0001_create_users_table.sql", aurora_migration),
     ];
 
     for (path, content) in files {
@@ -1592,6 +1622,14 @@ pub fn generate_aurora() {
     }
 
     println!("\n{}", "🎉 Lumina Aurora Starter Kit installed successfully!".bright_green().bold());
-    println!("{}", "Mount all Aurora routes in your router:".bright_cyan());
-    println!("  {}", "router.merge(lumina::app::controllers::aurora::routes())".yellow());
+    println!("{}", "Langkah selanjutnya untuk migrasi & seeding akun bawaan:".bright_cyan());
+    println!("  1. Jalankan Migrasi : {}", "lumina migrate".yellow());
+    println!("  2. Jalankan Seeder  : {}", "lumina db:seed".yellow());
+    println!("  3. Daftarkan router :");
+    println!("     {}", "router.merge(lumina::app::controllers::aurora::routes())".yellow());
+    println!("\n{}", "🔐 Akun Bawaan (Default Accounts - Password: password123):".bright_magenta().bold());
+    println!("  👑 Admin  : admin@lumina.dev  (Role: admin)");
+    println!("  ✍️  Editor : editor@lumina.dev (Role: editor)");
+    println!("  👤 Member : member@lumina.dev (Role: member)");
+
 }

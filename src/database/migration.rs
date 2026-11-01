@@ -5,41 +5,80 @@ use std::{fs, path::Path};
 
 /// Jalankan semua file migrasi dari direktori `database/migrations/`
 /// secara berurutan. Mendukung multi-database (SQLite, MySQL, Postgres).
+/// Menggunakan tabel tunggal terstandarisasi `_lumina_migrations`.
 pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), sqlx::Error> {
-    // 1. Buat tabel tracker migrasi dengan syntax yang sesuai driver
+    // 1. Buat tabel tracker migrasi tunggal terpadu (_lumina_migrations) dengan syntax yang sesuai driver
     let create_table_sql = match kind {
         DatabaseKind::Sqlite => {
-            "CREATE TABLE IF NOT EXISTS _migrations (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                name     TEXT NOT NULL UNIQUE,
-                run_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+            "CREATE TABLE IF NOT EXISTS _lumina_migrations (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                migration_name  TEXT NOT NULL UNIQUE,
+                batch           INTEGER NOT NULL DEFAULT 1,
+                applied_at      DATETIME DEFAULT CURRENT_TIMESTAMP
             )"
         }
         DatabaseKind::MySql => {
-            "CREATE TABLE IF NOT EXISTS _migrations (
-                id       INT AUTO_INCREMENT PRIMARY KEY,
-                name     VARCHAR(255) NOT NULL UNIQUE,
-                run_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+            "CREATE TABLE IF NOT EXISTS _lumina_migrations (
+                id              INT AUTO_INCREMENT PRIMARY KEY,
+                migration_name  VARCHAR(255) NOT NULL UNIQUE,
+                batch           INT NOT NULL DEFAULT 1,
+                applied_at      DATETIME DEFAULT CURRENT_TIMESTAMP
             )"
         }
         DatabaseKind::Postgres => {
-            "CREATE TABLE IF NOT EXISTS _migrations (
-                id       SERIAL PRIMARY KEY,
-                name     VARCHAR(255) NOT NULL UNIQUE,
-                run_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            "CREATE TABLE IF NOT EXISTS _lumina_migrations (
+                id              SERIAL PRIMARY KEY,
+                migration_name  VARCHAR(255) NOT NULL UNIQUE,
+                batch           INTEGER NOT NULL DEFAULT 1,
+                applied_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"
         }
         DatabaseKind::Mssql => {
-            "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='_migrations' AND xtype='U')
-            CREATE TABLE _migrations (
-                id       INT IDENTITY(1,1) PRIMARY KEY,
-                name     NVARCHAR(255) NOT NULL UNIQUE,
-                run_at   DATETIME2 DEFAULT CURRENT_TIMESTAMP
+            "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='_lumina_migrations' AND xtype='U')
+            CREATE TABLE _lumina_migrations (
+                id              INT IDENTITY(1,1) PRIMARY KEY,
+                migration_name  NVARCHAR(255) NOT NULL UNIQUE,
+                batch           INT NOT NULL DEFAULT 1,
+                applied_at      DATETIME2 DEFAULT CURRENT_TIMESTAMP
             )"
         }
     };
 
     sqlx::query(create_table_sql).execute(pool).await?;
+
+    // Kompatibilitas balik: Cek apakah ada tabel warisan _migrations dari versi sebelumnya
+    let legacy_applied: Vec<String> = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM _migrations"
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    // Ambil daftar migrasi yang sudah tercatat di _lumina_migrations
+    let mut applied_migrations: Vec<String> = sqlx::query_scalar::<_, String>(
+        "SELECT migration_name FROM _lumina_migrations"
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    // Migrasikan riwayat lama jika ada
+    for leg in &legacy_applied {
+        if !applied_migrations.contains(leg) {
+            let ins_leg = if kind == DatabaseKind::Postgres {
+                "INSERT INTO _lumina_migrations (migration_name, batch) VALUES ($1, 1)"
+            } else {
+                "INSERT INTO _lumina_migrations (migration_name, batch) VALUES (?, 1)"
+            };
+            let _ = sqlx::query(ins_leg).bind(leg).execute(pool).await;
+            applied_migrations.push(leg.clone());
+        }
+    }
+
+    // Bersihkan tabel legacy _migrations agar tidak ada duplikasi tabel di database pengguna
+    if !legacy_applied.is_empty() {
+        let _ = sqlx::query("DROP TABLE IF EXISTS _migrations").execute(pool).await;
+    }
 
     let migration_dir = Path::new("database/migrations");
     if !migration_dir.exists() {
@@ -63,18 +102,7 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
     for entry in files {
         let name = entry.file_name().to_string_lossy().to_string();
 
-        let query_count_sql = if kind == DatabaseKind::Postgres {
-            "SELECT COUNT(1) FROM _migrations WHERE name = $1"
-        } else {
-            "SELECT COUNT(1) FROM _migrations WHERE name = ?"
-        };
-
-        let count: i64 = sqlx::query_scalar(query_count_sql)
-            .bind(&name)
-            .fetch_one(pool)
-            .await?;
-
-        if count > 0 {
+        if applied_migrations.contains(&name) {
             continue;
         }
 
@@ -162,9 +190,9 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
         }
 
         let insert_sql = if kind == DatabaseKind::Postgres {
-            "INSERT INTO _migrations (name) VALUES ($1)"
+            "INSERT INTO _lumina_migrations (migration_name, batch) VALUES ($1, 1)"
         } else {
-            "INSERT INTO _migrations (name) VALUES (?)"
+            "INSERT INTO _lumina_migrations (migration_name, batch) VALUES (?, 1)"
         };
         sqlx::query(insert_sql)
             .bind(&name)
@@ -179,13 +207,13 @@ pub async fn run_migrations(pool: &Pool<Any>, kind: DatabaseKind) -> Result<(), 
 
 pub async fn migrate_status(pool: &Pool<Any>) -> Result<(), sqlx::Error> {
     let applied_migrations: Vec<String> =
-        match sqlx::query_scalar::<_, String>("SELECT name FROM _migrations ORDER BY id ASC")
+        match sqlx::query_scalar::<_, String>("SELECT migration_name FROM _lumina_migrations ORDER BY id ASC")
             .fetch_all(pool)
             .await
         {
             Ok(v) => v,
             Err(_) => {
-                println!("⚠️  Tabel _migrations tidak ditemukan atau belum diinisialisasi.");
+                println!("⚠️  Tabel _lumina_migrations tidak ditemukan atau belum diinisialisasi.");
                 return Ok(());
             }
         };
@@ -225,14 +253,14 @@ pub async fn migrate_status(pool: &Pool<Any>) -> Result<(), sqlx::Error> {
 
 pub async fn migrate_rollback(pool: &Pool<Any>) -> Result<(), sqlx::Error> {
     let last_migration: Option<String> = match sqlx::query_scalar::<_, String>(
-        "SELECT name FROM _migrations ORDER BY id DESC LIMIT 1",
+        "SELECT migration_name FROM _lumina_migrations ORDER BY id DESC LIMIT 1",
     )
     .fetch_optional(pool)
     .await
     {
         Ok(v) => v,
         Err(_) => {
-            println!("⚠️  Tabel _migrations tidak ditemukan.");
+            println!("⚠️  Tabel _lumina_migrations tidak ditemukan.");
             return Ok(());
         }
     };
@@ -271,7 +299,7 @@ pub async fn migrate_rollback(pool: &Pool<Any>) -> Result<(), sqlx::Error> {
         println!("⚠️  Gagal mengekstrak nama tabel dari file migrasi.");
     }
 
-    sqlx::query("DELETE FROM _migrations WHERE name = ?")
+    sqlx::query("DELETE FROM _lumina_migrations WHERE migration_name = ?")
         .bind(&name)
         .execute(pool)
         .await?;

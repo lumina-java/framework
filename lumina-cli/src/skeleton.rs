@@ -824,7 +824,7 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'user',
+    role TEXT NOT NULL DEFAULT 'member',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -832,6 +832,22 @@ CREATE TABLE IF NOT EXISTS users (
     fs::write(
         base.join("database/migrations/0001_create_users_table.sql"),
         migration,
+    )
+    .ok();
+
+    // 14a. database/seeders/0001_users_seeder.sql
+    let default_seeder = r#"-- Lumina Default Users Seeder (Admin, Editor, Member)
+-- Password default: password123 (bcrypt cost 12)
+DELETE FROM users WHERE email IN ('admin@lumina.dev', 'editor@lumina.dev', 'member@lumina.dev');
+
+INSERT INTO users (name, email, password, role) VALUES 
+('Administrator Lumina', 'admin@lumina.dev', '$2b$12$9PoqqsF9tgdGa57MX.JIA.ejM3WzhUR.2qslio9xbRzxVWnB9rhSu', 'admin'),
+('Editor Konten', 'editor@lumina.dev', '$2b$12$9PoqqsF9tgdGa57MX.JIA.ejM3WzhUR.2qslio9xbRzxVWnB9rhSu', 'editor'),
+('Member Komunitas', 'member@lumina.dev', '$2b$12$9PoqqsF9tgdGa57MX.JIA.ejM3WzhUR.2qslio9xbRzxVWnB9rhSu', 'member');
+"#;
+    fs::write(
+        base.join("database/seeders/0001_users_seeder.sql"),
+        default_seeder,
     )
     .ok();
 

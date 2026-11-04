@@ -33,6 +33,7 @@ pub struct QueryBuilder<'a, T> {
     where_bind_values: Vec<String>,
     with_trashed: bool,
     only_trashed: bool,
+    pub has_soft_deletes: bool,
     _marker: PhantomData<T>,
 }
 
@@ -57,6 +58,7 @@ where
             eager_with: Vec::new(),
             with_trashed: false,
             only_trashed: false,
+            has_soft_deletes: false,
             _marker: PhantomData,
         }
     }
@@ -285,16 +287,27 @@ where
     }
 
     /// Sertakan baris yang telah di-soft-delete dalam query (Laravel: withTrashed)
+    /// Aktifkan mode soft deletes pada query ini
+    pub fn soft_deletes(mut self) -> Self {
+        self.has_soft_deletes = true;
+        self
+    }
+
+    /// Sertakan baris yang telah di-soft-delete dalam query (Laravel: withTrashed)
     pub fn with_trashed(mut self) -> Self {
+        self.has_soft_deletes = true;
         self.with_trashed = true;
         self
     }
 
     /// Ambil HANYA baris yang telah di-soft-delete (Laravel: onlyTrashed)
     pub fn only_trashed(mut self) -> Self {
+        self.has_soft_deletes = true;
         self.only_trashed = true;
         self
     }
+
+
 
     /// Terapkan filter query secara kondisional jika kondisi bernilai true (Laravel: when)
     pub fn when<F>(self, condition: bool, callback: F) -> Self
@@ -727,7 +740,9 @@ where
             sql.push_str(&self.joins.join(" "));
         }
 
-        let soft_delete_clause = if self.only_trashed {
+        let soft_delete_clause = if !self.has_soft_deletes {
+            ""
+        } else if self.only_trashed {
             "deleted_at IS NOT NULL"
         } else if self.with_trashed {
             ""

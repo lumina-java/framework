@@ -19,6 +19,9 @@ pub trait Model:
     /// Nama tabel di database (konstanta compile-time)
     const TABLE: &'static str;
 
+    /// Apakah model ini mengaktifkan Soft Deletes (kolom deleted_at)
+    const HAS_SOFT_DELETES: bool = false;
+
     /// Ambil satu record berdasarkan primary key.
     /// Mengembalikan error jika tidak ditemukan.
     async fn find(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error>;
@@ -35,7 +38,9 @@ pub trait Model:
 
     /// Inisialisasi QueryBuilder untuk model ini.
     fn query(pool: &DatabasePool) -> QueryBuilder<'_, Self> {
-        QueryBuilder::new(pool, Self::TABLE)
+        let mut b = QueryBuilder::new(pool, Self::TABLE);
+        b.has_soft_deletes = Self::HAS_SOFT_DELETES;
+        b
     }
 
     /// Shortcut query WHERE column = value

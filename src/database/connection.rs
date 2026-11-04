@@ -117,6 +117,38 @@ impl DatabasePool {
         })
     }
 
+    /// Mulai transaksi database baru (ACID Transaction) yang aman, otomatis rollback jika gagal.
+    pub async fn begin(&self) -> Result<crate::database::transaction::Transaction, sqlx::Error> {
+        self.begin_transaction().await
+    }
+
+    /// Mulai transaksi database baru (ACID Transaction) dengan gaya imperatif tanpa closure.
+    pub async fn begin_transaction(&self) -> Result<crate::database::transaction::Transaction, sqlx::Error> {
+        #[cfg(feature = "mssql")]
+        if self.kind == DatabaseKind::Mssql {
+            if let Some(pool) = &self.mssql_pool {
+                let mut conn = pool.get_owned().await.map_err(|e| {
+                    sqlx::Error::Configuration(format!("Gagal mengambil koneksi MSSQL untuk transaksi: {}", e).into())
+                })?;
+                conn.simple_query("BEGIN TRANSACTION").await.map_err(|e| {
+                    sqlx::Error::Configuration(format!("Gagal memulai transaksi MSSQL: {}", e).into())
+                })?;
+                return Ok(crate::database::transaction::Transaction::from_mssql(conn));
+            } else {
+                return Err(sqlx::Error::Configuration("MSSQL pool belum siap".into()));
+            }
+        }
+
+        let tx = self.pool.begin().await?;
+        Ok(crate::database::transaction::Transaction::from_sqlx(self.kind, tx))
+    }
+
+    /// Eksekusi SQL raw langsung pada database pool
+    pub async fn execute_raw(&self, sql: &str) -> Result<u64, sqlx::Error> {
+        let res = sqlx::query(sql).execute(&self.pool).await?;
+        Ok(res.rows_affected())
+    }
+
     /// Akses direct native PgPool (hanya tersedia jika fitur `postgres` aktif)
     #[cfg(feature = "postgres")]
     pub fn pg(&self) -> Option<&sqlx::PgPool> {

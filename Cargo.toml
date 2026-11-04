@@ -17,7 +17,7 @@ path = "src/lib.rs"
 members = ["lumina_macros", "lumina-cli", "indonesian-script", "lumina-live"]
 
 [dependencies]
-lumina_macros = { path = "lumina_macros", version = "0.1.4" }
+lumina_macros = { path = "lumina_macros", version = "0.1.5" }
 indonesian-script = { path = "indonesian-script", version = "0.1.2" }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["macros", "multipart", "ws"] }

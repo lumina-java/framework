@@ -105,7 +105,7 @@ pub fn lumina_form(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Derive macro untuk mengimplementasikan trait Model secara otomatis.
 /// Ini menghilangkan boilerplate SQL manual untuk operasi CRUD standar.
-#[proc_macro_derive(LuminaModel, attributes(table, primary_key, column, lumina))]
+#[proc_macro_derive(LuminaModel, attributes(table, primary_key, column, lumina, soft_deletes))]
 pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
     let name = &input.ident;
@@ -216,16 +216,21 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
     });
 
     let pk_clause = format!("{} = ?", primary_key_field);
+    let has_deleted_at = field_names.iter().any(|n| n == "deleted_at")
+        || input.attrs.iter().any(|a| a.path().is_ident("soft_deletes"));
+    let soft_find = if has_deleted_at { " AND deleted_at IS NULL" } else { "" };
+    let soft_all = if has_deleted_at { " WHERE deleted_at IS NULL" } else { "" };
 
     let expanded = quote! {
         #[async_trait::async_trait]
         impl lumina::database::model::Model for #name {
             const TABLE: &'static str = #table_name;
+            const HAS_SOFT_DELETES: bool = #has_deleted_at;
 
             async fn find(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
                 let is_pg = pool.kind == lumina::database::connection::DatabaseKind::Postgres;
                 let select_cols = if is_pg { #pg_select_fields } else { #select_fields };
-                let sql = format!("SELECT {} FROM {} WHERE {} AND deleted_at IS NULL", select_cols, Self::TABLE, #pk_clause);
+                let sql = format!("SELECT {} FROM {} WHERE {}{}", select_cols, Self::TABLE, #pk_clause, #soft_find);
                 let sql = pool.prepare_sql(&sql);
                 sqlx::query_as::<_, Self>(&sql)
                     .bind(id)
@@ -236,7 +241,7 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
             async fn all(pool: &lumina::database::connection::DatabasePool) -> Result<Vec<Self>, sqlx::Error> {
                 let is_pg = pool.kind == lumina::database::connection::DatabaseKind::Postgres;
                 let select_cols = if is_pg { #pg_select_fields } else { #select_fields };
-                let sql = format!("SELECT {} FROM {} WHERE deleted_at IS NULL ORDER BY {} DESC", select_cols, Self::TABLE, #primary_key_field);
+                let sql = format!("SELECT {} FROM {}{} ORDER BY {} DESC", select_cols, Self::TABLE, #soft_all, #primary_key_field);
                 let sql = pool.prepare_sql(&sql);
                 sqlx::query_as::<_, Self>(&sql)
                     .fetch_all(&pool.pool)
@@ -300,7 +305,11 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
             }
 
             async fn delete(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<bool, sqlx::Error> {
-                let sql = format!("UPDATE {} SET deleted_at = CURRENT_TIMESTAMP WHERE {}", Self::TABLE, #pk_clause);
+                let sql = if #has_deleted_at {
+                    format!("UPDATE {} SET deleted_at = CURRENT_TIMESTAMP WHERE {}", Self::TABLE, #pk_clause)
+                } else {
+                    format!("DELETE FROM {} WHERE {}", Self::TABLE, #pk_clause)
+                };
                 let sql = pool.prepare_sql(&sql);
                 sqlx::query(&sql)
                     .bind(id)

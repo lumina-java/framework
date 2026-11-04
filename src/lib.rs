@@ -20,6 +20,7 @@ pub mod prelude {
     pub use crate::core::validation::{ValidatedForm, ValidatedJson};
     pub use crate::core::view::View;
     pub use crate::database::connection::{DatabasePool, Db};
+    pub use crate::database::transaction::{Transaction, TableQueryBuilder, DbSource};
     pub use crate::database::model::Model;
     pub use crate::database::orm::{LengthAwarePaginator, OrmResult, QueryBuilder};
     pub use crate::database::factory::{Factory, FactoryBuilder, HasFactory};

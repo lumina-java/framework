@@ -24,6 +24,7 @@ pub struct Request {
     pub extensions: axum::http::Extensions,
     pub uri: axum::http::Uri,
     pub params: HashMap<String, String>,
+    pub active_tx: std::sync::Arc<tokio::sync::Mutex<Option<crate::database::transaction::Transaction>>>,
 }
 
 #[async_trait]
@@ -73,6 +74,7 @@ where
             extensions: parts.extensions.clone(),
             uri,
             params,
+            active_tx: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
         })
     }
 }
@@ -84,6 +86,59 @@ impl Request {
     /// Shortcut untuk mengambil instance DatabasePool.
     pub fn db(&self) -> &crate::database::connection::DatabasePool {
         self.state.db()
+    }
+
+    /// Mulai transaksi database baru (ACID Transaction) langsung dari Request.
+    /// Sangat bersih, tanpa closure, tanpa tanda '|', dan otomatis rollback jika gagal.
+    pub async fn begin_transaction(&self) -> Result<crate::database::transaction::Transaction, crate::core::error::AppError> {
+        let tx = self.db().begin_transaction().await?;
+        let mut lock = self.active_tx.lock().await;
+        *lock = Some(tx.clone());
+        Ok(tx)
+    }
+
+
+
+    /// Akses TableQueryBuilder yang terikat pada transaksi kontekstual `req`.
+    /// Jika transaksi belum dimulai via `req.begin()`, transaksi akan otomatis diinisialisasi!
+    /// Contoh: `req.table("accounts").await?.where_eq("id", 1).decrement("balance", 50000).await?;`
+    pub async fn table(&self, name: &'static str) -> Result<crate::database::transaction::TableQueryBuilder, crate::core::error::AppError> {
+        let mut lock = self.active_tx.lock().await;
+        if lock.is_none() {
+            let tx = self.db().begin_transaction().await?;
+            *lock = Some(tx);
+        }
+        let tx = lock.as_ref().unwrap().clone();
+        Ok(tx.table(name))
+    }
+
+    /// Commit transaksi kontekstual yang sedang aktif pada request ini.
+    pub async fn commit(&self) -> Result<(), crate::core::error::AppError> {
+        let mut lock = self.active_tx.lock().await;
+        if let Some(tx) = lock.take() {
+            tx.commit().await?;
+        }
+        Ok(())
+    }
+
+    /// Batalkan transaksi kontekstual yang sedang aktif pada request ini.
+    pub async fn rollback(&self) -> Result<(), crate::core::error::AppError> {
+        let mut lock = self.active_tx.lock().await;
+        if let Some(tx) = lock.take() {
+            tx.rollback().await?;
+        }
+        Ok(())
+    }
+
+    /// Cari satu baris data berdasarkan ID langsung dari request (Gaya 2: Contextual Request).
+    pub async fn find(&self, table: &'static str, id: i64) -> Result<Option<serde_json::Value>, crate::core::error::AppError> {
+        let builder = self.table(table).await?;
+        Ok(builder.where_eq("id", id).first().await?)
+    }
+
+    /// Alias ringkas untuk `begin_transaction()`
+    pub async fn begin(&self) -> Result<crate::database::transaction::Transaction, crate::core::error::AppError> {
+        self.begin_transaction().await
     }
 
     /// Shortcut untuk mengambil Arc<DatabasePool>.

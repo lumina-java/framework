@@ -103,3 +103,64 @@ async fn test_transaction_commit_and_rollback() {
 
     println!("✅ Seluruh tes transaksi ACID tanpa tanda pipa '|' dan tanpa generic '<>' berhasil 100%!");
 }
+
+#[tokio::test]
+async fn test_db_facade_transactions() {
+    use lumina::database::facade::DB;
+
+    let _ = std::fs::remove_file("target/test_facade_tx.db");
+    let pool = DatabasePool::connect("sqlite:target/test_facade_tx.db?mode=rwc")
+        .await
+        .expect("Koneksi DB SQLite gagal");
+
+    pool.execute_raw(
+        "CREATE TABLE IF NOT EXISTS wallets (id INTEGER PRIMARY KEY, balance INTEGER);",
+    )
+    .await
+    .unwrap();
+
+    pool.execute_raw("INSERT INTO wallets (id, balance) VALUES (1, 500000);")
+        .await
+        .unwrap();
+
+    // 1. Uji DB::begin()
+    let tx = DB::begin(&pool).await.unwrap();
+    tx.table("wallets").where_eq("id", 1).decrement("balance", 100000).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let bal1: (i64,) = sqlx::query_as("SELECT balance FROM wallets WHERE id = 1;")
+        .fetch_one(&pool.pool)
+        .await
+        .unwrap();
+    assert_eq!(bal1.0, 400000);
+
+    // 2. Uji DB::transaction() auto commit
+    DB::transaction(&pool, |tx| async move {
+        tx.table("wallets").where_eq("id", 1).decrement("balance", 50000).await?;
+        Ok::<(), sqlx::Error>(())
+    })
+    .await
+    .unwrap();
+
+    let bal2: (i64,) = sqlx::query_as("SELECT balance FROM wallets WHERE id = 1;")
+        .fetch_one(&pool.pool)
+        .await
+        .unwrap();
+    assert_eq!(bal2.0, 350000);
+
+    // 3. Uji DB::transaction() auto rollback saat error
+    let res: Result<(), sqlx::Error> = DB::transaction(&pool, |tx| async move {
+        tx.table("wallets").where_eq("id", 1).decrement("balance", 50000).await?;
+        Err(sqlx::Error::RowNotFound)
+    })
+    .await;
+    assert!(res.is_err());
+
+    let bal3: (i64,) = sqlx::query_as("SELECT balance FROM wallets WHERE id = 1;")
+        .fetch_one(&pool.pool)
+        .await
+        .unwrap();
+    assert_eq!(bal3.0, 350000);
+
+    let _ = std::fs::remove_file("target/test_facade_tx.db");
+}

@@ -25,6 +25,7 @@ pub fn routes() -> Router<AppState> {
         .get("/profile", AuroraProfileController::edit)
         .post("/profile", AuroraProfileController::update)
         .post("/profile/password", AuroraProfileController::change_password)
+        .post("/profile/delete", AuroraProfileController::destroy)
         .security_headers()
         .panic_boundary()
 }

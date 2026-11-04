@@ -1,4 +1,5 @@
 pub mod connection;
+pub mod facade;
 pub mod factory;
 pub mod faker;
 pub mod grammar;
@@ -12,4 +13,5 @@ pub mod transaction;
 
 pub use factory::{Factory, FactoryBuilder, HasFactory};
 pub use faker::Faker;
-pub use transaction::{Transaction, TableQueryBuilder, DbSource};
+pub use facade::DB;
+pub use transaction::{Transaction, TableQueryBuilder};

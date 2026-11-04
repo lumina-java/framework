@@ -557,12 +557,17 @@ where
 
         let mut sql = format!("UPDATE {} SET {}", self.table, set_clause);
 
-        if !self.wheres.is_empty() {
+        if self.has_soft_deletes {
+            if !self.wheres.is_empty() {
+                sql.push_str(" WHERE ");
+                sql.push_str(&self.wheres.join(" "));
+                sql.push_str(" AND deleted_at IS NULL");
+            } else {
+                sql.push_str(" WHERE deleted_at IS NULL");
+            }
+        } else if !self.wheres.is_empty() {
             sql.push_str(" WHERE ");
             sql.push_str(&self.wheres.join(" "));
-            sql.push_str(" AND deleted_at IS NULL");
-        } else {
-            sql.push_str(" WHERE deleted_at IS NULL");
         }
 
         let mut query = sqlx::query(&sql);

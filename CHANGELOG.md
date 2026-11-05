@@ -4,6 +4,67 @@ Semua perubahan penting pada proyek **Lumina Framework** didokumentasikan di dal
 
 Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) dan mengikuti standar [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-11-06
+
+### 🚀 Ditambahkan & Ditingkatkan (Added & Improved)
+- **Universal Smart MSSQL Connection Parser**:
+  - Auto-normalisasi berbagai varian format string koneksi Microsoft SQL Server secara transparan:
+    - Format URL standar (`sqlserver://user:pass@host:port/database` atau `mssql://...`).
+    - Format Named Instance Enterprise (`sqlserver://user:pass@host/INSTANCE?database=...`).
+    - Format JDBC langsung (`jdbc:sqlserver://host\instance;user=...;password=...;database=...`).
+    - Format ADO connection string (`Server=host,port;Database=...;User Id=...;Password=...`).
+  - Penanganan cerdas escaping tanda backslash ganda (`\\`) pada file konfigurasi `.env` untuk named instance (misal `192.168.10.29\\SQL2012`).
+- **Pre-Warmed Connection Pool Optimization**:
+  - Konfigurasi `min_idle(Some(2))` pada Tiberius/bb8 pool untuk mengeliminasi latensi *cold-start* TCP & TDS handshake.
+  - Penyesuaian batas `connection_timeout` adaptif 10 detik dan `max_size(15)`.
+- **Pengujian Komprehensif Driver MSSQL**:
+  - Test suite unit terisolasi `tests/mssql_parser_test.rs` yang memvalidasi 6 varian format koneksi MSSQL.
+- **Modernisasi Dokumentasi Model & Scaffolding**:
+  - Pembaruan dokumen `04_model_dan_eloquent_orm.md` menyelaraskan seluruh contoh CRUD dan Relasi ke gaya Unified `Request` bundle.
+  - Panduan performa lingkungan produksi enterprise (SQL Browser UDP 1434 overhead, optimasi Bcrypt release mode, dan indexing).
+
+---
+
+## [0.6.0] - 2026-11-03
+
+### 🚀 Ditambahkan (Added)
+- **Zero-Ampersand Fluent ACID Transactions**:
+  - Fasade transaksi `DB::transaction(|tx| async move { ... })` dengan auto-commit saat sukses dan auto-rollback saat terjadi error atau panic.
+  - Akses database terikat transaksi via `tx.db()` dan helper `req.tx()`.
+- **Smart Declarative Soft Deletes**:
+  - Makro derive `#[derive(LuminaModel)]` dengan atribut `#[soft_deletes]` untuk otomasi pengelolaan `deleted_at`.
+  - Filter query builder otomatis: `.without_trashed()` (default), `.with_trashed()`, `.only_trashed()`, serta method `.restore()` dan `.force_delete()`.
+- **Integrasi Transaksional Aurora Starter Kit**:
+  - `AuthController` memanfaatkan transaksi ACID pada alur registrasi pengguna dan audit log.
+
+---
+
+## [0.5.1] - 2026-11-01
+
+### 🚀 Ditambahkan (Added)
+- **Enterprise Microsoft SQL Server (MSSQL / Tiberius) Support**:
+  - Koneksi TDS native melalui Tiberius dan bb8 connection pool.
+  - Auto-translation dialek SQL standar ke sintaks T-SQL (`TOP n`, `@P1`, `@P2`, `ROW_NUMBER() OVER (...)`).
+  - Dukungan penuh QueryBuilder dan Model untuk MSSQL (`get`, `first`, `count`, `paginate`).
+- **Audit Kompatibilitas Aurora Starter Kit**:
+  - Penyesuaian seluruh alur autentikasi dan model Aurora agar sepenuhnya kompatibel dengan database MSSQL.
+
+---
+
+## [0.5.0] - 2026-10-31
+
+### 🚀 Ditambahkan (Added)
+- **Lumina Aurora Starter Kit**:
+  - Paket lengkap autentikasi modern berbasis Blade UI: Login, Register, Forgot Password, Reset Password, Dasbor Profil, dan Navigasi Responsif.
+- **Enterprise Security Hardening**:
+  - Token Blacklist instan dengan auto-eviction berbasis cache Moka.
+  - HMAC-SHA256 signature verification dengan constant-time comparison anti-timing attacks.
+  - Middleware security headers bawaan (CSP, HSTS, X-Content-Type-Options, Referrer-Policy).
+- **Portal Dokumentasi Interaktif & Benchmarking**:
+  - Portal dokumentasi modern dengan pencarian instan dan grafik perbandingan performa engine.
+
+---
+
 ## [0.4.1] - 2026-10-29
 
 ### 🚀 Ditambahkan & Ditingkatkan (Added & Improved)

@@ -98,9 +98,10 @@ DB_DATABASE={}_db
 DB_USERNAME=sa
 DB_PASSWORD=YourPassword123
 
-# Atau gunakan URL eksplisit:
-DATABASE_URL="Server=tcp:127.0.0.1,1433;Database={}_db;User Id=sa;Password=YourPassword123;TrustServerCertificate=true;"
-# DATABASE_URL="sqlserver://sa:YourPassword123@127.0.0.1:1433?database={}_db&trustServerCertificate=true""#,
+# Atau gunakan format connection string MSSQL:
+DATABASE_URL="jdbc:sqlserver://127.0.0.1:1433;user=sa;password=YourPassword123;database={}_db;trustServerCertificate=true"
+# Format URL: DATABASE_URL="sqlserver://sa:YourPassword123@127.0.0.1:1433?database={}_db&trustServerCertificate=true"
+# Format Named Instance (gunakan double backslash \): DATABASE_URL="jdbc:sqlserver://127.0.0.1\\INSTANCE;user=sa;password=YourPassword123;database={}_db;trustServerCertificate=true""#,
                 name, name, name
             ),
         ),

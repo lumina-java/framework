@@ -186,29 +186,123 @@ impl DatabasePool {
         }
     }
 
+    /// Mengonversi format URL standard (sqlserver:// atau mssql://) menjadi JDBC connection string
+    #[cfg(feature = "mssql")]
+    pub fn url_to_jdbc(database_url: &str) -> Option<String> {
+        let normalized = if let Some(stripped) = database_url.strip_prefix("mssql://") {
+            format!("sqlserver://{}", stripped)
+        } else {
+            database_url.to_string()
+        };
+
+        if let Ok(url) = url::Url::parse(&normalized) {
+            if url.scheme() == "sqlserver" {
+                let host = url.host_str().unwrap_or("localhost");
+                let path = url.path().trim_matches('/');
+                let segments: Vec<&str> = if path.is_empty() {
+                    Vec::new()
+                } else {
+                    path.split('/').collect()
+                };
+
+                let mut db_name = None;
+                let mut other_params = Vec::new();
+
+                for (k, v) in url.query_pairs() {
+                    if k.eq_ignore_ascii_case("database") || k.eq_ignore_ascii_case("databaseName") {
+                        db_name = Some(v.to_string());
+                    } else {
+                        other_params.push(format!("{}={}", k, v));
+                    }
+                }
+
+                // Format host dan target instance
+                let (target_server, resolved_db) = if let Some(port) = url.port() {
+                    let db = db_name.or_else(|| segments.first().map(|s| s.to_string()));
+                    (format!("{}:{}", host, port), db)
+                } else if segments.len() >= 2 {
+                    let instance = segments[0];
+                    let db = db_name.unwrap_or_else(|| segments[1].to_string());
+                    (format!("{}\\{}", host, instance), Some(db))
+                } else if segments.len() == 1 && db_name.is_some() {
+                    let instance = segments[0];
+                    (format!("{}\\{}", host, instance), db_name)
+                } else if segments.len() == 1 {
+                    let db = segments[0].to_string();
+                    (host.to_string(), Some(db))
+                } else {
+                    (host.to_string(), db_name)
+                };
+
+                let mut jdbc = format!("jdbc:sqlserver://{}", target_server);
+
+                if !url.username().is_empty() {
+                    jdbc.push_str(&format!(";user={}", url.username()));
+                }
+                if let Some(pass) = url.password() {
+                    jdbc.push_str(&format!(";password={}", pass));
+                }
+                if let Some(db) = resolved_db {
+                    jdbc.push_str(&format!(";database={}", db));
+                }
+
+                for p in other_params {
+                    jdbc.push_str(&format!(";{}", p));
+                }
+
+                return Some(jdbc);
+            }
+        }
+        None
+    }
+
+    /// Smart parser untuk konfigurasi koneksi MSSQL Tiberius:
+    /// Mendukung JDBC (`jdbc:sqlserver://`), ADO (`Server=...`), dan standard URL (`sqlserver://...`).
+    #[cfg(feature = "mssql")]
+    pub fn parse_mssql_config(database_url: &str) -> Result<tiberius::Config, Box<dyn std::error::Error + Send + Sync>> {
+        // 1. Jika sudah dalam format JDBC langsung
+        if database_url.starts_with("jdbc:") {
+            if let Ok(cfg) = tiberius::Config::from_jdbc_string(database_url) {
+                return Ok(cfg);
+            }
+        }
+
+        // 2. Jika dalam format ADO connection string
+        if database_url.to_ascii_lowercase().starts_with("server=") {
+            if let Ok(cfg) = tiberius::Config::from_ado_string(database_url) {
+                return Ok(cfg);
+            }
+        }
+
+        // 3. Jika dalam format URL (sqlserver:// atau mssql://), konversi cerdas ke JDBC
+        if database_url.starts_with("sqlserver://") || database_url.starts_with("mssql://") {
+            if let Some(jdbc_str) = Self::url_to_jdbc(database_url) {
+                if let Ok(cfg) = tiberius::Config::from_jdbc_string(&jdbc_str) {
+                    return Ok(cfg);
+                }
+            }
+        }
+
+        // 4. Fallback: coba parsing JDBC, lalu ADO
+        tiberius::Config::from_jdbc_string(database_url)
+            .or_else(|_| tiberius::Config::from_ado_string(database_url))
+            .map_err(|e| {
+                format!(
+                    "Gagal mem-parsing MSSQL connection string: {}. Pastikan format berupa JDBC ('jdbc:sqlserver://...'), ADO ('Server=...'), atau URL ('sqlserver://...')",
+                    e
+                ).into()
+            })
+    }
+
     /// Helper internal untuk inisialisasi koneksi MSSQL menggunakan Tiberius & bb8
     #[cfg(feature = "mssql")]
     pub async fn connect_mssql(database_url: &str) -> Result<bb8::Pool<bb8_tiberius::ConnectionManager>, Box<dyn std::error::Error + Send + Sync>> {
-        let config = if database_url.starts_with("sqlserver://")
-            || database_url.starts_with("mssql://")
-            || database_url.starts_with("jdbc:sqlserver://")
-        {
-            let jdbc_str = if let Some(stripped) = database_url.strip_prefix("mssql://") {
-                format!("jdbc:sqlserver://{}", stripped)
-            } else if let Some(stripped) = database_url.strip_prefix("sqlserver://") {
-                format!("jdbc:sqlserver://{}", stripped)
-            } else {
-                database_url.to_string()
-            };
-            tiberius::Config::from_jdbc_string(&jdbc_str)
-                .or_else(|_| tiberius::Config::from_ado_string(database_url))?
-        } else {
-            tiberius::Config::from_ado_string(database_url)?
-        };
-
+        let config = Self::parse_mssql_config(database_url)?;
         let mgr = bb8_tiberius::ConnectionManager::new(config);
         let pool = bb8::Pool::builder()
-            .max_size(10)
+            .max_size(15)
+            .min_idle(Some(2)) // Pre-warm 2 koneksi aktif di awal untuk menghilangkan cold-start latency
+            .connection_timeout(std::time::Duration::from_secs(10))
             .build(mgr)
             .await?;
         Ok(pool)

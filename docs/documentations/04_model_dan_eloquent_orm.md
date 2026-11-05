@@ -430,6 +430,42 @@ ightarrow$ `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '...') CREATE T
 
    ```
 
+### B. Format Connection String MSSQL (Universal Smart Parser)
+
+Lumina v0.6.1 menyematkan **Smart Universal Parser** yang secara otomatis mengenali dan mengonversi format connection string apa pun yang Anda tulis di file `.env`:
+
+1. **Format JDBC — IP:Port Langsung (Paling Cepat / Direkomendasikan untuk Enterprise & Rumah Sakit)**:
+   ```env
+   DATABASE_URL="jdbc:sqlserver://192.168.10.29:1433;user=sa;password=123;database=DBSIMRS;trustServerCertificate=true"
+   ```
+   > [!TIP]
+   > Menentukan port secara langsung (misal `:1433`) akan membypass pencarian UDP SQL Server Browser (port 1434), membuat koneksi langsung terbuka secara instan (< 1ms).
+
+2. **Format JDBC — Named Instance**:
+   Jika SQL Server Anda menggunakan Named Instance (misal `\SQL2012`), **wajib menggunakan double-backslash (`\\`)** agar tidak ter-escape oleh parser `.env`:
+   ```env
+   DATABASE_URL="jdbc:sqlserver://192.168.10.29\\SQL2012;user=sa;password=123;database=DBSIMRS;trustServerCertificate=true"
+   ```
+
+3. **Format URL Standard (Otomatis Dikonversi oleh Lumina)**:
+   ```env
+   DATABASE_URL="sqlserver://sa:YourPassword123@localhost:1433?database=lumina_db&trustServerCertificate=true"
+   ```
+
+4. **Format ADO Connection String**:
+   ```env
+   DATABASE_URL="Server=192.168.10.29,1433;Database=DBSIMRS;User Id=sa;Password=123;TrustServerCertificate=true;"
+   ```
+
+### C. Tips Performa MSSQL di Lingkungan Produksi (Hospital & Enterprise)
+
+1. **Gunakan Mode Release saat Menjalankan Aplikasi**:
+   Jalankan dengan `cargo run --release`. Pada mode debug standar Rust, verifikasi Bcrypt password memakan waktu ~300ms–600ms CPU. Pada mode release, proses tersebut teroptimasi penuh menjadi hanya **~15ms–25ms**.
+2. **Koneksi Pool Pre-Warmed Otomatis**:
+   Lumina secara default menginisialisasi minimal 2 koneksi aktif (`min_idle = 2`) di memori, sehingga request login pertama tidak perlu menanggung latensi handshake TCP dan autentikasi TLS TDS.
+3. **Pastikan Kolom Pencarian Login Memiliki Index**:
+   Pada tabel pengguna SIMRS yang besar, pastikan kolom `email` atau `username` memiliki index di SQL Server (`CREATE NONCLUSTERED INDEX IX_users_email ON users(email);`) agar proses lookup login instan tanpa table scan.
+
 ---
 
 ## 9. Transaksi Database ACID Fluen (Zero-Ampersand, Zero-Pipes, Zero-Generics)

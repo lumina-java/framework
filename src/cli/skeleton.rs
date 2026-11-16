@@ -130,7 +130,7 @@ edition = "2021"
 default-run = "{}-server"
 
 [dependencies]
-lumina = {{ package = "lumina-framework", version = "0.6.1", git = "https://github.com/lumina-java/framework.git", branch = "0.x" }}
+lumina = {{ package = "lumina-framework", version = "0.7.0", git = "https://github.com/lumina-java/framework.git", branch = "0.x" }}
 tokio = {{ version = "1", features = ["full"] }}
 axum = {{ version = "0.7", features = ["macros", "multipart"] }}
 serde = {{ version = "1", features = ["derive"] }}
@@ -181,9 +181,15 @@ GITHUB_REDIRECT_URL=http://127.0.0.1:8000/auth/github/callback
 RATE_LIMIT_MAX=60
 RATE_LIMIT_WINDOW=60
 
-# Storage Settings
-# Batas maksimal upload file dalam satuan Megabyte
-UPLOAD_MAX_SIZE_MB=2
+# Universal Storage (Filesystem: local | public | s3)
+FILESYSTEM_DISK=local
+UPLOAD_MAX_SIZE_MB=10
+
+# Redis Multi-Driver Suite (Cache, Queue, Broadcaster)
+REDIS_URL="redis://127.0.0.1:6379/0"
+CACHE_DRIVER=moka
+QUEUE_CONNECTION=database
+BROADCAST_DRIVER=log
 
 # Session Configuration
 JWT_SECRET=lumina-jwt-secret-key-change-me-in-production

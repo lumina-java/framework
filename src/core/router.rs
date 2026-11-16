@@ -106,6 +106,16 @@ where
         self
     }
 
+    /// Daftarkan fallback handler (misal untuk menangani 404 Not Found).
+    pub fn fallback<H, T>(mut self, handler: H) -> Self
+    where
+        H: Handler<T, S>,
+        T: 'static,
+    {
+        self.inner = self.inner.fallback(handler);
+        self
+    }
+
     /// Grup route dengan prefix dan kustomisasi (seperti middleware).
     /// Contoh:
     /// ```rust,ignore

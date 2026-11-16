@@ -1121,124 +1121,152 @@ impl BladeEngine {
     fn process_loops(&self, content: &str, context: &BladeContext, depth: usize) -> String {
         let mut s = content.to_string();
 
-        // @foreach ($collection as $item) / @foreach ($collection as $key => $item)
-        
-        while let Some(m) = RE_FOREACH_OPEN.find(&s) {
-            let start = m.start();
-            let header = RE_FOREACH_OPEN.captures(&s[start..]).unwrap()[1].to_string();
-            let body_start = m.end();
+        loop {
+            let m_foreach = RE_FOREACH_OPEN.find(&s);
+            let m_forelse = RE_FORELSE_OPEN.find(&s);
+            let m_for = RE_FOR_OPEN.find(&s);
 
-            // Cari matching @endforeach
-            let mut nesting = 1;
-            let mut idx = body_start;
-            let mut block_end = None;
-
-            while idx < s.len() {
-                let slice = &s[idx..];
-                if slice.starts_with("@foreach") {
-                    nesting += 1;
-                    idx += 8;
-                } else if slice.starts_with("@endforeach") {
-                    nesting -= 1;
-                    if nesting == 0 {
-                        block_end = Some(idx);
-                        break;
-                    }
-                    idx += 11;
-                } else {
-                    idx += 1;
-                }
+            let mut candidates: Vec<(&str, usize, usize)> = Vec::new();
+            if let Some(m) = m_foreach {
+                candidates.push(("foreach", m.start(), m.end()));
+            }
+            if let Some(m) = m_forelse {
+                candidates.push(("forelse", m.start(), m.end()));
+            }
+            if let Some(m) = m_for {
+                candidates.push(("for", m.start(), m.end()));
             }
 
-            if let Some(end) = block_end {
-                let body = &s[body_start..end];
-                let rendered = self.render_foreach_loop(&header, body, "", context, depth);
-                s.replace_range(start..end + "@endforeach".len(), &rendered);
-            } else {
+            if candidates.is_empty() {
                 break;
             }
-        }
 
-        // @forelse ($collection as $item) ... @empty ... @endforelse
-        
-        while let Some(m) = RE_FORELSE_OPEN.find(&s) {
-            let start = m.start();
-            let header = RE_FORELSE_OPEN.captures(&s[start..]).unwrap()[1].to_string();
-            let body_start = m.end();
+            candidates.sort_by_key(|c| c.1);
+            let earliest = candidates[0];
 
-            let mut nesting = 1;
-            let mut idx = body_start;
-            let mut empty_pos = None;
-            let mut block_end = None;
+            match earliest.0 {
+                "foreach" => {
+                    let start = earliest.1;
+                    let header = match RE_FOREACH_OPEN.captures(&s[start..]) {
+                        Some(caps) => caps[1].to_string(),
+                        None => break,
+                    };
+                    let body_start = earliest.2;
 
-            while idx < s.len() {
-                let slice = &s[idx..];
-                if slice.starts_with("@forelse") {
-                    nesting += 1;
-                    idx += 8;
-                } else if slice.starts_with("@empty") && nesting == 1 && (slice[6..].starts_with(|c: char| c.is_whitespace()) || slice.len() == 6) {
-                    empty_pos = Some(idx);
-                    idx += 6;
-                } else if slice.starts_with("@endforelse") {
-                    nesting -= 1;
-                    if nesting == 0 {
-                        block_end = Some(idx);
+                    // Cari matching @endforeach
+                    let mut nesting = 1;
+                    let mut idx = body_start;
+                    let mut block_end = None;
+
+                    while idx < s.len() {
+                        let slice = &s[idx..];
+                        if slice.starts_with("@foreach") {
+                            nesting += 1;
+                            idx += 8;
+                        } else if slice.starts_with("@endforeach") {
+                            nesting -= 1;
+                            if nesting == 0 {
+                                block_end = Some(idx);
+                                break;
+                            }
+                            idx += 11;
+                        } else {
+                            idx += slice.chars().next().map_or(1, |c| c.len_utf8());
+                        }
+                    }
+
+                    if let Some(end) = block_end {
+                        let body = &s[body_start..end];
+                        let rendered = self.render_foreach_loop(&header, body, "", context, depth);
+                        s.replace_range(start..end + "@endforeach".len(), &rendered);
+                    } else {
                         break;
                     }
-                    idx += 11;
-                } else {
-                    idx += 1;
                 }
-            }
+                "forelse" => {
+                    let start = earliest.1;
+                    let header = match RE_FORELSE_OPEN.captures(&s[start..]) {
+                        Some(caps) => caps[1].to_string(),
+                        None => break,
+                    };
+                    let body_start = earliest.2;
 
-            if let Some(end) = block_end {
-                let (body, empty_body) = if let Some(e_idx) = empty_pos {
-                    (&s[body_start..e_idx], &s[e_idx + 6..end])
-                } else {
-                    (&s[body_start..end], "")
-                };
+                    let mut nesting = 1;
+                    let mut idx = body_start;
+                    let mut empty_pos = None;
+                    let mut block_end = None;
 
-                let rendered = self.render_foreach_loop(&header, body, empty_body, context, depth);
-                s.replace_range(start..end + "@endforelse".len(), &rendered);
-            } else {
-                break;
-            }
-        }
+                    while idx < s.len() {
+                        let slice = &s[idx..];
+                        if slice.starts_with("@forelse") {
+                            nesting += 1;
+                            idx += 8;
+                        } else if slice.starts_with("@empty") && nesting == 1 && (slice[6..].starts_with(|c: char| c.is_whitespace()) || slice.len() == 6) {
+                            empty_pos = Some(idx);
+                            idx += 6;
+                        } else if slice.starts_with("@endforelse") {
+                            nesting -= 1;
+                            if nesting == 0 {
+                                block_end = Some(idx);
+                                break;
+                            }
+                            idx += 11;
+                        } else {
+                            idx += slice.chars().next().map_or(1, |c| c.len_utf8());
+                        }
+                    }
 
-        // @for ($i = 0; $i < N; $i++) atau @for ($i in 0..N)
-        
-        while let Some(m) = RE_FOR_OPEN.find(&s) {
-            let start = m.start();
-            let header = RE_FOR_OPEN.captures(&s[start..]).unwrap()[1].to_string();
-            let body_start = m.end();
+                    if let Some(end) = block_end {
+                        let (body, empty_body) = if let Some(e_idx) = empty_pos {
+                            (&s[body_start..e_idx], &s[e_idx + 6..end])
+                        } else {
+                            (&s[body_start..end], "")
+                        };
 
-            let mut nesting = 1;
-            let mut idx = body_start;
-            let mut block_end = None;
-
-            while idx < s.len() {
-                let slice = &s[idx..];
-                if slice.starts_with("@for") && !slice.starts_with("@foreach") && !slice.starts_with("@forelse") {
-                    nesting += 1;
-                    idx += 4;
-                } else if slice.starts_with("@endfor") && !slice.starts_with("@endforeach") && !slice.starts_with("@endforelse") {
-                    nesting -= 1;
-                    if nesting == 0 {
-                        block_end = Some(idx);
+                        let rendered = self.render_foreach_loop(&header, body, empty_body, context, depth);
+                        s.replace_range(start..end + "@endforelse".len(), &rendered);
+                    } else {
                         break;
                     }
-                    idx += 7;
-                } else {
-                    idx += 1;
                 }
-            }
+                "for" => {
+                    let start = earliest.1;
+                    let header = match RE_FOR_OPEN.captures(&s[start..]) {
+                        Some(caps) => caps[1].to_string(),
+                        None => break,
+                    };
+                    let body_start = earliest.2;
 
-            if let Some(end) = block_end {
-                let body = &s[body_start..end];
-                let rendered = self.render_for_loop(&header, body, context, depth);
-                s.replace_range(start..end + "@endfor".len(), &rendered);
-            } else {
-                break;
+                    let mut nesting = 1;
+                    let mut idx = body_start;
+                    let mut block_end = None;
+
+                    while idx < s.len() {
+                        let slice = &s[idx..];
+                        if slice.starts_with("@for") && !slice.starts_with("@foreach") && !slice.starts_with("@forelse") {
+                            nesting += 1;
+                            idx += 4;
+                        } else if slice.starts_with("@endfor") && !slice.starts_with("@endforeach") && !slice.starts_with("@endforelse") {
+                            nesting -= 1;
+                            if nesting == 0 {
+                                block_end = Some(idx);
+                                break;
+                            }
+                            idx += 7;
+                        } else {
+                            idx += slice.chars().next().map_or(1, |c| c.len_utf8());
+                        }
+                    }
+
+                    if let Some(end) = block_end {
+                        let body = &s[body_start..end];
+                        let rendered = self.render_for_loop(&header, body, context, depth);
+                        s.replace_range(start..end + "@endfor".len(), &rendered);
+                    } else {
+                        break;
+                    }
+                }
+                _ => break,
             }
         }
 
@@ -1444,7 +1472,7 @@ impl BladeEngine {
                                     }
                                 }
                             }
-                        } else if slice.starts_with("@else") && (slice[5..].starts_with(|c: char| c.is_whitespace()) || slice[5..].starts_with('<') || slice.len() == 5) {
+                        } else if slice.starts_with("@else") && !slice[5..].starts_with(|c: char| c.is_alphanumeric() || c == '_') {
                             branches.push((curr_cond, curr_branch_start, idx));
                             curr_cond = None;
                             idx += 5;
@@ -1453,7 +1481,7 @@ impl BladeEngine {
                         }
                     }
                 }
-                idx += 1;
+                idx += result[idx..].chars().next().map_or(1, |c| c.len_utf8());
             }
 
             if let Some(end_pos) = block_end {

@@ -1,57 +1,128 @@
-use moka::future::Cache;
-use serde::{de::DeserializeOwned, Serialize};
-use serde_json;
-use std::time::Duration;
+pub mod driver;
 
-#[derive(Clone)]
+pub use driver::{CacheDriver, MokaCacheDriver};
+#[cfg(feature = "redis")]
+pub use driver::RedisCacheDriver;
+
+use serde::{de::DeserializeOwned, Serialize};
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
+
+static GLOBAL_CACHE: OnceLock<Arc<CacheManager>> = OnceLock::new();
+
+/// Cache Manager yang mengelola berbagai driver cache (Moka in-memory, Redis, dll).
 pub struct CacheManager {
-    inner: Cache<String, String>,
+    drivers: HashMap<String, Arc<dyn CacheDriver>>,
+    default_driver: String,
+}
+
+impl Default for CacheManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CacheManager {
-    /// Membuat instance baru CacheManager (In-Memory).
+    /// Membuat CacheManager baru dengan driver default Moka in-memory.
     pub fn new() -> Self {
-        let inner = Cache::builder()
-            .max_capacity(10_000) // Batas maksimal 10.000 entry
-            .build();
-
-        Self { inner }
+        Self::with_driver("moka")
     }
 
-    /// Menyimpan data ke cache dengan TTL (Time To Live).
+    /// Membuat CacheManager baru dengan menentukan nama driver default.
+    pub fn with_driver(default_driver: &str) -> Self {
+        let mut mgr = Self {
+            drivers: HashMap::new(),
+            default_driver: default_driver.to_string(),
+        };
+
+        // Selalu sertakan driver Moka (In-Memory)
+        mgr.add_driver("moka", Arc::new(MokaCacheDriver::new(10_000)));
+        mgr
+    }
+
+    /// Membuat instance CacheManager berdasarkan konfigurasi environment (.env).
+    pub fn from_env() -> Self {
+        let default_driver = std::env::var("CACHE_DRIVER").unwrap_or_else(|_| "moka".to_string());
+        #[allow(unused_mut)]
+        let mut mgr = Self::with_driver(&default_driver);
+
+        #[cfg(feature = "redis")]
+        if let Ok(redis_url) = std::env::var("REDIS_URL") {
+            match RedisCacheDriver::new(&redis_url) {
+                Ok(redis_driver) => {
+                    mgr.add_driver("redis", Arc::new(redis_driver));
+                }
+                Err(e) => {
+                    eprintln!("⚠️  [Lumina Cache] Inisialisasi Redis gagal: {}. Fallback ke Moka.", e);
+                }
+            }
+        }
+
+        mgr
+    }
+
+    /// Daftarkan instance global untuk facade.
+    pub fn set_global(cache: Arc<CacheManager>) {
+        let _ = GLOBAL_CACHE.set(cache);
+    }
+
+    /// Dapatkan instance global CacheManager.
+    pub fn global() -> Option<Arc<CacheManager>> {
+        GLOBAL_CACHE.get().cloned()
+    }
+
+    /// Daftarkan driver cache baru.
+    pub fn add_driver(&mut self, name: &str, driver: Arc<dyn CacheDriver>) {
+        self.drivers.insert(name.to_string(), driver);
+    }
+
+    /// Ambil driver spesifik.
+    pub fn driver(&self, name: &str) -> Arc<dyn CacheDriver> {
+        self.drivers
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| {
+                // Fallback ke moka jika driver tidak ditemukan
+                self.drivers
+                    .get("moka")
+                    .cloned()
+                    .expect("Moka cache driver must be registered")
+            })
+    }
+
+    /// Ambil driver default.
+    pub fn default(&self) -> Arc<dyn CacheDriver> {
+        self.driver(&self.default_driver)
+    }
+
+    // ── Proxy Methods Berbasis Tipe Generik ─────────────────────────────
+
+    /// Simpan data ke cache default dengan TTL (Time To Live dalam detik).
     pub async fn put<T: Serialize>(&self, key: &str, value: T, ttl_seconds: u64) {
         if let Ok(serialized) = serde_json::to_string(&value) {
-            self.inner.insert(key.to_string(), serialized).await;
-
-            // Note: moka handles expiry via policy, but for simple MVP
-            // we could use different cache instances or per-entry expiry if supported.
-            // In moka v0.12+, we use entry-based expiry via policy or builder.
-            // However, to keep it simple and Laravel-like:
-            tokio::spawn({
-                let cache = self.inner.clone();
-                let k = key.to_string();
-                async move {
-                    tokio::time::sleep(Duration::from_secs(ttl_seconds)).await;
-                    cache.invalidate(&k).await;
-                }
-            });
+            self.default().put(key, &serialized, ttl_seconds).await;
         }
     }
 
-    /// Mengambil data dari cache.
+    /// Ambil data dari cache default.
     pub async fn get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
-        if let Some(serialized) = self.inner.get(&key.to_string()).await {
+        if let Some(serialized) = self.default().get(key).await {
             return serde_json::from_str(&serialized).ok();
         }
         None
     }
 
-    /// Menghapus data dari cache.
+    /// Hapus data dari cache default.
     pub async fn forget(&self, key: &str) {
-        self.inner.invalidate(&key.to_string()).await;
+        self.default().forget(key).await;
     }
 
-    /// Mengambil data dari cache, atau eksekusi closure dan simpan jika tidak ada.
+    /// Bersihkan seluruh data pada cache default.
+    pub async fn flush(&self) {
+        self.default().flush().await;
+    }
+
+    /// Ambil data dari cache default, atau eksekusi closure dan simpan jika belum ada.
     pub async fn remember<T, F, Fut>(&self, key: &str, ttl_seconds: u64, f: F) -> Option<T>
     where
         T: Serialize + DeserializeOwned,
@@ -66,9 +137,62 @@ impl CacheManager {
         self.put(key, &val, ttl_seconds).await;
         Some(val)
     }
+}
 
-    /// Membersihkan semua isi cache.
-    pub async fn flush(&self) {
-        self.inner.invalidate_all();
+/// Global Facade untuk ekosistem Cache Lumina.
+pub struct Cache;
+
+impl Cache {
+    /// Akses driver spesifik secara statis (misal: `Cache::driver("redis")`).
+    pub fn driver(name: &str) -> Arc<dyn CacheDriver> {
+        let mgr = GLOBAL_CACHE
+            .get()
+            .expect("Global Cache belum diinisialisasi. Pastikan Application::build() telah dijalankan.");
+        mgr.driver(name)
+    }
+
+    /// Simpan data ke cache secara statis.
+    pub async fn put<T: Serialize>(key: &str, value: T, ttl_seconds: u64) {
+        if let Some(mgr) = GLOBAL_CACHE.get() {
+            mgr.put(key, value, ttl_seconds).await;
+        }
+    }
+
+    /// Ambil data dari cache secara statis.
+    pub async fn get<T: DeserializeOwned>(key: &str) -> Option<T> {
+        if let Some(mgr) = GLOBAL_CACHE.get() {
+            mgr.get::<T>(key).await
+        } else {
+            None
+        }
+    }
+
+    /// Hapus data dari cache secara statis.
+    pub async fn forget(key: &str) {
+        if let Some(mgr) = GLOBAL_CACHE.get() {
+            mgr.forget(key).await;
+        }
+    }
+
+    /// Bersihkan seluruh isi cache secara statis.
+    pub async fn flush() {
+        if let Some(mgr) = GLOBAL_CACHE.get() {
+            mgr.flush().await;
+        }
+    }
+
+    /// Helper remember statis.
+    pub async fn remember<T, F, Fut>(key: &str, ttl_seconds: u64, f: F) -> Option<T>
+    where
+        T: Serialize + DeserializeOwned,
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = T>,
+    {
+        if let Some(mgr) = GLOBAL_CACHE.get() {
+            mgr.remember(key, ttl_seconds, f).await
+        } else {
+            let val = f().await;
+            Some(val)
+        }
     }
 }

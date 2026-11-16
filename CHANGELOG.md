@@ -4,6 +4,33 @@ Semua perubahan penting pada proyek **Lumina Framework** didokumentasikan di dal
 
 Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) dan mengikuti standar [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-17
+
+### 🚀 Ditambahkan & Ditingkatkan (Added & Improved)
+- **Universal Storage Facade (`Storage`) & Pure-Rust S3 Driver**:
+  - Abstraksi multi-disk terpadu via trait `StorageDriver` yang mendukung disk `local`, `public`, dan `s3`.
+  - Driver S3 mandiri performa tinggi berbasis REST API dengan implementasi penuh **AWS Signature Version 4 (SigV4)** murni (`hmac` + `sha2` + `hex`).
+  - Kompatibel penuh dengan **AWS S3, Cloudflare R2, MinIO, dan RustFS** (mendukung virtual-host addressing dan path-style endpoint).
+  - Generator **Presigned Temporary URL** berbatas waktu (*TTL*) instan untuk pengunduhan aman berkas privat.
+  - Proteksi anti-*Directory Traversal Attack* (`../`) bawaan pada driver filesystem lokal (`LocalStorage`).
+  - Global Facade `Storage::put_file()`, `Storage::get_file()`, `Storage::disk_named("s3")`, serta helper `req.storage().disk("s3")`.
+- **Distributed Redis Cache Suite**:
+  - Trait multi-driver `CacheDriver` yang mendukung `moka` (in-memory) dan `redis` (terdistribusi antar-pod).
+  - Helper `Cache::remember("key", ttl, || async { ... })` dengan serialisasi JSON otomatis via `serde_json`.
+  - Inisialisasi otomatis dari environment variable `CACHE_DRIVER=redis` dan `REDIS_URL`.
+- **High-Speed Redis Queue Driver**:
+  - Antrean tugas asinkron berbasis Redis Lists (`RPUSH` & `LPOP`) dengan persistensi data dan latensi pemrosesan sub-milidetik.
+  - Dukungan multi-pod queue worker daemon (`lumina queue:work`).
+- **Lumina Echo Redis Pub/Sub WebSocket Broadcaster**:
+  - Adapter Redis Pub/Sub untuk clustering WebSocket multi-server di lingkungan Kubernetes atau Docker Swarm.
+  - Event broadcast yang dikirim dari satu instance/pod otomatis diteruskan dan diterima oleh client browser di seluruh pod lainnya.
+- **Suite Pengujian Live RustFS**:
+  - Validasi integrasi live langsung terhadap server Object Storage Rust (`rustfs.exe`) pada port 9000 (`tests/rustfs_live_test.rs`).
+- **Modul Dokumentasi Baru**:
+  - Modul 17: *Universal Storage & Redis Multi-Driver Suite* di `docs/documentations/17_universal_storage_dan_redis_suite.md` dan integrasi VitePress portal.
+
+---
+
 ## [0.6.1] - 2026-11-06
 
 ### 🚀 Ditambahkan & Ditingkatkan (Added & Improved)

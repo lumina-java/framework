@@ -23,6 +23,8 @@ pub struct EchoManager {
     connections: RwLock<HashMap<Uuid, mpsc::UnboundedSender<EchoMessage>>>,
     /// Channel authorizers untuk private channel (e.g. "private-*")
     authorizers: RwLock<HashMap<String, AuthorizerFn>>,
+    #[cfg(feature = "redis")]
+    redis_client: Option<redis::Client>,
 }
 
 impl EchoManager {
@@ -31,7 +33,21 @@ impl EchoManager {
             channels: RwLock::new(HashMap::new()),
             connections: RwLock::new(HashMap::new()),
             authorizers: RwLock::new(HashMap::new()),
+            #[cfg(feature = "redis")]
+            redis_client: None,
         }
+    }
+
+    #[cfg(feature = "redis")]
+    pub fn with_redis(redis_url: &str) -> Result<Self, String> {
+        let client = redis::Client::open(redis_url)
+            .map_err(|e| format!("Gagal inisialisasi Redis client untuk Echo: {}", e))?;
+        Ok(Self {
+            channels: RwLock::new(HashMap::new()),
+            connections: RwLock::new(HashMap::new()),
+            authorizers: RwLock::new(HashMap::new()),
+            redis_client: Some(client),
+        })
     }
 
     /// Mendaftarkan koneksi baru.
@@ -68,8 +84,8 @@ impl EchoManager {
         }
     }
 
-    /// Kirim pesan ke semua subscriber di channel tertentu.
-    pub fn broadcast(&self, channel: &str, event: &str, data: serde_json::Value) {
+    /// Kirim pesan hanya ke subscriber lokal pada instance server ini.
+    pub fn broadcast_local(&self, channel: &str, event: &str, data: serde_json::Value) {
         let subscribers = {
             let channels = self.channels.read().unwrap();
             channels.get(channel).cloned()
@@ -89,6 +105,69 @@ impl EchoManager {
                 }
             }
         }
+    }
+
+    /// Kirim pesan ke semua subscriber di channel tertentu (lokal dan klaster Redis multi-pod).
+    pub fn broadcast(&self, channel: &str, event: &str, data: serde_json::Value) {
+        self.broadcast_local(channel, event, data.clone());
+
+        #[cfg(feature = "redis")]
+        if let Some(ref client) = self.redis_client {
+            let client = client.clone();
+            let msg = EchoMessage {
+                channel: channel.to_string(),
+                event: event.to_string(),
+                data,
+            };
+            tokio::spawn(async move {
+                if let Ok(mut conn) = client.get_multiplexed_async_connection().await {
+                    if let Ok(serialized) = serde_json::to_string(&msg) {
+                        let _: Result<(), redis::RedisError> = redis::cmd("PUBLISH")
+                            .arg("lumina_echo_events")
+                            .arg(serialized)
+                            .query_async(&mut conn)
+                            .await;
+                    }
+                }
+            });
+        }
+    }
+
+    /// Menjalankan listener Redis Pub/Sub untuk menerima event dari pod/server lain dalam cluster.
+    #[cfg(feature = "redis")]
+    pub fn start_redis_subscriber(self: &Arc<Self>, redis_url: &str) {
+        use futures::StreamExt;
+        let echo = self.clone();
+        let url = redis_url.to_string();
+
+        tokio::spawn(async move {
+            match redis::Client::open(url) {
+                Ok(client) => match client.get_async_pubsub().await {
+                    Ok(mut pubsub) => {
+                        if let Err(e) = pubsub.subscribe("lumina_echo_events").await {
+                            eprintln!("⚠️  [Lumina Echo Redis] Gagal subscribe: {}", e);
+                            return;
+                        }
+                        println!("📡 [Lumina Echo] Redis Pub/Sub cluster listener aktif.");
+
+                        let mut msg_stream = pubsub.on_message();
+                        while let Some(msg) = msg_stream.next().await {
+                            if let Ok(payload_str) = msg.get_payload::<String>() {
+                                if let Ok(echo_msg) = serde_json::from_str::<EchoMessage>(&payload_str) {
+                                    echo.broadcast_local(&echo_msg.channel, &echo_msg.event, echo_msg.data);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️  [Lumina Echo Redis] Gagal inisialisasi pubsub: {}", e);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("⚠️  [Lumina Echo Redis] URL Redis tidak valid: {}", e);
+                }
+            }
+        });
     }
 
     /// Mendaftarkan closure otorisasi untuk channel pattern (misal "private-user-{id}")

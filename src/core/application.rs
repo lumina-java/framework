@@ -272,11 +272,37 @@ impl Application {
             config.get_or("APP_LOCALE", "en"),
         ));
         let view = ViewEngine::new(Some(lang.clone()));
-        let cache = Arc::new(crate::core::cache::CacheManager::new());
+        let cache = Arc::new(crate::core::cache::CacheManager::from_env());
+        crate::core::cache::CacheManager::set_global(cache.clone());
         let events = Arc::new(crate::core::event::EventDispatcher::new());
         // crate::app::providers::event_service_provider::register_events(&events);
         let telescope = Arc::new(crate::core::telescope::TelescopeManager::new());
-        let echo = Arc::new(crate::core::echo::EchoManager::new());
+        
+        let broadcast_driver = std::env::var("BROADCAST_DRIVER").unwrap_or_else(|_| "log".to_string());
+        let echo = if broadcast_driver == "redis" {
+            #[cfg(feature = "redis")]
+            {
+                let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+                match crate::core::echo::EchoManager::with_redis(&redis_url) {
+                    Ok(em) => {
+                        let echo_arc = Arc::new(em);
+                        echo_arc.start_redis_subscriber(&redis_url);
+                        echo_arc
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️  [Lumina Echo] Redis gagal: {}. Fallback ke in-memory.", e);
+                        Arc::new(crate::core::echo::EchoManager::new())
+                    }
+                }
+            }
+            #[cfg(not(feature = "redis"))]
+            {
+                eprintln!("⚠️  [Lumina Echo] Feature 'redis' belum aktif. Fallback ke in-memory.");
+                Arc::new(crate::core::echo::EchoManager::new())
+            }
+        } else {
+            Arc::new(crate::core::echo::EchoManager::new())
+        };
 
         let mut socialite = crate::core::auth::socialite::SocialiteManager::new();
         if let (Some(id), Some(secret), Some(url)) = (
@@ -333,43 +359,74 @@ impl Application {
             }
         };
 
-        // ── 4. Bangun AppState ─────────────────────────────────────────────
-        let queue_manager = match db_pool.as_ref() {
-            Some(pool) => Arc::new(crate::core::queue::QueueManager::new_with_pool(pool.clone())),
-            None => {
-                // Fallback jika DB tidak ada (tidak bisa persistent)
-                // Ini butuh penanganan lebih lanjut jika ingin benar-benar fallback ke memory
-                Arc::new(crate::core::queue::QueueManager::new(
+        // ── 4. Bangun Queue Manager ─────────────────────────────────────────
+        let queue_connection = std::env::var("QUEUE_CONNECTION")
+            .or_else(|_| std::env::var("QUEUE_DRIVER"))
+            .unwrap_or_else(|_| "database".to_string());
+
+        let queue_manager = if queue_connection == "redis" {
+            #[cfg(feature = "redis")]
+            {
+                let redis_url = std::env::var("REDIS_URL")
+                    .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+                match crate::core::queue::QueueManager::new_with_redis(&redis_url) {
+                    Ok(qm) => Arc::new(qm),
+                    Err(e) => {
+                        eprintln!("⚠️  [Lumina Queue] Koneksi Redis gagal: {}. Fallback ke Database.", e);
+                        match db_pool.as_ref() {
+                            Some(pool) => Arc::new(crate::core::queue::QueueManager::new_with_pool(pool.clone())),
+                            None => Arc::new(crate::core::queue::QueueManager::new(
+                                sqlx::AnyPool::connect("sqlite::memory:").await.unwrap(),
+                            )),
+                        }
+                    }
+                }
+            }
+            #[cfg(not(feature = "redis"))]
+            {
+                eprintln!("⚠️  [Lumina Queue] Feature 'redis' belum aktif. Fallback ke Database.");
+                match db_pool.as_ref() {
+                    Some(pool) => Arc::new(crate::core::queue::QueueManager::new_with_pool(pool.clone())),
+                    None => Arc::new(crate::core::queue::QueueManager::new(
+                        sqlx::AnyPool::connect("sqlite::memory:").await.unwrap(),
+                    )),
+                }
+            }
+        } else {
+            match db_pool.as_ref() {
+                Some(pool) => Arc::new(crate::core::queue::QueueManager::new_with_pool(pool.clone())),
+                None => Arc::new(crate::core::queue::QueueManager::new(
                     sqlx::AnyPool::connect("sqlite::memory:").await.unwrap(),
-                ))
+                )),
             }
         };
 
         let worker = crate::core::queue::QueueWorker::new(registry.clone());
 
         // ── 4. Bangun Storage Manager ──────────────────────────────────────
-        let default_disk = std::env::var("STORAGE_DISK").unwrap_or_else(|_| "local".to_string());
+        let default_disk = std::env::var("FILESYSTEM_DISK")
+            .or_else(|_| std::env::var("STORAGE_DISK"))
+            .unwrap_or_else(|_| "local".to_string());
         let mut storage_manager = crate::core::storage::Storage::new(&default_disk);
 
-        // Disk Lokal
-        storage_manager.add_disk(
-            "local",
-            Arc::new(crate::core::storage::LocalStorage::new(
-                "storage/app/public",
-                "/storage",
-            )),
-        );
+        // Disk Lokal ("local" dan alias "public")
+        let local_driver = Arc::new(crate::core::storage::LocalStorage::new(
+            "storage/app/public",
+            "/storage",
+        ));
+        storage_manager.add_disk("local", local_driver.clone());
+        storage_manager.add_disk("public", local_driver);
 
-        // Disk S3 (Placeholder config)
-        if let Ok(bucket) = std::env::var("S3_BUCKET") {
+        // Disk S3 (AWS S3, Cloudflare R2, MinIO)
+        if let Some(s3_config) = crate::core::storage::S3Config::from_env() {
             storage_manager.add_disk(
                 "s3",
-                Arc::new(crate::core::storage::S3Storage {
-                    bucket,
-                    region: std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
-                }),
+                Arc::new(crate::core::storage::S3Storage::new(s3_config)),
             );
         }
+
+        let storage_manager = Arc::new(storage_manager);
+        crate::core::storage::Storage::set_global(storage_manager.clone());
 
         // ── 5. Bangun Mailer ──────────────────────────────────────────────
         let mail_driver_str = std::env::var("MAIL_DRIVER").unwrap_or_else(|_| "log".to_string());
@@ -386,7 +443,7 @@ impl Application {
 
             db_error,
             csrf_config: csrf::config(),
-            storage: Arc::new(storage_manager),
+            storage: storage_manager,
             config: config.clone(),
             queue: queue_manager,
             cache,

@@ -56,48 +56,96 @@ impl JobRegistry {
     }
 }
 
-/// QueueManager mengelola pengiriman job ke database.
+/// Backend penyimpanan antrean (Database SQL atau Redis).
+pub enum QueueBackend {
+    Database {
+        db: Pool<Any>,
+        pool_ref: Option<Arc<crate::database::connection::DatabasePool>>,
+    },
+    #[cfg(feature = "redis")]
+    Redis {
+        client: redis::Client,
+        queue_key: String,
+    },
+}
+
+/// QueueManager mengelola pengiriman job ke antrean latar belakang (Database atau Redis).
 pub struct QueueManager {
-    db: Pool<Any>,
-    pool_ref: Option<Arc<crate::database::connection::DatabasePool>>,
+    pub backend: QueueBackend,
 }
 
 impl QueueManager {
     pub fn new(db: Pool<Any>) -> Self {
         Self {
-            db,
-            pool_ref: None,
+            backend: QueueBackend::Database {
+                db,
+                pool_ref: None,
+            },
         }
     }
 
     pub fn new_with_pool(pool: Arc<crate::database::connection::DatabasePool>) -> Self {
         Self {
-            db: pool.pool.clone(),
-            pool_ref: Some(pool),
+            backend: QueueBackend::Database {
+                db: pool.pool.clone(),
+                pool_ref: Some(pool),
+            },
         }
     }
 
-    /// Mengirim job ke antrean database dengan multi-db parameter translation ($1 vs ?).
+    #[cfg(feature = "redis")]
+    pub fn new_with_redis(redis_url: &str) -> Result<Self, String> {
+        let client = redis::Client::open(redis_url)
+            .map_err(|e| format!("Gagal inisialisasi Redis Queue client: {}", e))?;
+        Ok(Self {
+            backend: QueueBackend::Redis {
+                client,
+                queue_key: "lumina_queue:default".to_string(),
+            },
+        })
+    }
+
+    /// Mengirim job ke antrean aktif (Database SQL atau Redis).
     pub async fn dispatch(&self, name: &str, payload: Value) -> Result<(), String> {
         let full_payload = serde_json::json!({
             "job": name,
             "data": payload
         });
 
-        let raw_sql = "INSERT INTO jobs (queue, payload) VALUES ('default', ?)";
-        let sql = if let Some(ref p) = self.pool_ref {
-            p.prepare_sql(raw_sql)
-        } else {
-            raw_sql.to_string()
-        };
+        match &self.backend {
+            QueueBackend::Database { db, pool_ref } => {
+                let raw_sql = "INSERT INTO jobs (queue, payload) VALUES ('default', ?)";
+                let sql = if let Some(ref p) = pool_ref {
+                    p.prepare_sql(raw_sql)
+                } else {
+                    raw_sql.to_string()
+                };
 
-        sqlx::query(&sql)
-            .bind(full_payload.to_string())
-            .execute(&self.db)
-            .await
-            .map_err(|e| format!("Gagal simpan job ke DB: {}", e))?;
+                sqlx::query(&sql)
+                    .bind(full_payload.to_string())
+                    .execute(db)
+                    .await
+                    .map_err(|e| format!("Gagal simpan job ke DB: {}", e))?;
 
-        Ok(())
+                Ok(())
+            }
+            #[cfg(feature = "redis")]
+            QueueBackend::Redis { client, queue_key } => {
+                let mut conn = client
+                    .get_multiplexed_async_connection()
+                    .await
+                    .map_err(|e| format!("Gagal ambil koneksi Redis: {}", e))?;
+
+                let payload_str = full_payload.to_string();
+                let _: Result<(), redis::RedisError> = redis::cmd("RPUSH")
+                    .arg(queue_key)
+                    .arg(payload_str)
+                    .query_async(&mut conn)
+                    .await;
+
+                Ok(())
+            }
+        }
     }
 }
 
@@ -162,20 +210,27 @@ impl QueueWorker {
     pub async fn run(self, state: Arc<AppState>) {
         tracing::info!("🚀 Persistent Queue Worker started...");
 
-        // Cek apakah tabel `jobs` ada sebelum mulai polling.
-        // Jika belum ada, log warning SEKALI dan hentikan worker.
-        let db = &state.db().pool;
-        let table_exists = sqlx::query("SELECT 1 FROM jobs LIMIT 1").execute(db).await;
+        // Jika backend database, cek keberadaan tabel `jobs`
+        match &state.queue.backend {
+            QueueBackend::Database { .. } => {
+                if let Some(pool) = state.db.as_ref() {
+                    let db = &pool.pool;
+                    let table_exists = sqlx::query("SELECT 1 FROM jobs LIMIT 1").execute(db).await;
 
-        if let Err(e) = table_exists {
-            let err_str = e.to_string();
-            if err_str.contains("doesn't exist") || err_str.contains("no such table") {
-                tracing::warn!(
-                    "⚠️  Tabel 'jobs' belum ada. Queue worker dinonaktifkan. \
-                     Jalankan: ./lumina migrate untuk membuat tabel."
-                );
-                return; // Hentikan worker, tidak perlu loop
+                    if let Err(e) = table_exists {
+                        let err_str = e.to_string();
+                        if err_str.contains("doesn't exist") || err_str.contains("no such table") {
+                            tracing::warn!(
+                                "⚠️  Tabel 'jobs' belum ada. Queue worker dinonaktifkan. \
+                                 Jalankan: ./lumina migrate untuk membuat tabel."
+                            );
+                            return; // Hentikan worker, tidak perlu loop
+                        }
+                    }
+                }
             }
+            #[cfg(feature = "redis")]
+            QueueBackend::Redis { .. } => {}
         }
 
         loop {
@@ -192,77 +247,129 @@ impl QueueWorker {
         }
     }
 
-    async fn process_next_job(&self, state: Arc<AppState>) -> Result<bool, String> {
-        let pool = state.db();
-        let db = &pool.pool;
+    pub async fn process_next_job(&self, state: Arc<AppState>) -> Result<bool, String> {
+        match &state.queue.backend {
+            QueueBackend::Database { .. } => {
+                let pool = match state.db.as_ref() {
+                    Some(p) => p,
+                    None => return Ok(false),
+                };
+                let db = &pool.pool;
 
-        // 1. Ambil job yang tersedia
-        let fetch_sql = pool.prepare_sql(
-            "SELECT id, payload FROM jobs 
-             WHERE reserved_at IS NULL 
-             AND available_at <= CURRENT_TIMESTAMP 
-             ORDER BY available_at ASC LIMIT 1"
-        );
-        let row: Option<(i64, String)> = sqlx::query_as::<_, (i64, String)>(&fetch_sql)
-            .fetch_optional(db)
-            .await
-            .map_err(|e| e.to_string())?;
+                // 1. Ambil job yang tersedia
+                let fetch_sql = pool.prepare_sql(
+                    "SELECT id, payload FROM jobs 
+                     WHERE reserved_at IS NULL 
+                     AND available_at <= CURRENT_TIMESTAMP 
+                     ORDER BY available_at ASC LIMIT 1"
+                );
+                let row: Option<(i64, String)> = sqlx::query_as::<_, (i64, String)>(&fetch_sql)
+                    .fetch_optional(db)
+                    .await
+                    .map_err(|e| e.to_string())?;
 
-        let (id, payload_str) = match row {
-            Some(r) => r,
-            None => return Ok(false),
-        };
+                let (id, payload_str) = match row {
+                    Some(r) => r,
+                    None => return Ok(false),
+                };
 
-        // 2. Tandai sebagai reserved
-        let reserve_sql = pool.prepare_sql(
-            "UPDATE jobs SET reserved_at = CURRENT_TIMESTAMP, attempts = attempts + 1 WHERE id = ?"
-        );
-        sqlx::query(&reserve_sql)
-            .bind(id)
-            .execute(db)
-            .await
-            .map_err(|e| e.to_string())?;
+                // 2. Tandai sebagai reserved
+                let reserve_sql = pool.prepare_sql(
+                    "UPDATE jobs SET reserved_at = CURRENT_TIMESTAMP, attempts = attempts + 1 WHERE id = ?"
+                );
+                sqlx::query(&reserve_sql)
+                    .bind(id)
+                    .execute(db)
+                    .await
+                    .map_err(|e| e.to_string())?;
 
-        // 3. Parse payload
-        let payload: Value = serde_json::from_str(&payload_str).map_err(|e| e.to_string())?;
-        let job_name = payload["job"].as_str().unwrap_or("unknown");
-        let job_data = payload["data"].clone();
+                // 3. Parse payload
+                let payload: Value = serde_json::from_str(&payload_str).map_err(|e| e.to_string())?;
+                let job_name = payload["job"].as_str().unwrap_or("unknown");
+                let job_data = payload["data"].clone();
 
-        tracing::info!("📦 Processing job [{}] ID: {}", job_name, id);
+                tracing::info!("📦 Processing job [{}] ID: {}", job_name, id);
 
-        // 4. Cari handler
-        let delete_sql = pool.prepare_sql("DELETE FROM jobs WHERE id = ?");
-        let reset_sql = pool.prepare_sql("UPDATE jobs SET reserved_at = NULL WHERE id = ?");
+                // 4. Cari handler
+                let delete_sql = pool.prepare_sql("DELETE FROM jobs WHERE id = ?");
+                let reset_sql = pool.prepare_sql("UPDATE jobs SET reserved_at = NULL WHERE id = ?");
 
-        if let Some(handler) = self.registry.get(job_name) {
-            match handler.handle(state.clone(), job_data).await {
-                Ok(_) => {
+                if let Some(handler) = self.registry.get(job_name) {
+                    match handler.handle(state.clone(), job_data).await {
+                        Ok(_) => {
+                            sqlx::query(&delete_sql)
+                                .bind(id)
+                                .execute(db)
+                                .await
+                                .ok();
+                            tracing::info!("✅ Job [{}] ID: {} selesai.", job_name, id);
+                        }
+                        Err(e) => {
+                            sqlx::query(&reset_sql)
+                                .bind(id)
+                                .execute(db)
+                                .await
+                                .ok();
+                            tracing::error!("❌ Job [{}] ID: {} gagal: {}", job_name, id, e);
+                        }
+                    }
+                } else {
+                    tracing::error!("⚠️  Tidak ada handler untuk job: {}", job_name);
                     sqlx::query(&delete_sql)
                         .bind(id)
                         .execute(db)
                         .await
                         .ok();
-                    tracing::info!("✅ Job [{}] ID: {} selesai.", job_name, id);
                 }
-                Err(e) => {
-                    sqlx::query(&reset_sql)
-                        .bind(id)
-                        .execute(db)
-                        .await
-                        .ok();
-                    tracing::error!("❌ Job [{}] ID: {} gagal: {}", job_name, id, e);
-                }
-            }
-        } else {
-            tracing::error!("⚠️  Tidak ada handler untuk job: {}", job_name);
-            sqlx::query(&delete_sql)
-                .bind(id)
-                .execute(db)
-                .await
-                .ok();
-        }
 
-        Ok(true)
+                Ok(true)
+            }
+            #[cfg(feature = "redis")]
+            QueueBackend::Redis { client, queue_key } => {
+                let mut conn = client
+                    .get_multiplexed_async_connection()
+                    .await
+                    .map_err(|e| format!("Gagal ambil koneksi Redis: {}", e))?;
+
+                let payload_str: Option<String> = match redis::cmd("LPOP")
+                    .arg(queue_key)
+                    .query_async(&mut conn)
+                    .await
+                {
+                    Ok(val) => val,
+                    Err(e) => {
+                        eprintln!("⚠️  Redis Queue LPOP error: {}", e);
+                        return Ok(false);
+                    }
+                };
+
+                let payload_str = match payload_str {
+                    Some(s) => s,
+                    None => return Ok(false),
+                };
+
+                let payload: Value = serde_json::from_str(&payload_str).map_err(|e| e.to_string())?;
+                let job_name = payload["job"].as_str().unwrap_or("unknown");
+                let job_data = payload["data"].clone();
+
+                tracing::info!("📦 Processing Redis job [{}]", job_name);
+
+                if let Some(handler) = self.registry.get(job_name) {
+                    match handler.handle(state.clone(), job_data).await {
+                        Ok(_) => {
+                            tracing::info!("✅ Redis Job [{}] selesai.", job_name);
+                        }
+                        Err(e) => {
+                            tracing::error!("❌ Redis Job [{}] gagal: {}", job_name, e);
+                        }
+                    }
+                } else {
+                    tracing::error!("⚠️  Tidak ada handler untuk job: {}", job_name);
+                }
+
+                Ok(true)
+            }
+        }
     }
 }
 

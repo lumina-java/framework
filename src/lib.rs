@@ -19,6 +19,8 @@ pub mod prelude {
     pub use crate::core::response::ApiResponse;
     pub use crate::core::validation::{ValidatedForm, ValidatedJson};
     pub use crate::core::view::View;
+    pub use crate::core::storage::{Storage, StorageDriver, S3Config};
+    pub use crate::core::cache::{Cache, CacheManager, CacheDriver};
     pub use crate::database::connection::{DatabasePool, Db};
     pub use crate::database::facade::DB;
     pub use crate::database::transaction::{Transaction, TableQueryBuilder};

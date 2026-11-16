@@ -28,6 +28,7 @@ Klik tautan di bawah untuk mempelajari setiap modul secara mendalam:
 | **14** | [**Lumina Aurora Starter Kit**](./14_lumina_aurora_starter_kit.md) | Official starter kit autentikasi & dashboard elegan dengan Pure Native Blade + Tailwind CSS (`lumina aurora:install`), Zero-JS bloat, respons sub-0.5ms. |
 | **15** | [**Enterprise Security & Zero-Panic Safety**](./15_enterprise_security_dan_zero_panic.md) | Global Zero-Panic Error Boundary (`catch_unwind`), Anti Brute-Force Lockout Cache (Moka), Granular RBAC (`@can`, `@role`), Constant-Time Eq, OWASP Headers, ISO 27001 Audit Trail. |
 | **16** | [**Whitepaper Benchmark & Performa Resmi**](./16_benchmark_dan_performance_whitepaper.md) | Data pengujian riil Throughput 118.000+ RPS, latensi sub-milidetik, konsumsi RAM hemat 15-38MB vs Laravel Octane, Express.js, dan FastAPI. |
+| **17** | [**Universal Storage & Redis Multi-Driver Suite**](./17_universal_storage_dan_redis_suite.md) | Universal Storage Facade (AWS S3, MinIO, R2, Local), Presigned URL SigV4, Distributed Redis Cache, Redis Streams Queue, dan Echo Redis Broadcaster. |
 
 ---
 

@@ -1,113 +1,39 @@
+pub mod local;
+pub mod s3;
+
+pub use local::LocalStorage;
+pub use s3::{S3Config, S3Storage};
+
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::fs;
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
+static GLOBAL_STORAGE: OnceLock<Arc<Storage>> = OnceLock::new();
+
+/// Trait universal untuk seluruh driver storage (Lokal, S3, R2, MinIO, dll).
 #[async_trait]
 pub trait StorageDriver: Send + Sync {
-    /// Simpan data ke file.
+    /// Simpan data ke berkas.
     async fn put(&self, path: &str, contents: &[u8]) -> Result<(), String>;
 
-    /// Ambil data dari file.
+    /// Ambil isi berkas dalam bentuk byte buffer.
     async fn get(&self, path: &str) -> Result<Vec<u8>, String>;
 
-    /// Cek apakah file ada.
+    /// Cek apakah berkas ada.
     async fn exists(&self, path: &str) -> bool;
 
-    /// Hapus file.
+    /// Hapus berkas.
     async fn delete(&self, path: &str) -> Result<(), String>;
 
-    /// Dapatkan URL publik untuk file.
+    /// Dapatkan URL publik untuk berkas.
     fn url(&self, path: &str) -> String;
+
+    /// Dapatkan URL sementara bertanda tangan (Presigned URL) dengan batas waktu kedaluwarsa (TTL).
+    fn temporary_url(&self, path: &str, ttl: Duration) -> Result<String, String>;
 }
 
-pub struct LocalStorage {
-    root: PathBuf,
-    base_url: String,
-}
-
-impl LocalStorage {
-    pub fn new(root: &str, base_url: &str) -> Self {
-        Self {
-            root: PathBuf::from(root),
-            base_url: base_url.to_string(),
-        }
-    }
-}
-
-#[async_trait]
-impl StorageDriver for LocalStorage {
-    async fn put(&self, path: &str, contents: &[u8]) -> Result<(), String> {
-        let full_path = self.root.join(path);
-
-        if let Some(parent) = full_path.parent() {
-            fs::create_dir_all(parent)
-                .await
-                .map_err(|e| e.to_string())?;
-        }
-
-        fs::write(full_path, contents)
-            .await
-            .map_err(|e| e.to_string())
-    }
-
-    async fn get(&self, path: &str) -> Result<Vec<u8>, String> {
-        let full_path = self.root.join(path);
-        fs::read(full_path).await.map_err(|e| e.to_string())
-    }
-
-    async fn exists(&self, path: &str) -> bool {
-        self.root.join(path).exists()
-    }
-
-    async fn delete(&self, path: &str) -> Result<(), String> {
-        let full_path = self.root.join(path);
-        fs::remove_file(full_path).await.map_err(|e| e.to_string())
-    }
-
-    fn url(&self, path: &str) -> String {
-        format!(
-            "{}/{}",
-            self.base_url.trim_end_matches('/'),
-            path.trim_start_matches('/')
-        )
-    }
-}
-
-/// Driver placeholder untuk S3 (Gunakan crate 'aws-sdk-s3' untuk implementasi penuh)
-pub struct S3Storage {
-    pub bucket: String,
-    pub region: String,
-}
-
-#[async_trait]
-impl StorageDriver for S3Storage {
-    async fn put(&self, _path: &str, _contents: &[u8]) -> Result<(), String> {
-        Err("S3 Driver belum diimplementasikan sepenuhnya. Silakan instal aws-sdk-s3.".to_string())
-    }
-
-    async fn get(&self, _path: &str) -> Result<Vec<u8>, String> {
-        Err("S3 Driver belum diimplementasikan sepenuhnya.".to_string())
-    }
-
-    async fn exists(&self, _path: &str) -> bool {
-        false
-    }
-
-    async fn delete(&self, _path: &str) -> Result<(), String> {
-        Err("S3 Driver belum diimplementasikan sepenuhnya.".to_string())
-    }
-
-    fn url(&self, path: &str) -> String {
-        format!(
-            "https://{}.s3.{}.amazonaws.com/{}",
-            self.bucket, self.region, path
-        )
-    }
-}
-
-/// Storage Manager (Facade) untuk mengelola berbagai disk.
+/// Storage Manager (Facade) untuk mengelola berbagai disk penyimpanan.
 pub struct Storage {
     disks: HashMap<String, Arc<dyn StorageDriver>>,
     default_disk: String,
@@ -121,25 +47,69 @@ impl Storage {
         }
     }
 
+    /// Registrasi instance global Storage Facade.
+    pub fn set_global(storage: Arc<Storage>) {
+        let _ = GLOBAL_STORAGE.set(storage);
+    }
+
+    /// Dapatkan instance global Storage Facade.
+    pub fn global() -> Option<Arc<Storage>> {
+        GLOBAL_STORAGE.get().cloned()
+    }
+
     /// Daftarkan disk baru.
     pub fn add_disk(&mut self, name: &str, driver: Arc<dyn StorageDriver>) {
         self.disks.insert(name.to_string(), driver);
     }
 
-    /// Ambil disk spesifik.
+    /// Ambil disk spesifik dari instance.
     pub fn disk(&self, name: &str) -> Arc<dyn StorageDriver> {
         self.disks
             .get(name)
             .cloned()
-            .expect(&format!("Storage disk '{}' tidak ditemukan", name))
+            .unwrap_or_else(|| panic!("Storage disk '{}' tidak ditemukan. Pastikan disk sudah dikonfigurasi.", name))
     }
 
-    /// Ambil disk default.
+    /// Ambil disk default dari instance.
     pub fn default(&self) -> Arc<dyn StorageDriver> {
         self.disk(&self.default_disk)
     }
 
-    // Proxy methods untuk disk default
+    // ── Static Facade Methods ──────────────────────────────────────────
+
+    /// Akses disk spesifik melalui Static Facade (misal: `Storage::disk_named("s3")`).
+    pub fn disk_named(name: &str) -> Arc<dyn StorageDriver> {
+        let storage = GLOBAL_STORAGE
+            .get()
+            .expect("Global Storage belum diinisialisasi. Pastikan Application::build() telah dijalankan.");
+        storage.disk(name)
+    }
+
+    /// Simpan data ke disk default secara statis.
+    pub async fn put_file(path: &str, contents: &[u8]) -> Result<(), String> {
+        let storage = GLOBAL_STORAGE
+            .get()
+            .expect("Global Storage belum diinisialisasi.");
+        storage.default().put(path, contents).await
+    }
+
+    /// Ambil data dari disk default secara statis.
+    pub async fn get_file(path: &str) -> Result<Vec<u8>, String> {
+        let storage = GLOBAL_STORAGE
+            .get()
+            .expect("Global Storage belum diinisialisasi.");
+        storage.default().get(path).await
+    }
+
+    /// Dapatkan URL berkas dari disk default secara statis.
+    pub fn file_url(path: &str) -> String {
+        let storage = GLOBAL_STORAGE
+            .get()
+            .expect("Global Storage belum diinisialisasi.");
+        storage.default().url(path)
+    }
+
+    // Proxy methods untuk disk default pada instance
     pub async fn put(&self, path: &str, contents: &[u8]) -> Result<(), String> {
         self.default().put(path, contents).await
     }
@@ -148,7 +118,19 @@ impl Storage {
         self.default().get(path).await
     }
 
+    pub async fn exists(&self, path: &str) -> bool {
+        self.default().exists(path).await
+    }
+
+    pub async fn delete(&self, path: &str) -> Result<(), String> {
+        self.default().delete(path).await
+    }
+
     pub fn url(&self, path: &str) -> String {
         self.default().url(path)
+    }
+
+    pub fn temporary_url(&self, path: &str, ttl: Duration) -> Result<String, String> {
+        self.default().temporary_url(path, ttl)
     }
 }

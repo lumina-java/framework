@@ -5,9 +5,19 @@ pub mod database;
 pub mod http;
 pub mod support;
 
+pub mod testing {
+    pub use crate::core::testing::*;
+}
+
+pub mod openapi {
+    pub use crate::core::openapi::*;
+}
+
 pub mod prelude {
     pub use crate::core::application::{Application, AppState};
     pub use crate::core::router::Router;
+    pub use crate::core::openapi::{OpenApiSpec, RouteDoc};
+    pub use crate::core::testing::{TestApp, TestResponse, TestRequestBuilder};
     pub use crate::http::kernel::HttpKernel;
     // axum re-exports — available in every controller via `use lumina::prelude::*`
     pub use axum::extract::{Path, Query, State};

@@ -4,6 +4,40 @@ Semua perubahan penting pada proyek **Lumina Framework** didokumentasikan di dal
 
 Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) dan mengikuti standar [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-11-18
+
+### 🚀 Ditambahkan & Ditingkatkan (Added & Improved)
+- **API-First Suite & Automated OpenAPI v3 Specification (`src/core/openapi/`)**:
+  - Dukungan OpenAPI v3.0.3 lengkap dengan serialisasi JSON rapi dan YAML serializer.
+  - Fluent Route Decorators pada Lumina `Router`: `.summary()`, `.description()`, `.tag()`, `.tags()`, `.deprecated()`, dan `.operation_id()`.
+  - Normalisasi otomatis path parameter Axum (`:id` dan `*slug` dikonversi ke format standar `{id}` dengan inferensi skema tipe data).
+  - Pewarisan metadata dan prefix otomatis pada route group (`router.group`, `router.nest`, `router.merge`).
+  - Generator koleksi Postman v2.1 instan (`spec.to_postman_collection()`).
+- **Built-in Interactive Swagger UI v5**:
+  - Router method `.swagger_ui(mount_path, title, version)`.
+  - Melayani UI interaktif modern di `GET /docs` dan `GET /docs/swagger`.
+  - Melayani endpoint spesifikasi mentah di `GET /docs/openapi.json`.
+- **Artisan CLI Toolchain**:
+  - `lumina route:openapi`: Pindai route proyek dan ekspor spesifikasi ke `openapi.json` atau `openapi.yaml`.
+  - `lumina export:postman`: Ekspor koleksi Postman v2.1 siap pakai untuk integrasi frontend/QA.
+- **Fluent HTTP Testing Assertion Kit (`lumina::testing::*`)**:
+  - Harness pengujian in-memory `TestApp` terisolasi dengan SQLite memory, Tokio, dan Tower `oneshot` tanpa port collision jaringan TCP.
+  - Fluent request builder: `app.req()`, `app.get_req()`, `app.post_req()`, `app.put_req()`, `app.patch_req()`, `app.delete_req()`.
+  - Request decorators: `.with_header()`, `.with_token()`, `.with_json()`, `.with_form()`, `.acting_as()`.
+  - 20+ Assertion methods fluen ala Laravel:
+    - Status: `assert_ok()`, `assert_created()`, `assert_status()`, `assert_unprocessable()`, `assert_unauthorized()`, `assert_forbidden()`, `assert_not_found()`, dll.
+    - JSON Dot-Notation: `assert_json_path()`, `assert_json_has()`, `assert_json_missing()`, `assert_json_count()`.
+    - Konten & Redireksi: `assert_see()`, `assert_dont_see()`, `assert_header()`, `assert_redirect()`.
+  - Database Testing Assertions: `app.assert_database_has()`, `app.assert_database_missing()`, `app.assert_database_count()`.
+- **Suite Pengujian Baru**:
+  - `tests/openapi_test.rs`: 2 test suite komprehensif untuk OpenAPI spec & Swagger UI.
+  - `tests/fluent_testing_kit_test.rs`: 2 test suite komprehensif untuk assertion status, json path, dan database assertions.
+  - Total pengujian otomatis lulus meningkat menjadi 82 passed (100% success).
+- **Dokumentasi Resmi**:
+  - Modul 18: *API-First Suite, Swagger UI & Fluent Testing Kit* di `docs/documentations/18_api_first_openapi_swagger_dan_testing_kit.md` dan integrasi portal VitePress.
+
+---
+
 ## [0.7.0] - 2026-11-17
 
 ### 🚀 Ditambahkan & Ditingkatkan (Added & Improved)

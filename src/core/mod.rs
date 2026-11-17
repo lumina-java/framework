@@ -4,6 +4,7 @@ pub mod echo;
 pub mod event;
 pub mod i18n;
 pub mod is_engine;
+pub mod openapi;
 pub mod telescope;
 
 pub mod auth;

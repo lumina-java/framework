@@ -198,6 +198,38 @@ enum Commands {
     /// List all installed WASM plugins and Indonesian Script files
     #[command(name = "plugin:list")]
     PluginList,
+
+    // ─── API Documentation & Tooling ─────────────────────────────────────────
+    /// Generate OpenAPI v3 specification (JSON or YAML) from application routes
+    #[command(name = "route:openapi")]
+    RouteOpenApi {
+        /// Output file path (default: openapi.json)
+        #[arg(short, long, default_value = "openapi.json")]
+        output: String,
+        /// Format: json or yaml (default: json)
+        #[arg(short, long, default_value = "json")]
+        format: String,
+        /// Project API title
+        #[arg(long, default_value = "Lumina Application API")]
+        title: String,
+        /// API version
+        #[arg(long, default_value = "1.0.0")]
+        version: String,
+    },
+
+    /// Export Postman collection v2.1 from application routes
+    #[command(name = "export:postman")]
+    ExportPostman {
+        /// Output file path (default: lumina_collection.json)
+        #[arg(short, long, default_value = "lumina_collection.json")]
+        output: String,
+        /// Name of the Postman collection
+        #[arg(long, default_value = "Lumina API Collection")]
+        name: String,
+        /// API version
+        #[arg(long, default_value = "1.0.0")]
+        version: String,
+    },
 }
 
 fn main() {
@@ -292,6 +324,12 @@ fn main() {
         }
         Commands::PluginList => {
             generator::cmd_plugin_list();
+        }
+        Commands::RouteOpenApi { output, format, title, version } => {
+            generator::generate_openapi(&output, &format, &title, &version);
+        }
+        Commands::ExportPostman { output, name, version } => {
+            generator::export_postman(&output, &name, &version);
         }
         Commands::Upgrade { cli_only, project_only, local } => {
             upgrader::run_upgrade(cli_only, project_only, local);

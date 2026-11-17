@@ -1631,5 +1631,331 @@ INSERT INTO users (name, email, password, role) VALUES
     println!("  👑 Admin  : admin@lumina.dev  (Role: admin)");
     println!("  ✍️  Editor : editor@lumina.dev (Role: editor)");
     println!("  👤 Member : member@lumina.dev (Role: member)");
+}
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  OPENAPI & POSTMAN EXPORTER
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+struct ScannedRoute {
+    method: String,
+    path: String,
+    summary: Option<String>,
+    description: Option<String>,
+    tags: Vec<String>,
+    deprecated: bool,
+}
+
+fn collect_rs_files(dir: &Path, list: &mut Vec<std::path::PathBuf>) {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                collect_rs_files(&p, list);
+            } else if p.extension().map_or(false, |ext| ext == "rs") {
+                list.push(p);
+            }
+        }
+    }
+}
+
+fn scan_routes_in_src() -> Vec<ScannedRoute> {
+    let mut files = Vec::new();
+    let src_dir = Path::new("src");
+    if src_dir.exists() {
+        collect_rs_files(src_dir, &mut files);
+    }
+
+    let mut routes = Vec::new();
+    let re_route = regex::Regex::new(r#"\.(get|post|put|delete|patch)\(\s*"([^"]+)""#).unwrap();
+    let re_summary = regex::Regex::new(r#"\.summary\(\s*"([^"]+)""#).unwrap();
+    let re_desc = regex::Regex::new(r#"\.description\(\s*"([^"]+)""#).unwrap();
+    let re_tag = regex::Regex::new(r#"\.tag\(\s*"([^"]+)""#).unwrap();
+
+    for file_path in files {
+        if let Ok(content) = fs::read_to_string(&file_path) {
+            for cap in re_route.captures_iter(&content) {
+                let method = cap[1].to_uppercase();
+                let path = cap[2].to_string();
+
+                let mut summary = None;
+                let mut description = None;
+                let mut tags = Vec::new();
+                let mut deprecated = false;
+
+                if let Some(match_pos) = content.find(&format!(".{}(\"{}\"", cap[1].to_lowercase(), path)) {
+                    let slice = &content[match_pos..match_pos.saturating_add(300).min(content.len())];
+                    if let Some(s) = re_summary.captures(slice) {
+                        summary = Some(s[1].to_string());
+                    }
+                    if let Some(d) = re_desc.captures(slice) {
+                        description = Some(d[1].to_string());
+                    }
+                    if let Some(t) = re_tag.captures(slice) {
+                        tags.push(t[1].to_string());
+                    }
+                    if slice.contains(".deprecated()") {
+                        deprecated = true;
+                    }
+                }
+
+                routes.push(ScannedRoute {
+                    method,
+                    path,
+                    summary,
+                    description,
+                    tags,
+                    deprecated,
+                });
+            }
+        }
+    }
+
+    routes
+}
+
+fn build_openapi_spec(routes: &[ScannedRoute], title: &str, version: &str) -> serde_json::Value {
+    let mut paths = serde_json::Map::new();
+
+    for r in routes {
+        let (openapi_path, path_params) = normalize_cli_path(&r.path);
+        let path_obj = paths.entry(openapi_path).or_insert_with(|| serde_json::json!({}));
+
+        let method_lower = r.method.to_lowercase();
+        let mut parameters = Vec::new();
+        for param in path_params {
+            parameters.push(serde_json::json!({
+                "name": param,
+                "in": "path",
+                "required": true,
+                "description": format!("Path parameter {}", param),
+                "schema": {
+                    "type": if param.ends_with("_id") || param == "id" { "integer" } else { "string" }
+                }
+            }));
+        }
+
+        let mut op = serde_json::json!({
+            "summary": r.summary.clone().unwrap_or_else(|| format!("{} {}", r.method, r.path)),
+            "description": r.description.clone().unwrap_or_default(),
+            "tags": r.tags,
+            "deprecated": r.deprecated,
+            "parameters": parameters,
+            "responses": {
+                "200": {
+                    "description": "Operasi Berhasil",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "success": { "type": "boolean" },
+                                    "data": { "type": "object" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if matches!(method_lower.as_str(), "post" | "put" | "patch") {
+            op["requestBody"] = serde_json::json!({
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                }
+            });
+        }
+
+        path_obj[method_lower] = op;
+    }
+
+    serde_json::json!({
+        "openapi": "3.0.3",
+        "info": {
+            "title": title,
+            "version": version,
+            "description": "REST API documentation generated automatically by Lumina CLI."
+        },
+        "servers": [
+            {
+                "url": "/",
+                "description": "Default Server"
+            }
+        ],
+        "paths": paths
+    })
+}
+
+fn normalize_cli_path(path: &str) -> (String, Vec<String>) {
+    let mut params = Vec::new();
+    let segments: Vec<String> = path
+        .split('/')
+        .map(|segment| {
+            if let Some(param) = segment.strip_prefix(':') {
+                params.push(param.to_string());
+                format!("{{{}}}", param)
+            } else if let Some(param) = segment.strip_prefix('*') {
+                params.push(param.to_string());
+                format!("{{{}}}", param)
+            } else if segment.starts_with('{') && segment.ends_with('}') {
+                let param = &segment[1..segment.len() - 1];
+                params.push(param.to_string());
+                segment.to_string()
+            } else {
+                segment.to_string()
+            }
+        })
+        .collect();
+
+    (segments.join("/"), params)
+}
+
+fn cli_json_to_yaml(value: &serde_json::Value, indent: usize) -> String {
+    let pad = "  ".repeat(indent);
+    match value {
+        serde_json::Value::Null => "null".to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::String(s) => {
+            if s.contains('\n') || s.contains(':') || s.contains('#') || s.contains(' ') || s.is_empty() {
+                format!("\"{}\"", s.replace('"', "\\\""))
+            } else {
+                s.clone()
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            if arr.is_empty() {
+                "[]".to_string()
+            } else {
+                let mut out = String::new();
+                for item in arr {
+                    out.push('\n');
+                    out.push_str(&format!("{}- {}", pad, cli_json_to_yaml(item, indent + 1).trim_start()));
+                }
+                out
+            }
+        }
+        serde_json::Value::Object(map) => {
+            if map.is_empty() {
+                "{}".to_string()
+            } else {
+                let mut out = String::new();
+                for (k, v) in map {
+                    out.push('\n');
+                    match v {
+                        serde_json::Value::Object(_) | serde_json::Value::Array(_) => {
+                            out.push_str(&format!("{}{}:{}", pad, k, cli_json_to_yaml(v, indent + 1)));
+                        }
+                        _ => {
+                            out.push_str(&format!("{}{}: {}", pad, k, cli_json_to_yaml(v, indent)));
+                        }
+                    }
+                }
+                out
+            }
+        }
+    }
+}
+
+pub fn generate_openapi(output: &str, format: &str, title: &str, version: &str) {
+    if !guard_project() {
+        return;
+    }
+    println!("{}", "📖 Scanning project routes for OpenAPI generation...".bright_cyan());
+
+    let routes = scan_routes_in_src();
+    println!("   Found {} endpoints.", routes.len().to_string().yellow());
+
+    let spec = build_openapi_spec(&routes, title, version);
+
+    if format.to_lowercase() == "yaml" || format.to_lowercase() == "yml" {
+        let yaml = cli_json_to_yaml(&spec, 0);
+        if let Err(e) = fs::write(output, yaml) {
+            println!("  ❌ Failed to write {}: {}", output, e);
+            return;
+        }
+    } else {
+        let json = serde_json::to_string_pretty(&spec).unwrap_or_default();
+        if let Err(e) = fs::write(output, json) {
+            println!("  ❌ Failed to write {}: {}", output, e);
+            return;
+        }
+    }
+
+    print_success(&format!("OpenAPI v3.0 specification generated successfully at {}", output.bright_green()));
+}
+
+pub fn export_postman(output: &str, name: &str, version: &str) {
+    if !guard_project() {
+        return;
+    }
+    println!("{}", "📮 Scanning project routes for Postman collection export...".bright_cyan());
+
+    let routes = scan_routes_in_src();
+    println!("   Found {} endpoints.", routes.len().to_string().yellow());
+
+    let mut items = Vec::new();
+    for r in &routes {
+        let path_segments: Vec<&str> = r.path.trim_matches('/').split('/').collect();
+        let mut item = serde_json::json!({
+            "name": r.summary.clone().unwrap_or_else(|| format!("{} {}", r.method, r.path)),
+            "request": {
+                "method": r.method,
+                "header": [
+                    { "key": "Accept", "value": "application/json", "type": "text" },
+                    { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "url": {
+                    "raw": format!("{{{{base_url}}}}{}", r.path),
+                    "host": ["{{base_url}}"],
+                    "path": path_segments
+                },
+                "description": r.description.clone().unwrap_or_default()
+            },
+            "response": []
+        });
+
+        if matches!(r.method.as_str(), "POST" | "PUT" | "PATCH") {
+            item["request"]["body"] = serde_json::json!({
+                "mode": "raw",
+                "raw": "{\n  \n}",
+                "options": {
+                    "raw": { "language": "json" }
+                }
+            });
+        }
+        items.push(item);
+    }
+
+    let postman = serde_json::json!({
+        "info": {
+            "_postman_id": uuid::Uuid::new_v4().to_string(),
+            "name": name,
+            "description": format!("Collection exported from Lumina project (v{})", version),
+            "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+        },
+        "item": items,
+        "variable": [
+            {
+                "key": "base_url",
+                "value": "http://127.0.0.1:3000",
+                "type": "string"
+            }
+        ]
+    });
+
+    let json = serde_json::to_string_pretty(&postman).unwrap_or_default();
+    if let Err(e) = fs::write(output, json) {
+        println!("  ❌ Failed to write {}: {}", output, e);
+        return;
+    }
+
+    print_success(&format!("Postman collection exported successfully at {}", output.bright_green()));
 }

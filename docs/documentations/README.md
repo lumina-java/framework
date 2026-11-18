@@ -30,6 +30,7 @@ Klik tautan di bawah untuk mempelajari setiap modul secara mendalam:
 | **16** | [**Whitepaper Benchmark & Performa Resmi**](./16_benchmark_dan_performance_whitepaper.md) | Data pengujian riil Throughput 118.000+ RPS, latensi sub-milidetik, konsumsi RAM hemat 15-38MB vs Laravel Octane, Express.js, dan FastAPI. |
 | **17** | [**Universal Storage & Redis Multi-Driver Suite**](./17_universal_storage_dan_redis_suite.md) | Universal Storage Facade (AWS S3, MinIO, R2, Local), Presigned URL SigV4, Distributed Redis Cache, Redis Streams Queue, dan Echo Redis Broadcaster. |
 | **18** | [**API-First Suite, Swagger UI & Fluent Testing Kit**](./18_api_first_openapi_swagger_dan_testing_kit.md) | Route OpenAPI v3 metadata, auto Swagger UI (`/docs/swagger`), CLI `route:openapi`, `export:postman`, and `TestApp` Fluent HTTP assertions. |
+| **19** | [**Advanced Eloquent, Model Observers & Seeding**](./19_advanced_eloquent_model_observers_dan_seeding.md) | Model Lifecycle Events (`ModelLifecycle`, `Observer<T>`), `AutoSlug`, `AutoHash`, Dedicated Seeder Runner (`db:seed --class`), Audit Trail (`Audit`), dan Query Builder `chunk` & `update_or_create`. |
 
 ---
 

@@ -22,6 +22,11 @@ pub trait Model:
     /// Apakah model ini mengaktifkan Soft Deletes (kolom deleted_at)
     const HAS_SOFT_DELETES: bool = false;
 
+    /// Nilai primary key record ini
+    fn primary_key(&self) -> i64 {
+        0
+    }
+
     /// Ambil satu record berdasarkan primary key.
     /// Mengembalikan error jika tidak ditemukan.
     async fn find(pool: &DatabasePool, id: i64) -> Result<Self, sqlx::Error>;

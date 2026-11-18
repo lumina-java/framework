@@ -111,6 +111,13 @@ enum Commands {
         name: String,
     },
 
+    /// Generate a new Database Seeder class
+    #[command(name = "make:seeder")]
+    MakeSeeder {
+        /// The name of the seeder (e.g., UserSeeder, ProductSeeder)
+        name: String,
+    },
+
     /// Generate a new Blade view template (e.g., products.index)
     #[command(name = "make:view")]
     MakeView {
@@ -157,9 +164,13 @@ enum Commands {
     #[command(name = "migrate:status")]
     MigrateStatus,
 
-    /// Seed the database with initial dummy data
+    /// Seed the database with initial dummy data or via a specific Seeder class
     #[command(name = "db:seed")]
-    DbSeed,
+    DbSeed {
+        /// Specific seeder class to run (e.g., UserSeeder)
+        #[arg(long, short)]
+        class: Option<String>,
+    },
 
     // ─── DevOps / Deployment ──────────────────────────────────────────────────
     /// Generate production Dockerfile, docker-compose.yml & aaPanel/Nginx reverse proxy
@@ -270,6 +281,9 @@ fn main() {
         Commands::MakeFactory { name } => {
             generator::generate_factory(&name);
         }
+        Commands::MakeSeeder { name } => {
+            generator::generate_seeder(&name);
+        }
         Commands::MakeView { name } => {
             generator::generate_view(&name);
         }
@@ -302,10 +316,10 @@ fn main() {
                 .expect("Failed to start Tokio runtime for migration")
                 .block_on(migrator::run_status_async());
         }
-        Commands::DbSeed => {
+        Commands::DbSeed { class } => {
             tokio::runtime::Runtime::new()
                 .expect("Failed to start Tokio runtime for seeding")
-                .block_on(migrator::run_seed_async());
+                .block_on(migrator::run_seed_async(class.as_deref()));
         }
         Commands::MakeDocker { name, port } => {
             generator::generate_docker(name, port);

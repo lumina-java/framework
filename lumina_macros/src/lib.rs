@@ -227,6 +227,10 @@ pub fn lumina_model_derive(input: TokenStream) -> TokenStream {
             const TABLE: &'static str = #table_name;
             const HAS_SOFT_DELETES: bool = #has_deleted_at;
 
+            fn primary_key(&self) -> i64 {
+                self.#primary_key_ident as i64
+            }
+
             async fn find(pool: &lumina::database::connection::DatabasePool, id: i64) -> Result<Self, sqlx::Error> {
                 let is_pg = pool.kind == lumina::database::connection::DatabaseKind::Postgres;
                 let select_cols = if is_pg { #pg_select_fields } else { #select_fields };

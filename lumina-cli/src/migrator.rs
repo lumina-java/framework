@@ -422,8 +422,8 @@ pub async fn run_status_async() {
     println!("─────────────────────────────────────────────────────────────────");
 }
 
-/// Eksekusi Perintah: lumina db:seed
-pub async fn run_seed_async() {
+/// Eksekusi Perintah: lumina db:seed [--class <Name>]
+pub async fn run_seed_async(class_name: Option<&str>) {
     println!("{}", "🌱  LUMINA DATABASE SEEDER ENGINE".bright_purple().bold());
     println!("─────────────────────────────────────────────────────────────────");
 
@@ -437,6 +437,9 @@ pub async fn run_seed_async() {
 
     println!("  Target Database : {}", mask_credentials(&url).bright_cyan());
     println!("  Driver Engine   : {}", driver.bright_yellow());
+    if let Some(cls) = class_name {
+        println!("  Filter Class    : {}", cls.bright_green().bold());
+    }
 
     let pool = match connect_db(&url).await {
         Ok(p) => p,
@@ -460,8 +463,20 @@ pub async fn run_seed_async() {
 
     entries.sort_by_key(|e| e.path());
 
+    if let Some(target) = class_name {
+        let target_lower = target.to_lowercase();
+        entries.retain(|e| {
+            let name = e.file_name().to_string_lossy().to_lowercase();
+            name.contains(&target_lower)
+        });
+    }
+
     if entries.is_empty() {
-        println!("  {} Tidak ada berkas .sql ditemukan di database/seeders/.", "ℹ [INFO]".blue());
+        if let Some(cls) = class_name {
+            println!("  {} Tidak ada seeder yang cocok dengan class [{}] di database/seeders/.", "ℹ [INFO]".blue(), cls);
+        } else {
+            println!("  {} Tidak ada berkas .sql ditemukan di database/seeders/.", "ℹ [INFO]".blue());
+        }
         return;
     }
 

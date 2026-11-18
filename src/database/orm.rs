@@ -1,4 +1,4 @@
-use crate::database::connection::DatabasePool;
+use crate::database::connection::{DatabaseKind, DatabasePool};
 use serde::{Deserialize, Serialize};
 use sqlx::{any::AnyArguments, Arguments, FromRow};
 use std::marker::PhantomData;
@@ -419,8 +419,8 @@ where
             " WHERE deleted_at IS NOT NULL".to_string()
         };
         let sql = format!("UPDATE {} SET deleted_at = NULL{}", self.table, where_clause);
-        let sql = self.pool.prepare_sql(&sql);
-        let mut query = sqlx::query(&sql);
+        let prepared_sql = self.pool.prepare_sql(&sql);
+        let mut query = sqlx::query(&prepared_sql);
         for wb in &self.where_bind_values {
             query = query.bind(wb);
         }
@@ -513,22 +513,169 @@ where
 
         let keys: Vec<String> = pairs.iter().map(|p| p.0.clone()).collect();
         let placeholders = vec!["?"; keys.len()].join(", ");
-        let sql = format!(
-            "INSERT INTO {} ({}) VALUES ({})",
-            table,
-            keys.join(", "),
-            placeholders
-        );
+        let is_pg = pool.kind == DatabaseKind::Postgres;
 
-        let mut query = sqlx::query(&sql);
-        for pair in &pairs {
-            query = query.bind(&pair.1);
+        let pk = if is_pg {
+            let sql = format!(
+                "INSERT INTO {} ({}) VALUES ({}) RETURNING id",
+                table,
+                keys.join(", "),
+                placeholders
+            );
+            let prepared_sql = pool.prepare_sql(&sql);
+            let mut query = sqlx::query_as::<_, (i64,)>(&prepared_sql);
+            for pair in &pairs {
+                query = query.bind(&pair.1);
+            }
+            let row = query.fetch_one(&pool.pool).await?;
+            row.0
+        } else {
+            let sql = format!(
+                "INSERT INTO {} ({}) VALUES ({})",
+                table,
+                keys.join(", "),
+                placeholders
+            );
+            let prepared_sql = pool.prepare_sql(&sql);
+            let mut query = sqlx::query(&prepared_sql);
+            for pair in &pairs {
+                query = query.bind(&pair.1);
+            }
+            let res = query.execute(&pool.pool).await?;
+            let inserted_id = res.last_insert_id().unwrap_or(0);
+            if inserted_id > 0 {
+                inserted_id
+            } else {
+                let sql_max = format!("SELECT COALESCE(MAX(id), 0) FROM {}", table);
+                let row: (i64,) = sqlx::query_as(&sql_max).fetch_one(&pool.pool).await.unwrap_or((0,));
+                row.0
+            }
+        };
+
+        T::find(pool, pk).await
+    }
+
+    /// Cari record berdasarkan kriteria query. Jika ditemukan, perbarui dengan data yang diberikan.
+    /// Jika tidak ditemukan, buat record baru dengan data tersebut (Laravel: updateOrCreate).
+    pub async fn update_or_create<K, V>(
+        self,
+        values: impl IntoIterator<Item = (K, V)>,
+    ) -> Result<T, sqlx::Error>
+    where
+        K: AsRef<str>,
+        V: ToString,
+        T: crate::database::model::Model,
+    {
+        let pool = self.pool;
+        let table = self.table;
+
+        let pairs: Vec<(String, String)> = values
+            .into_iter()
+            .map(|(k, v)| (k.as_ref().to_string(), v.to_string()))
+            .collect();
+
+        if let Some(existing) = self.first().await? {
+            let pk = existing.primary_key();
+            if !pairs.is_empty() {
+                let mut q_update = Self::new(pool, table);
+                q_update = q_update.where_eq_str("id", &pk.to_string());
+                q_update.update(pairs).await?;
+            }
+            T::find(pool, pk).await
+        } else {
+            let keys: Vec<String> = pairs.iter().map(|p| p.0.clone()).collect();
+            let placeholders = vec!["?"; keys.len()].join(", ");
+            let is_pg = pool.kind == DatabaseKind::Postgres;
+
+            let pk = if is_pg {
+                let sql = format!(
+                    "INSERT INTO {} ({}) VALUES ({}) RETURNING id",
+                    table,
+                    keys.join(", "),
+                    placeholders
+                );
+                let prepared_sql = pool.prepare_sql(&sql);
+                let mut query = sqlx::query_as::<_, (i64,)>(&prepared_sql);
+                for pair in &pairs {
+                    query = query.bind(&pair.1);
+                }
+                let row = query.fetch_one(&pool.pool).await?;
+                row.0
+            } else {
+                let sql = format!(
+                    "INSERT INTO {} ({}) VALUES ({})",
+                    table,
+                    keys.join(", "),
+                    placeholders
+                );
+                let prepared_sql = pool.prepare_sql(&sql);
+                let mut query = sqlx::query(&prepared_sql);
+                for pair in &pairs {
+                    query = query.bind(&pair.1);
+                }
+                let res = query.execute(&pool.pool).await?;
+                let inserted_id = res.last_insert_id().unwrap_or(0);
+                if inserted_id > 0 {
+                    inserted_id
+                } else {
+                    let sql_max = format!("SELECT COALESCE(MAX(id), 0) FROM {}", table);
+                    let row: (i64,) = sqlx::query_as(&sql_max).fetch_one(&pool.pool).await.unwrap_or((0,));
+                    row.0
+                }
+            };
+
+            T::find(pool, pk).await
+        }
+    }
+
+    /// Memproses data dalam potongan batch secara bertahap (Laravel: chunk).
+    /// Sangat ramah memori (RAM-efficient) saat memproses data berjumlah besar.
+    pub async fn chunk<F, Fut>(
+        self,
+        chunk_size: usize,
+        mut callback: F,
+    ) -> Result<(), sqlx::Error>
+    where
+        T: crate::database::model::Model,
+        F: FnMut(Vec<T>) -> Fut,
+        Fut: std::future::Future<Output = Result<(), sqlx::Error>>,
+    {
+        let pool = self.pool;
+        let table = self.table;
+        let mut page = 1;
+
+        loop {
+            let offset = (page - 1) * chunk_size;
+            let mut q = Self::new(pool, table);
+            q.select = self.select.clone();
+            q.wheres = self.wheres.clone();
+            q.where_bind_values = self.where_bind_values.clone();
+            q.order_by = self.order_by.clone().or_else(|| Some("id ASC".to_string()));
+            q.has_soft_deletes = self.has_soft_deletes;
+            q.with_trashed = self.with_trashed;
+            q.only_trashed = self.only_trashed;
+            q.limit = Some(chunk_size);
+            q.offset = Some(offset);
+
+            for wb in &self.where_bind_values {
+                let _ = q.args.add(wb.clone());
+            }
+
+            let items = q.get().await?;
+            if items.is_empty() {
+                break;
+            }
+
+            let count = items.len();
+            callback(items).await?;
+
+            if count < chunk_size {
+                break;
+            }
+            page += 1;
         }
 
-        let res = query.execute(&pool.pool).await?;
-        let inserted_id = res.last_insert_id().unwrap_or(0);
-
-        T::find(pool, inserted_id as i64).await
+        Ok(())
     }
 
     /// Lakukan mass update pada record yang memenuhi kriteria query.
@@ -570,7 +717,8 @@ where
             sql.push_str(&self.wheres.join(" "));
         }
 
-        let mut query = sqlx::query(&sql);
+        let prepared_sql = self.pool.prepare_sql(&sql);
+        let mut query = sqlx::query(&prepared_sql);
         for pair in &pairs {
             query = query.bind(&pair.1);
         }

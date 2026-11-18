@@ -38,6 +38,9 @@ pub mod prelude {
     pub use crate::database::orm::{LengthAwarePaginator, OrmResult, QueryBuilder};
     pub use crate::database::factory::{Factory, FactoryBuilder, HasFactory};
     pub use crate::database::faker::Faker;
+    pub use crate::database::audit::{Audit, AuditLog, AuditRecordBuilder};
+    pub use crate::database::observer::{AutoSlug, AutoHash, ModelLifecycle, Observer};
+    pub use crate::database::seeder::{Seeder, DatabaseSeeder, SeederRegistry, call_seeder};
     pub use crate::{belongs_to, belongs_to_many, has_many, has_one};
     pub use lumina_macros::{lumina_form, LuminaModel};
     // financial & enterprise types

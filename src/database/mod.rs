@@ -1,3 +1,4 @@
+pub mod audit;
 pub mod connection;
 pub mod facade;
 pub mod factory;
@@ -6,12 +7,16 @@ pub mod grammar;
 pub mod migration;
 pub mod model;
 pub mod mssql_adapter;
+pub mod observer;
 pub mod orm;
 pub mod schema;
 pub mod seeder;
 pub mod transaction;
 
+pub use audit::{Audit, AuditLog, AuditRecordBuilder};
 pub use factory::{Factory, FactoryBuilder, HasFactory};
 pub use faker::Faker;
 pub use facade::DB;
+pub use observer::{AutoSlug, AutoHash, ModelLifecycle, Observer};
+pub use seeder::{Seeder, DatabaseSeeder, SeederRegistry, call_seeder};
 pub use transaction::{Transaction, TableQueryBuilder};

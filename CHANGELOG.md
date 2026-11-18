@@ -4,6 +4,36 @@ Semua perubahan penting pada proyek **Lumina Framework** didokumentasikan di dal
 
 Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) dan mengikuti standar [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-11-18
+
+### 🚀 Ditambahkan & Ditingkatkan (Added & Improved)
+- **Advanced Eloquent ORM & Model Lifecycle Observers (`src/database/observer.rs`)**:
+  - Trait `ModelLifecycle` dengan hook asinkron: `saving`, `saved`, `creating`, `created`, `updating`, `updated`, `deleting`, dan `deleted`.
+  - Trait `Observer<T>` untuk pemisahan logika lifecycle ke dedicated observer classes ala Laravel.
+  - `AutoSlug`: Otomasi pembuatan slug URL SEO-friendly yang bersih dan unik dengan auto-collision resolver (`-1`, `-2`, dst.).
+  - `AutoHash`: Otomasi hashing password Bcrypt idempotent (mencegah double-hash kata sandi).
+- **Dedicated Database Seeder Class Runner (`src/database/seeder.rs`)**:
+  - Trait `Seeder` untuk pembuatan kelas seeder Rust murni independen.
+  - Helper `call_seeder::<S>(pool)` untuk chaining hierarki seeder di dalam `DatabaseSeeder`.
+  - `SeederRegistry` untuk pemetaan dinamis dan eksekusi seeder berdasarkan nama class via CLI.
+  - Perintah Artisan CLI baru: `lumina make:seeder <Name>` dan `lumina db:seed --class <Name>`.
+- **Declarative Enterprise Audit Trail Logging (`src/database/audit.rs`)**:
+  - Struct `AuditLog` dengan snapshot JSON `old_values` dan `new_values`.
+  - Fluent builder `Audit::record(pool).on(table, id).action(...).diff(old, new).save()` untuk pelacakan mutasi kepatuhan SOC 2 & ISO 27001.
+  - Method `Audit::history()` untuk membaca riwayat audit per entitas dan `Audit::latest()` untuk feed audit global.
+  - Skema database auto-migration via `Audit::ensure_table(pool)`.
+- **Advanced Eloquent Query Builder (`src/database/orm.rs`)**:
+  - `.chunk(size, callback)`: streaming data ramah RAM untuk memproses jutaan baris data secara bertahap tanpa OOM.
+  - `.update_or_create(values)`: pencarian dan update otomatis atau insert record baru.
+  - Implementasi `primary_key(&self) -> i64` otomatis pada derive `LuminaModel`.
+- **Suite Pengujian Baru**:
+  - `tests/advanced_eloquent_test.rs`: 5 test suite komprehensif untuk lifecycle observers, auto slug, seeder class runner, audit trail, dan query builder chunk / update_or_create.
+  - Total pengujian otomatis lulus meningkat menjadi 87 passed (100% success).
+- **Dokumentasi Resmi**:
+  - Modul 19: *Advanced Eloquent, Model Observers & Seeding* di `docs/documentations/19_advanced_eloquent_model_observers_dan_seeding.md` dan integrasi VitePress portal.
+
+---
+
 ## [0.8.0] - 2026-11-18
 
 ### 🚀 Ditambahkan & Ditingkatkan (Added & Improved)

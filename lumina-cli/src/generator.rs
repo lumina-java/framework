@@ -1249,6 +1249,85 @@ impl HasFactory<{factory_name}> for {model_name} {{
     print_hint(&format!("Or shortcut on model: {}::factory().count(10).create(req.db()).await\n", model_name));
 }
 
+pub fn generate_seeder(name: &str) {
+    if !guard_project() {
+        return;
+    }
+    println!("{}", "🌱 Generating Database Seeder Class...".bright_purple().bold());
+
+    let clean = name.trim_end_matches(".rs").trim();
+    let seeder_name = if clean.ends_with("Seeder") {
+        clean.to_string()
+    } else {
+        format!("{}Seeder", capitalize_first(clean))
+    };
+
+    let file_base = to_snake_case(&seeder_name);
+    let seeder_dir = "src/database/seeders";
+    let _ = fs::create_dir_all(seeder_dir);
+
+    let file_path = format!("{}/{}.rs", seeder_dir, file_base);
+    if Path::new(&file_path).exists() {
+        println!("{} Seeder {} already exists!", "❌".red(), file_path);
+        return;
+    }
+
+    let code = format!(
+        r#"use lumina::prelude::*;
+
+// =========================================================================
+//  {seeder_name} (Lumina Database Seeder Class)
+// =========================================================================
+
+#[derive(Default)]
+pub struct {seeder_name};
+
+#[async_trait::async_trait]
+impl Seeder for {seeder_name} {{
+    /// Eksekusi pengisian data awal atau data pengujian
+    async fn run(&self, db: &DatabasePool) -> Result<(), sqlx::Error> {{
+        println!("🌱 Menjalankan Seeder: {seeder_name}");
+
+        // Contoh: Membuat 25 data realistis menggunakan Model Factory & Faker
+        // User::factory()
+        //     .count(25)
+        //     .state(|u| u.is_active = true)
+        //     .create(db)
+        //     .await?;
+
+        Ok(())
+    }}
+}}
+"#,
+        seeder_name = seeder_name
+    );
+
+    if let Err(e) = fs::write(&file_path, code) {
+        println!("{} Failed to write seeder file: {}", "❌".red(), e);
+        return;
+    }
+
+    let mod_file = "src/database/seeders/mod.rs";
+    let mod_line = format!("pub mod {};\npub use {}::{};\n", file_base, file_base, seeder_name);
+    if Path::new(mod_file).exists() {
+        let existing = fs::read_to_string(mod_file).unwrap_or_default();
+        if !existing.contains(&format!("pub mod {};", file_base)) {
+            append_to_file(mod_file, &mod_line);
+        }
+    } else {
+        let _ = fs::write(mod_file, format!("// Lumina Database Seeders\n{}", mod_line));
+    }
+
+    let sql_dir = "database/seeders";
+    let _ = fs::create_dir_all(sql_dir);
+    let sql_path = format!("{}/{}_{}.sql", sql_dir, timestamp(), file_base);
+    let sql_content = format!("-- Seeder SQL template untuk {}\n-- INSERT INTO table (col) VALUES ('val');\n", seeder_name);
+    let _ = fs::write(&sql_path, sql_content);
+
+    print_success(&format!("Seeder created: {}", file_path.bright_green()));
+    print_hint(&format!("Run this seeder with: lumina db:seed --class {}\n", seeder_name));
+}
+
 pub fn generate_view(name: &str) {
     if !guard_project() {
         return;

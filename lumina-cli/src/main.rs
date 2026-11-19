@@ -9,6 +9,7 @@ mod skeleton;
 mod audit;
 mod migrator;
 mod upgrader;
+mod tinker;
 
 #[derive(Parser)]
 #[command(
@@ -42,6 +43,9 @@ enum Commands {
 
     /// Start the server with auto-reload on code change (cargo-watch)
     Watch,
+
+    /// Start interactive REPL shell (Lumina Tinker)
+    Tinker,
 
     /// Clean unused build artifacts, compiler cache, and temporary files
     Clean {
@@ -210,6 +214,14 @@ enum Commands {
     #[command(name = "plugin:list")]
     PluginList,
 
+    /// Show WASM sandbox performance metrics and execution stats
+    #[command(name = "plugin:metrics")]
+    PluginMetrics,
+
+    /// Trigger manual zero-downtime hot-reload of all WASM plugins
+    #[command(name = "plugin:reload")]
+    PluginReload,
+
     // ─── API Documentation & Tooling ─────────────────────────────────────────
     /// Generate OpenAPI v3 specification (JSON or YAML) from application routes
     #[command(name = "route:openapi")]
@@ -256,6 +268,11 @@ fn main() {
         }
         Commands::Watch => {
             generator::cmd_watch();
+        }
+        Commands::Tinker => {
+            tokio::runtime::Runtime::new()
+                .expect("Failed to start Tokio runtime for Tinker")
+                .block_on(tinker::run());
         }
         Commands::Clean { purge } => {
             generator::cmd_clean(purge);
@@ -338,6 +355,12 @@ fn main() {
         }
         Commands::PluginList => {
             generator::cmd_plugin_list();
+        }
+        Commands::PluginMetrics => {
+            generator::cmd_plugin_metrics();
+        }
+        Commands::PluginReload => {
+            generator::cmd_plugin_reload();
         }
         Commands::RouteOpenApi { output, format, title, version } => {
             generator::generate_openapi(&output, &format, &title, &version);

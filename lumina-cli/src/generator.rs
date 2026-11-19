@@ -1162,6 +1162,58 @@ pub fn cmd_plugin_list() {
     println!("Total detected items: {}\n", items.len());
 }
 
+pub fn cmd_plugin_metrics() {
+    println!("{}", "📊 Lumina WASM Sandbox & Plugin Metrics Dashboard\n".bright_cyan().bold());
+
+    let manager = lumina::core::sandbox::LuminaPluginManager::new();
+    let loaded = manager.load_directory("plugins").unwrap_or(0);
+
+    let metrics = manager.get_metrics();
+    let stats = manager.plugin_stats();
+
+    println!("Total WASM Modules Loaded : {}", loaded.to_string().bright_green().bold());
+    println!("Script Modules Cached     : {}\n", metrics.is_scripts_count.to_string().bright_yellow().bold());
+
+    if loaded == 0 {
+        println!("{}", "ℹ️  Tidak ada biner .wasm aktif di direktori plugins/.".yellow());
+        println!("💡 Tip: Buat plugin baru dengan: {}", "lumina plugin:new <name>".bright_cyan());
+        println!("💡 Tip: Kompilasi plugin dengan: {}\n", "lumina plugin:build".bright_cyan());
+        return;
+    }
+
+    println!("┌───────────────────────┬──────────────┬──────────────┬──────────────┬──────────────┐");
+    println!("│ {:<21} │ {:<12} │ {:<12} │ {:<12} │ {:<12} │", "PLUGIN NAME", "CALLS COUNT", "ERRORS COUNT", "AVG DURATION", "STATUS");
+    println!("├───────────────────────┼──────────────┼──────────────┼──────────────┼──────────────┤");
+
+    for name in &metrics.wasm_plugins {
+        let stat = stats.iter().find(|s| &s.name == name);
+        let calls = stat.map(|s| s.calls_count).unwrap_or(0);
+        let errors = stat.map(|s| s.errors_count).unwrap_or(0);
+        let avg_dur = stat.map(|s| format!("{:.2}µs", s.avg_duration_us)).unwrap_or_else(|| "0.00µs".to_string());
+        let status = if errors > 0 { "Warning ⚠️" } else { "Healthy ✅" };
+
+        println!("│ {:<21} │ {:<12} │ {:<12} │ {:<12} │ {:<12} │", name.bright_green(), calls, errors, avg_dur, status);
+    }
+
+    println!("└───────────────────────┴──────────────┴──────────────┴──────────────┴──────────────┘\n");
+}
+
+pub fn cmd_plugin_reload() {
+    println!("{}", "🔄 Reloading Lumina WASM Plugins (Zero-Downtime Hot-Reload)...".bright_purple().bold());
+    let start = std::time::Instant::now();
+
+    let manager = lumina::core::sandbox::LuminaPluginManager::new();
+    match manager.reload("plugins") {
+        Ok(count) => {
+            let dur = start.elapsed().as_secs_f64() * 1000.0;
+            println!("{} Berhasil memuat ulang {} plugin dalam {:.2}ms tanpa downtime! ⚡\n", "✅ [Reload Success]".green().bold(), count.to_string().bright_yellow().bold(), dur);
+        }
+        Err(e) => {
+            println!("{} Gagal memuat ulang plugin: {}\n", "❌ [Reload Failed]".red().bold(), e);
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODEL FACTORY GENERATOR
 // ─────────────────────────────────────────────────────────────────────────────

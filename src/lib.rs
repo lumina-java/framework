@@ -13,6 +13,10 @@ pub mod openapi {
     pub use crate::core::openapi::*;
 }
 
+pub mod tinker {
+    pub use crate::core::tinker::*;
+}
+
 pub mod prelude {
     pub use crate::core::application::{Application, AppState};
     pub use crate::core::router::Router;
@@ -54,6 +58,8 @@ pub mod prelude {
     pub use crate::core::queue::{Job, Dispatchable, QueueManager, JobRegistry};
     pub use crate::core::auth::{Auth, AuthUser, HasRolesAndPermissions};
     pub use crate::core::security::BruteForceGuard;
+    pub use crate::core::sandbox::{LuminaPluginManager, WasmPlugin, PluginHook, PluginStats, PluginMetricsTracker};
+    pub use crate::core::tinker::{Tinker, TinkerEvaluator, TinkerResult, TinkerFormatter};
 }
 
 pub use lumina_macros::{lumina_form, LuminaModel};

@@ -4,6 +4,34 @@ Semua perubahan penting pada proyek **Lumina Framework** didokumentasikan di dal
 
 Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) dan mengikuti standar [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-11-19
+
+### 👑 Enterprise Masterpiece (LTS Release)
+- **Lumina Tinker — Interactive CLI REPL Shell (`src/core/tinker/`)**:
+  - Perintah baru di Artisan CLI: `lumina tinker`.
+  - Terminal REPL interaktif berbasis `rustyline` dengan persistent command history (`.lumina_tinker_history`).
+  - Dynamic Model & Query Evaluator: `Model::all()`, `Model::find(id)`, `Model::count()`, `DB::table(...)`.
+  - Eksekusi langsung query Raw SQL dengan kalkulasi waktu eksekusi presisi (*stopwatch timer*).
+  - Evaluasi langsung utility & security facades: `Hash::make()`, `Hash::check()`, `AutoSlug::slugify()`, `Uuid::new()`.
+  - Framework Introspection: perintah `routes`, `tables` / `models`, `env` (dengan perlindungan masking pada password dan secrets), `clear`, dan `help`.
+  - Visualisasi terminal elegan: Tabel ANSI box-drawing (`┌─┬─┐`) dengan auto-alignment lebar kolom dinamis.
+- **Dynamic WASM Plugin Registry & Zero-Downtime Hot-Reloading (`src/core/sandbox/`)**:
+  - Pemuatan ulang plugin WebAssembly otomatis di memori (*background file watcher*) tanpa restart server host.
+  - Swap instance atomic aman konkurensi (`Arc<RwLock<...>>`) tanpa request terputus (*zero-downtime*).
+  - Lifecycle Hooks Pipeline: `PluginHook::OnRequest` (`lumina_on_request`), `PluginHook::BeforeSave` (`lumina_before_save`), `PluginHook::AfterResponse` (`lumina_after_response`).
+  - Isolasi Memori & Trap Fault-Tolerance mutlak berstandar militer (error pada plugin tidak merusak stabilitas server).
+  - Dashboard Metrik Performa Plugin (`lumina plugin:metrics`) dan reload manual (`lumina plugin:reload`).
+- **Suite Pengujian Baru**:
+  - `tests/tinker_test.rs`: 2 test suite komprehensif untuk evaluasi model, query builder, raw sql, facades, dan formatter.
+  - `tests/wasm_hot_reload_test.rs`: 3 test suite komprehensif untuk zero-downtime hot-reloading, lifecycle hooks, dan trap isolation.
+  - Total pengujian otomatis lulus mencapai **92 passed (100% success)**.
+- **Dokumentasi Resmi**:
+  - Modul 20: *Lumina Tinker (Interactive CLI REPL Shell)* di `docs/documentations/20_lumina_tinker.md`.
+  - Modul 21: *Dynamic WASM Plugin Registry & Zero-Downtime Hot-Reloading* di `docs/documentations/21_wasm_plugins_hot_reload.md`.
+  - Pembaruan seluruh indeks modul resmi dan navigasi sidebar VitePress portal.
+
+---
+
 ## [0.9.0] - 2026-11-18
 
 ### 🚀 Ditambahkan & Ditingkatkan (Added & Improved)

@@ -31,6 +31,8 @@ Klik tautan di bawah untuk mempelajari setiap modul secara mendalam:
 | **17** | [**Universal Storage & Redis Multi-Driver Suite**](./17_universal_storage_dan_redis_suite.md) | Universal Storage Facade (AWS S3, MinIO, R2, Local), Presigned URL SigV4, Distributed Redis Cache, Redis Streams Queue, dan Echo Redis Broadcaster. |
 | **18** | [**API-First Suite, Swagger UI & Fluent Testing Kit**](./18_api_first_openapi_swagger_dan_testing_kit.md) | Route OpenAPI v3 metadata, auto Swagger UI (`/docs/swagger`), CLI `route:openapi`, `export:postman`, and `TestApp` Fluent HTTP assertions. |
 | **19** | [**Advanced Eloquent, Model Observers & Seeding**](./19_advanced_eloquent_model_observers_dan_seeding.md) | Model Lifecycle Events (`ModelLifecycle`, `Observer<T>`), `AutoSlug`, `AutoHash`, Dedicated Seeder Runner (`db:seed --class`), Audit Trail (`Audit`), dan Query Builder `chunk` & `update_or_create`. |
+| **20** | [**Lumina Tinker (Interactive CLI REPL)**](./20_lumina_tinker.md) | Konsol terminal interaktif `lumina tinker`, autocompletion, persistent history, evaluasi Eloquent Model, Query Builder, Raw SQL, dan helper facades. |
+| **21** | [**Dynamic WASM Plugins & Hot-Reloading**](./21_wasm_plugins_hot_reload.md) | WebAssembly sandbox runtime (`wasmi 2.0`), zero-downtime hot-reloading otomatis, lifecycle hooks (`OnRequest`, `BeforeSave`, `AfterResponse`), metrics dashboard, dan `lumina plugin:reload`. |
 
 ---
 

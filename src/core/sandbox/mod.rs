@@ -5,7 +5,12 @@ use thiserror::Error;
 use wasmi::{Caller, Engine, Instance, Linker, Memory, Module, Store};
 
 pub mod is_runner;
+pub mod metrics;
+pub mod hooks;
+
 pub use is_runner::{IsFunction, IsScriptRunner};
+pub use metrics::{PluginMetricsTracker, PluginStats};
+pub use hooks::PluginHook;
 
 
 #[derive(Error, Debug)]
@@ -240,10 +245,17 @@ impl WasmInstance {
 }
 
 /// Pengelola Plugin dan Ekstensi Lumina Sandbox (Thread-Safe & Hot-Reloadable)
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct LuminaPluginManager {
     plugins: Arc<RwLock<HashMap<String, Arc<WasmPlugin>>>>,
     is_scripts: Arc<RwLock<HashMap<String, Arc<IsScriptRunner>>>>,
+    metrics: Arc<PluginMetricsTracker>,
+}
+
+impl Default for LuminaPluginManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LuminaPluginManager {
@@ -251,7 +263,18 @@ impl LuminaPluginManager {
         Self {
             plugins: Arc::new(RwLock::new(HashMap::new())),
             is_scripts: Arc::new(RwLock::new(HashMap::new())),
+            metrics: Arc::new(PluginMetricsTracker::new()),
         }
+    }
+
+    /// Ambil tracker metrik performa plugin
+    pub fn metrics_tracker(&self) -> Arc<PluginMetricsTracker> {
+        self.metrics.clone()
+    }
+
+    /// Ambil seluruh statistik eksekusi plugin
+    pub fn plugin_stats(&self) -> Vec<PluginStats> {
+        self.metrics.all_stats()
     }
 
     /// Daftarkan plugin WASM ke manager
@@ -316,10 +339,86 @@ impl LuminaPluginManager {
         runner.call(func_name, args)
     }
 
-    /// Panggil custom filter Blade yang terdaftar di WASM
+    /// Panggil custom filter Blade yang terdaftar di WASM (dengan pelacakan metrik otomatis)
     pub fn call_filter(&self, plugin_name: &str, func_name: &str, input: &str) -> Result<String, SandboxError> {
         let plugin = self.get(plugin_name).ok_or_else(|| SandboxError::PluginNotFound(plugin_name.to_string()))?;
-        plugin.call_string_transform(func_name, input)
+        self.metrics.measure(plugin_name, || {
+            plugin.call_string_transform(func_name, input)
+        })
+    }
+
+    /// Panggil lifecycle hook pada seluruh plugin yang menyediakan fungsi hook tersebut
+    pub fn call_hook(&self, hook: hooks::PluginHook, payload: &str) -> Vec<(String, Result<String, SandboxError>)> {
+        let export_name = hook.export_name();
+        let plugins: Vec<(String, Arc<WasmPlugin>)> = {
+            let map = self.plugins.read().unwrap();
+            map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        };
+
+        let mut results = Vec::new();
+        for (name, plugin) in plugins {
+            let res = plugin.call_string_transform(&export_name, payload);
+            match res {
+                Err(SandboxError::FunctionNotFound(_)) => {
+                    // Hook tidak diimplementasikan oleh plugin ini, lewati tanpa mencatat error
+                }
+                other => {
+                    let tracked_res = self.metrics.measure(&name, || other);
+                    results.push((name, tracked_res));
+                }
+            }
+        }
+        results
+    }
+
+    /// Reload manual seluruh plugin dari direktori
+    pub fn reload(&self, dir: impl AsRef<Path>) -> Result<usize, SandboxError> {
+        self.load_directory(dir)
+    }
+
+    /// Jalankan background task asinkron yang memantau direktori plugin untuk hot-reloading otomatis
+    pub fn start_hot_reload_watcher(
+        &self,
+        dir: impl AsRef<Path> + Send + 'static,
+        interval: std::time::Duration,
+    ) -> tokio::task::JoinHandle<()> {
+        let manager = self.clone();
+        tokio::spawn(async move {
+            let path = dir.as_ref().to_path_buf();
+            let mut last_modified: HashMap<String, std::time::SystemTime> = HashMap::new();
+
+            loop {
+                tokio::time::sleep(interval).await;
+                if !path.exists() {
+                    continue;
+                }
+
+                if let Ok(entries) = std::fs::read_dir(&path) {
+                    for entry in entries.flatten() {
+                        let entry_path = entry.path();
+                        if entry_path.is_file() && entry_path.extension().and_then(|s| s.to_str()) == Some("wasm") {
+                            let filename = entry_path.file_name().unwrap().to_string_lossy().to_string();
+                            if let Ok(meta) = entry.metadata() {
+                                if let Ok(mtime) = meta.modified() {
+                                    let changed = match last_modified.get(&filename) {
+                                        Some(&prev) => mtime > prev,
+                                        None => true,
+                                    };
+
+                                    if changed {
+                                        last_modified.insert(filename.clone(), mtime);
+                                        if let Ok(plugin) = WasmPlugin::from_file(&entry_path) {
+                                            tracing::info!("🔄 [WASM Hot-Reload] Plugin '{}' berhasil di-reload otomatis.", plugin.name);
+                                            manager.register(plugin);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        })
     }
 
     /// Pindai dan muat semua file .wasm dari sebuah direktori (misal `plugins/`)

@@ -33,4 +33,6 @@ pub mod validation;
 pub mod view;
 pub mod sandbox;
 pub mod tinker;
+pub mod hardware;
+pub mod ai;
 

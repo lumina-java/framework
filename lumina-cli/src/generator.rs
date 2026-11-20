@@ -2090,3 +2090,408 @@ pub fn export_postman(output: &str, name: &str, version: &str) {
 
     print_success(&format!("Postman collection exported successfully at {}", output.bright_green()));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  AI CONTEXT & SKILLS GENERATORS
+// ─────────────────────────────────────────────────────────────────────────────
+
+fn to_pascal_case(s: &str) -> String {
+    let clean = s.trim().replace('-', "_");
+    clean
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .map(capitalize_first)
+        .collect()
+}
+
+fn to_snake_name(s: &str) -> String {
+    let mut result = String::new();
+    for (i, c) in s.trim().chars().enumerate() {
+        if c == '-' || c == ' ' {
+            result.push('_');
+        } else if c.is_uppercase() {
+            if i > 0 && !result.ends_with('_') {
+                result.push('_');
+            }
+            result.push(c.to_ascii_lowercase());
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+pub fn generate_ai_context(target: &str, force: bool) {
+    generate_ai_context_at(Path::new("."), target, force);
+}
+
+pub fn generate_ai_context_at(base: &Path, target: &str, force: bool) {
+    if !base.join("Cargo.toml").exists() || !base.join("src/app").exists() {
+        println!(
+            "{}",
+            "❌ Error: This command must be run inside a Lumina project root."
+                .red()
+                .bold()
+        );
+        return;
+    }
+
+    let app_name = fs::read_to_string(base.join("Cargo.toml"))
+        .ok()
+        .and_then(|content| {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if trimmed.starts_with("name =") {
+                    let parts: Vec<&str> = trimmed.split('=').collect();
+                    if parts.len() >= 2 {
+                        let name = parts[1].trim().trim_matches('"').trim_matches('\'');
+                        return Some(name.to_string());
+                    }
+                }
+            }
+            None
+        })
+        .unwrap_or_else(|| "LuminaApp".to_string());
+
+    println!(
+        "{}",
+        format!("🤖 Syncing AI Agent Context for [{}]...", app_name)
+            .bright_purple()
+            .bold()
+    );
+
+    let target_lower = target.to_lowercase();
+    let generate_all = target_lower == "all" || target_lower.is_empty();
+
+    let mut generated_count = 0;
+
+    let write_file_safe = |rel_path: &str, content: String, label: &str| -> bool {
+        let p = base.join(rel_path);
+        if p.exists() && !force {
+            println!(
+                "  {} {} already exists. (Use {} to overwrite)",
+                "⚠️ ".yellow(),
+                rel_path.bright_yellow(),
+                "--force".bright_cyan()
+            );
+            return false;
+        }
+
+        if let Some(parent) = p.parent() {
+            if !parent.exists() {
+                let _ = fs::create_dir_all(parent);
+            }
+        }
+
+        if let Err(e) = fs::write(&p, content) {
+            println!("  ❌ Failed to write {}: {}", rel_path, e);
+            false
+        } else {
+            print_success(&format!("{} [{}]", rel_path.bright_green(), label));
+            true
+        }
+    };
+
+    if generate_all || target_lower == "agents" || target_lower == "universal" {
+        if write_file_safe(
+            "AGENTS.md",
+            crate::ai_context::generate_agents_md(&app_name),
+            "Universal AI Standard",
+        ) {
+            generated_count += 1;
+        }
+    }
+
+    if generate_all || target_lower == "cursor" {
+        if write_file_safe(
+            ".cursorrules",
+            crate::ai_context::generate_cursorrules(&app_name),
+            "Cursor IDE Agent",
+        ) {
+            generated_count += 1;
+        }
+    }
+
+    if generate_all || target_lower == "copilot" || target_lower == "github" {
+        if write_file_safe(
+            ".github/copilot-instructions.md",
+            crate::ai_context::generate_copilot_instructions(&app_name),
+            "GitHub Copilot Workspace",
+        ) {
+            generated_count += 1;
+        }
+    }
+
+    if generate_all || target_lower == "claude" {
+        if write_file_safe(
+            "CLAUDE.md",
+            crate::ai_context::generate_claude_md(&app_name),
+            "Anthropic Claude Code",
+        ) {
+            generated_count += 1;
+        }
+    }
+
+    println!(
+        "\n  ✨ Synchronized {} AI context file(s) successfully!",
+        generated_count
+    );
+    print_hint("Open your project in Cursor, Copilot, Antigravity, or Claude Code to start coding with zero hallucinations.");
+}
+
+pub fn generate_ai_skill(name: &str, fields: &[String], provider: &str) {
+    generate_ai_skill_at(Path::new("."), name, fields, provider);
+}
+
+pub fn generate_ai_skill_at(base: &Path, name: &str, fields: &[String], _provider: &str) {
+    if !base.join("Cargo.toml").exists() || !base.join("src/app").exists() {
+        println!(
+            "{}",
+            "❌ Error: This command must be run inside a Lumina project root."
+                .red()
+                .bold()
+        );
+        return;
+    }
+
+    let pascal_name = to_pascal_case(name);
+    let snake_name = to_snake_name(name);
+
+    println!(
+        "{}",
+        format!("🧠 Generating AI Skill & Tool Stub for [{}]...", pascal_name)
+            .bright_purple()
+            .bold()
+    );
+
+    let is_reverse_engineer = snake_name.contains("reverse");
+
+    // Parse fields or use default
+    let parsed_fields: Vec<(String, String)> = if is_reverse_engineer {
+        vec![
+            ("target_url".to_string(), "String".to_string()),
+            ("html_source".to_string(), "String".to_string()),
+            ("component_name".to_string(), "String".to_string()),
+            ("extract_reactive".to_string(), "bool".to_string()),
+        ]
+    } else if fields.is_empty() {
+        vec![
+            ("query".to_string(), "String".to_string()),
+            ("limit".to_string(), "i64".to_string()),
+        ]
+    } else {
+        fields
+            .iter()
+            .map(|f| {
+                let parts: Vec<&str> = f.split(':').collect();
+                if parts.len() == 2 {
+                    let field_name = parts[0].to_string();
+                    let field_type = match parts[1].to_lowercase().as_str() {
+                        "int" | "i64" | "integer" => "i64",
+                        "float" | "f64" | "double" => "f64",
+                        "bool" | "boolean" => "bool",
+                        _ => "String",
+                    };
+                    (field_name, field_type.to_string())
+                } else {
+                    (f.clone(), "String".to_string())
+                }
+            })
+            .collect()
+    };
+
+    // 1. Ensure directories exist
+    let tools_dir = base.join("app/ai/tools");
+    let skills_dir = base.join(format!("app/ai/skills/{}", snake_name));
+    let service_dir = base.join("src/app/services/ai");
+
+    fs::create_dir_all(&tools_dir).ok();
+    fs::create_dir_all(&skills_dir).ok();
+    fs::create_dir_all(&service_dir).ok();
+
+    // 2. Build JSON Schema properties
+    let mut props_map = serde_json::Map::new();
+    let mut required_fields = Vec::new();
+
+    for (fname, ftype) in &parsed_fields {
+        let json_type = match ftype.as_str() {
+            "i64" => "integer",
+            "f64" => "number",
+            "bool" => "boolean",
+            _ => "string",
+        };
+        props_map.insert(
+            fname.clone(),
+            serde_json::json!({
+                "type": json_type,
+                "description": format!("Parameter {}", fname)
+            }),
+        );
+        required_fields.push(fname.clone());
+    }
+
+    let description = if is_reverse_engineer {
+        "Reverse engineers a target web page, DOM structure, or API endpoint into idiomatic Lumina Blade views, Tailwind styling, Lumina Live reactive components, and Eloquent models."
+    } else {
+        "Executes business logic and queries database for the requested action."
+    };
+
+    let universal_tool = serde_json::json!({
+        "name": snake_name,
+        "description": description,
+        "openai_tool": {
+            "type": "function",
+            "function": {
+                "name": snake_name,
+                "description": description,
+                "parameters": {
+                    "type": "object",
+                    "properties": props_map,
+                    "required": required_fields
+                }
+            }
+        },
+        "gemini_declaration": {
+            "name": snake_name,
+            "description": description,
+            "parameters": {
+                "type": "OBJECT",
+                "properties": props_map,
+                "required": required_fields
+            }
+        },
+        "claude_tool": {
+            "name": snake_name,
+            "description": description,
+            "input_schema": {
+                "type": "object",
+                "properties": props_map,
+                "required": required_fields
+            }
+        }
+    });
+
+    let tool_json_path = tools_dir.join(format!("{}.json", snake_name));
+    let _ = fs::write(
+        &tool_json_path,
+        serde_json::to_string_pretty(&universal_tool).unwrap_or_default(),
+    );
+    print_success(&format!("Universal Tool Schema: {}", tool_json_path.display().to_string().bright_green()));
+
+    // 3. Generate SKILL.md for Antigravity & Cursor Agent
+    let skill_md_content = if is_reverse_engineer {
+        format!(
+            r#"---
+name: {snake_name}
+description: {description}
+---
+
+# 🛠️ AI Skill: Lumina UI & System Reverse Engineer
+
+Skill ini digunakan ketika pengguna ingin meniru, mereplikasi, atau merekayasa balik (*reverse-engineer*) website, tampilan HTML, atau alur aplikasi target ke dalam Lumina Framework.
+
+## 📋 Langkah Eksekusi Reverse Engineering
+1. **Analisis DOM & Visual Target**:
+   - Dekonstruksi layout menjadi template Blade di `resources/views/`.
+   - Gunakan utility classes Tailwind CSS murni.
+2. **Rekonstruksi Interaktivitas (Lumina Live)**:
+   - Jika terdapat pencarian instan, filter live, atau modal dinamis: buat komponen Lumina Live di `src/app/live/` dengan atribut `kilat:*` atau `wire:*`.
+3. **Penyusunan Skema Data & ORM**:
+   - Bentuk Model `#[derive(LuminaModel)]` di `src/app/models/`.
+   - Buat migrasi SQL yang sesuai di `database/migrations/`.
+4. **Penyusunan Controller**:
+   - Wajib menggunakan satu parameter tunggal: `req: Request`.
+   - Kembalikan `View::make("...").render(req).await` untuk web atau `req.ok()` untuk REST API.
+"#
+        )
+    } else {
+        format!(
+            r#"---
+name: {snake_name}
+description: {description}
+---
+
+# 🛠️ AI Skill: {pascal_name}
+
+Gunakan skill ini untuk memanggil tool `{snake_name}` dengan parameter terverifikasi pada Lumina Framework.
+"#
+        )
+    };
+
+    let skill_md_path = skills_dir.join("SKILL.md");
+    let _ = fs::write(&skill_md_path, skill_md_content);
+    print_success(&format!("Agent Skill Spec: {}", skill_md_path.display().to_string().bright_green()));
+
+    // 4. Generate Rust Safe Service Handler Stub
+    let mut struct_fields = String::new();
+    for (fname, ftype) in &parsed_fields {
+        struct_fields.push_str(&format!("    pub {}: {},\n", fname, ftype));
+    }
+
+    let rust_service_code = if is_reverse_engineer {
+        format!(
+            r#"use lumina::prelude::*;
+use serde::{{Deserialize, Serialize}};
+use validator::Validate;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct {pascal_name}Input {{
+{struct_fields}}}
+
+pub struct {pascal_name}Tool;
+
+impl {pascal_name}Tool {{
+    /// Execute reverse engineering of target page/component into Lumina code
+    pub async fn execute(_db: &DatabasePool, input: {pascal_name}Input) -> Result<serde_json::Value, AppError> {{
+        tracing::info!("Running AI Reverse Engineering for component: {{}}", input.component_name);
+
+        // Return hasil dekonstruksi arsitektur Lumina
+        let output = serde_json::json!({{
+            "status": "success",
+            "component": input.component_name,
+            "target_url": input.target_url,
+            "blade_view_hint": format!("resources/views/components/{{}}.blade.rs", input.component_name.to_lowercase()),
+            "message": "Target page analyzed successfully. Ready to generate Blade view and Lumina Live components."
+        }});
+
+        Ok(output)
+    }}
+}}
+"#
+        )
+    } else {
+        format!(
+            r#"use lumina::prelude::*;
+use serde::{{Deserialize, Serialize}};
+use validator::Validate;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct {pascal_name}Input {{
+{struct_fields}}}
+
+pub struct {pascal_name}Tool;
+
+impl {pascal_name}Tool {{
+    /// Execute tool action safely against database and application services
+    pub async fn execute(_db: &DatabasePool, input: {pascal_name}Input) -> Result<serde_json::Value, AppError> {{
+        tracing::info!("Executing AI Tool {pascal_name} with input: {{:?}}", input);
+
+        let result = serde_json::json!({{
+            "status": "success",
+            "data": "Operation executed successfully"
+        }});
+
+        Ok(result)
+    }}
+}}
+"#
+        )
+    };
+
+    let service_file_path = service_dir.join(format!("{}_tool.rs", snake_name));
+    let _ = fs::write(&service_file_path, rust_service_code);
+    print_success(&format!("Rust Tool Handler: {}", service_file_path.display().to_string().bright_green()));
+
+    println!("\n  ✨ AI Skill & Tool [{}] ready for Gemini, Claude, OpenAI & Antigravity!", pascal_name);
+    print_hint(&format!("AI assistants can now call `{}` function safely through your Lumina services.", snake_name));
+}

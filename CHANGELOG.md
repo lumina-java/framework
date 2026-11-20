@@ -4,6 +4,42 @@ Semua perubahan penting pada proyek **Lumina Framework** didokumentasikan di dal
 
 Format pencatatan mengacu pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) dan mengikuti standar [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-21
+
+### 🤖 AI-First Architecture, Hardware Bridge & Desktop Compilation Engine
+- **Universal AI Agent Context Scaffolding (`lumina new` & `skeleton.rs`)**:
+  - Auto-generate master AI instructions pada instalasi proyek baru:
+    - `AGENTS.md`: Panduan master universal (standar Antigravity, Cline, Windsurf).
+    - `.cursorrules`: Instruksi prioritas tinggi untuk Cursor AI Composer.
+    - `.github/copilot-instructions.md`: Format resmi workspace prompt untuk GitHub Copilot.
+    - `CLAUDE.md`: Standar konvensi kode untuk Anthropic Claude Code CLI.
+  - **The Standard CRUD Blueprint**: Resep baku 6 langkah lengkap pembuatan fitur CRUD (Model, Migration, Validator, Controller 7 RESTful actions, Routes, Blade/JSON responses) tanpa halusinasi.
+- **CLI AI Context Sync (`lumina make:ai-context` / `lumina ai:init`)**:
+  - Sinkronisasi atau update seluruh file instruksi AI pada proyek existing atau hasil `git clone` dengan sekali perintah.
+- **Multi-Model AI Skills & Reverse-Engineer Stubs (`lumina make:ai-skill`)**:
+  - Generator tool definition universal kompatibel dengan **OpenAI Function Calling**, **Google Gemini Function Declarations**, **Anthropic Claude Tools**, dan **Antigravity/Cursor SKILL.md**.
+  - Handler Rust ber-tipe kuat (`src/app/services/ai/`) yang aman dipanggil oleh AI models.
+  - **Specialized Reverse-Engineer Skill (`lumina make:ai-skill ReverseEngineer`)**: AI Agent merekayasa balik website/HTML target menjadi komponen Blade Tailwind, komponen reaktif Lumina Live, dan Eloquent models.
+- **Lumina Hardware Bridge (`src/core/hardware/` & Client WASM)**:
+  - Menghubungkan server web Linux di Cloud ke perangkat keras lokal client:
+  - `EscPosBuilder`: Fluent builder struk belanja thermal printer USB/Bluetooth (WebUSB/WebSerial) dengan export Base64.
+  - `BarcodeScanEvent`: Parser barcode serial dengan validasi check digit EAN-13.
+  - `FingerprintTemplate`: Validasi dan penanganan template sidik jari biometrik via WebHID/WASM.
+  - `CameraConfig`: Konfigurasi live camera frame & scanning QR/barcode via WebRTC MediaDevices.
+  - `device_bridge_script()`: Pre-bundled client JavaScript (`window.LuminaDevice`) dengan WebSocket dispatcher.
+- **Lumina Desktop Compilation Engine (`src/desktop.rs` & `lumina-cli`)**:
+  - Mengompilasi aplikasi web Lumina menjadi **Single Standalone Executable Desktop App** (.exe di Windows, Linux binary, macOS .app).
+  - Menggunakan engine WebView native sistem tanpa beban Chromium raksasa (< 60MB RAM).
+  - CLI commands: `lumina desktop:init`, `lumina desktop:run`, dan `lumina desktop:build --release`.
+- **Lumina Native AI Client Facade (`src/core/ai/`)**:
+  - Pemanggilan model LLM secara ekspresif ala Laravel: `Ai::gemini()`, `Ai::openai()`, dan `Ai::claude()`.
+- **Dokumentasi Resmi VitePress**:
+  - Modul 22: *AI-Ready Architecture & Agent Skills*
+  - Modul 23: *Lumina Hardware Bridge*
+  - Modul 24: *Lumina Desktop Compilation Engine*
+
+---
+
 ## [1.0.0] - 2026-11-19
 
 ### 👑 Enterprise Masterpiece (LTS Release)

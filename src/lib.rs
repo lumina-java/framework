@@ -17,6 +17,14 @@ pub mod tinker {
     pub use crate::core::tinker::*;
 }
 
+pub mod hardware {
+    pub use crate::core::hardware::*;
+}
+
+pub mod ai {
+    pub use crate::core::ai::*;
+}
+
 pub mod prelude {
     pub use crate::core::application::{Application, AppState};
     pub use crate::core::router::Router;
@@ -60,6 +68,8 @@ pub mod prelude {
     pub use crate::core::security::BruteForceGuard;
     pub use crate::core::sandbox::{LuminaPluginManager, WasmPlugin, PluginHook, PluginStats, PluginMetricsTracker};
     pub use crate::core::tinker::{Tinker, TinkerEvaluator, TinkerResult, TinkerFormatter};
+    pub use crate::core::hardware::{EscPosBuilder, BarcodeScanEvent, FingerprintTemplate, CameraConfig, DeviceMessage, DeviceResponse, device_bridge_script};
+    pub use crate::core::ai::Ai;
 }
 
 pub use lumina_macros::{lumina_form, LuminaModel};

@@ -29,6 +29,7 @@ pub fn create_full_skeleton(base: &Path, name: &str, db_type: &str) {
         "tests",
         "plugins",
         "app/scripts",
+        ".github",
     ];
     for folder in folders {
         fs::create_dir_all(base.join(folder)).ok();
@@ -1129,5 +1130,8 @@ networks:
         safe_name = safe_name
     );
     fs::write(base.join("docker-compose.yml"), compose).ok();
+
+    // 19. Universal AI Agent Context Scaffolding (AGENTS.md, .cursorrules, .github/copilot-instructions.md, CLAUDE.md)
+    crate::ai_context::scaffold_ai_context(base, name).ok();
 }
 

@@ -10,6 +10,8 @@ mod audit;
 mod migrator;
 mod upgrader;
 mod tinker;
+mod ai_context;
+mod desktop;
 
 #[derive(Parser)]
 #[command(
@@ -143,6 +145,31 @@ enum Commands {
         name: String,
     },
 
+    // ─── AI Agents & Skills ──────────────────────────────────────────────────
+    /// Generate or refresh AI Agent context files (AGENTS.md, .cursorrules, .github, CLAUDE.md)
+    #[command(name = "make:ai-context", alias = "ai:init")]
+    MakeAiContext {
+        /// Target specific agent format: all, cursor, copilot, claude, agents [default: all]
+        #[arg(short, long, default_value = "all")]
+        target: String,
+        /// Overwrite existing context files if they already exist
+        #[arg(short, long)]
+        force: bool,
+    },
+
+    /// Generate an AI Skill & Tool Calling stub (Gemini, Claude, OpenAI, Antigravity)
+    #[command(name = "make:ai-skill", alias = "ai:skill")]
+    MakeAiSkill {
+        /// Name of the skill (e.g. SearchProducts, ReverseEngineer)
+        name: String,
+        /// Optional fields/parameters e.g. "keyword:string category_id:i64"
+        #[arg(trailing_var_arg = true)]
+        fields: Vec<String>,
+        /// Model provider schema to generate: all, gemini, claude, openai, antigravity [default: all]
+        #[arg(short, long, default_value = "all")]
+        provider: String,
+    },
+
     // ─── Queue & Background Workers ──────────────────────────────────────────
     /// Start processing background jobs from the queue
     #[command(name = "queue:work")]
@@ -253,6 +280,37 @@ enum Commands {
         #[arg(long, default_value = "1.0.0")]
         version: String,
     },
+
+    // ─── Desktop Compilation Engine ──────────────────────────────────────────
+    /// Initialize desktop mode configurations (desktop.toml & src/bin/desktop.rs)
+    #[command(name = "desktop:init")]
+    DesktopInit {
+        /// Window title [default: project name]
+        #[arg(short, long)]
+        title: Option<String>,
+        /// Window width [default: 1200]
+        #[arg(long, default_value_t = 1200)]
+        width: u32,
+        /// Window height [default: 800]
+        #[arg(long, default_value_t = 800)]
+        height: u32,
+    },
+
+    /// Run the application as a native desktop GUI window
+    #[command(name = "desktop:run")]
+    DesktopRun {
+        /// Port for local embedded server (default: 0 for dynamic loopback port)
+        #[arg(short, long, default_value_t = 0)]
+        port: u16,
+    },
+
+    /// Compile application into a single standalone native desktop executable
+    #[command(name = "desktop:build")]
+    DesktopBuild {
+        /// Build with release optimizations
+        #[arg(long, default_value_t = true)]
+        release: bool,
+    },
 }
 
 fn main() {
@@ -309,6 +367,12 @@ fn main() {
         }
         Commands::MakeLive { name } => {
             generator::generate_live(&name);
+        }
+        Commands::MakeAiContext { target, force } => {
+            generator::generate_ai_context(&target, force);
+        }
+        Commands::MakeAiSkill { name, fields, provider } => {
+            generator::generate_ai_skill(&name, &fields, &provider);
         }
         Commands::QueueWork { queue } => {
             tokio::runtime::Runtime::new()
@@ -368,6 +432,15 @@ fn main() {
         Commands::ExportPostman { output, name, version } => {
             generator::export_postman(&output, &name, &version);
         }
+        Commands::DesktopInit { title, width, height } => {
+            desktop::init_desktop_config(title.as_deref(), width, height);
+        }
+        Commands::DesktopRun { port } => {
+            desktop::run_desktop(port);
+        }
+        Commands::DesktopBuild { release } => {
+            desktop::build_desktop(release);
+        }
         Commands::Upgrade { cli_only, project_only, local } => {
             upgrader::run_upgrade(cli_only, project_only, local);
         }
@@ -419,6 +492,8 @@ fn handle_new_project(name: &str, db: &str, offline: bool) {
                 }
                 // Initialize fresh git repo
                 let _ = std::process::Command::new("git").args(["init", name]).output();
+                // Ensure AI context files are created
+                ai_context::scaffold_ai_context(path, name).ok();
                 cloned_successfully = true;
             }
         }
@@ -438,5 +513,6 @@ fn handle_new_project(name: &str, db: &str, offline: bool) {
     println!("\n{}", "Next steps:".bright_green().bold());
     println!("  cd {}", name.bright_cyan());
     println!("  lumina serve\n");
+    println!("  {} AI Agents Ready: AGENTS.md, .cursorrules, .github/copilot-instructions.md, CLAUDE.md", "🤖".bright_magenta());
     println!("{}", "Happy coding! 🦀".bright_yellow());
 }

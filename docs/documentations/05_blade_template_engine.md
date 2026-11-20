@@ -7,7 +7,7 @@ Lumina mengadopsi sintaks **Laravel Blade** murni secara native di Rust (`resour
 ## 1. Menampilkan Variabel & Escaping
 
 ### Escaped Output (Aman dari XSS)
-Gunakan kurung kurawal ganda `{{ ... }}` untuk mencetak variabel yang otomatis di-escape HTML:
+Gunakan kurung kurawal ganda `\{{ ... }}` untuk mencetak variabel yang otomatis di-escape HTML:
 ```html
 <h1>Halo, {{ $user.name }}!</h1>
 <p>Email: {{ $user.email }}</p>

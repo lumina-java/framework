@@ -33,6 +33,9 @@ Klik tautan di bawah untuk mempelajari setiap modul secara mendalam:
 | **19** | [**Advanced Eloquent, Model Observers & Seeding**](./19_advanced_eloquent_model_observers_dan_seeding.md) | Model Lifecycle Events (`ModelLifecycle`, `Observer<T>`), `AutoSlug`, `AutoHash`, Dedicated Seeder Runner (`db:seed --class`), Audit Trail (`Audit`), dan Query Builder `chunk` & `update_or_create`. |
 | **20** | [**Lumina Tinker (Interactive CLI REPL)**](./20_lumina_tinker.md) | Konsol terminal interaktif `lumina tinker`, autocompletion, persistent history, evaluasi Eloquent Model, Query Builder, Raw SQL, dan helper facades. |
 | **21** | [**Dynamic WASM Plugins & Hot-Reloading**](./21_wasm_plugins_hot_reload.md) | WebAssembly sandbox runtime (`wasmi 2.0`), zero-downtime hot-reloading otomatis, lifecycle hooks (`OnRequest`, `BeforeSave`, `AfterResponse`), metrics dashboard, dan `lumina plugin:reload`. |
+| **22** | [**AI-Ready Architecture & Agent Skills**](./22_ai_agent_context_and_skills.md) | Universal AI context auto-scaffolding (`AGENTS.md`, `.cursorrules`, Copilot, Claude), `make:ai-context`, `make:ai-skill`, Reverse-Engineer skill, dan native LLM facade (`Ai::gemini()`, `Ai::openai()`, `Ai::claude()`). |
+| **23** | [**Lumina Hardware Bridge**](./23_lumina_hardware_bridge.md) | WebAssembly & WebUSB/WebSerial client bridge untuk Printer Thermal (ESC/POS), Barcode Scanner (EAN-13), Fingerprint Biometrik, dan Camera Scanner. |
+| **24** | [**Lumina Desktop Compilation Engine**](./24_lumina_desktop_engine.md) | Single executable standalone native desktop GUI application (.exe di Windows, Linux binary, macOS), `desktop.toml`, `lumina desktop:run`, dan `lumina desktop:build`. |
 
 ---
 

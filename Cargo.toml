@@ -95,6 +95,13 @@ incremental = true
 opt-level = 2
 debug = false
 
+[profile.test]
+debug = 1
+
+[profile.test.package."*"]
+opt-level = 2
+debug = false
+
 [profile.release]
 opt-level = "z"
 lto = "thin"

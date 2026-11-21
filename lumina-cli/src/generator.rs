@@ -138,7 +138,39 @@ pub fn cmd_clean(purge: bool) {
         }
     }
 
-    // 3. Bersihkan log lama di storage/logs
+    // 3. Bersihkan file symbol .pdb lama di target/debug/deps (Windows debug symbols)
+    let deps_path = Path::new("target/debug/deps");
+    if deps_path.exists() {
+        if let Ok(entries) = fs::read_dir(deps_path) {
+            let mut pdb_count = 0;
+            let mut pdb_bytes = 0u64;
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                        if ext.eq_ignore_ascii_case("pdb") {
+                            if let Ok(meta) = path.metadata() {
+                                pdb_bytes += meta.len();
+                            }
+                            let _ = fs::remove_file(path);
+                            pdb_count += 1;
+                        }
+                    }
+                }
+            }
+            if pdb_count > 0 {
+                let mb = pdb_bytes as f64 / (1024.0 * 1024.0);
+                println!(
+                    "   {} Berhasil memangkas {} file Windows .pdb debug symbols ({:.1} MB).",
+                    "✅".green(),
+                    pdb_count,
+                    mb
+                );
+            }
+        }
+    }
+
+    // 4. Bersihkan log lama di storage/logs
     let logs_path = Path::new("storage/logs");
     if logs_path.exists() {
         if let Ok(entries) = fs::read_dir(logs_path) {

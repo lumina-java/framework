@@ -1,8 +1,8 @@
-use lumina::core::auth::{AuthUser, HasRolesAndPermissions};
-use lumina::core::blade::{BladeContext, BladeEngine};
-use lumina::core::error::AppError;
-use lumina::core::router::Router;
-use lumina::core::security::{AuditTrail, BruteForceConfig, BruteForceGuard};
+use pakem::core::auth::{AuthUser, HasRolesAndPermissions};
+use pakem::core::blade::{BladeContext, BladeEngine};
+use pakem::core::error::AppError;
+use pakem::core::router::Router;
+use pakem::core::security::{AuditTrail, BruteForceConfig, BruteForceGuard};
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -291,11 +291,11 @@ fn test_lumina_aurora_views_rendering() {
 
 #[tokio::test]
 async fn test_lumina_aurora_routes_integration() {
-    let mut app = lumina::core::testing::TestApp::new().await;
-    let aurora_router = lumina::http::aurora::routes();
+    let mut app = pakem::core::testing::TestApp::new().await;
+    let aurora_router = pakem::http::aurora::routes();
 
-    let application = lumina::core::application::Application::new().with_web(aurora_router);
-    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+    let application = pakem::core::application::Application::new().with_web(aurora_router);
+    let session_store = pakem::core::session::store::LuminaSessionStore::Memory(
         tower_sessions::MemoryStore::default(),
     );
     app.router = application.build_router(app.state.clone(), session_store);

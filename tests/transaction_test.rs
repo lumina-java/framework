@@ -1,4 +1,4 @@
-use lumina::database::connection::DatabasePool;
+use pakem::database::connection::DatabasePool;
 
 #[tokio::test]
 async fn test_transaction_commit_and_rollback() {
@@ -106,7 +106,7 @@ async fn test_transaction_commit_and_rollback() {
 
 #[tokio::test]
 async fn test_db_facade_transactions() {
-    use lumina::database::facade::DB;
+    use pakem::database::facade::DB;
 
     let _ = std::fs::remove_file("target/test_facade_tx.db");
     let pool = DatabasePool::connect("sqlite:target/test_facade_tx.db?mode=rwc")

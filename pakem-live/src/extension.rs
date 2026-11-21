@@ -1,4 +1,4 @@
-use lumina::prelude::Application;
+use pakem::prelude::Application;
 use crate::component::LiveComponent;
 use crate::registry::LiveRegistry;
 

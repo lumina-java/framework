@@ -1,23 +1,25 @@
 [package]
-name = "lumina-framework"
-version = "1.1.0"
+name = "pakem"
+version = "1.0.0"
 edition = "2021"
-authors = ["Lumina Java <admin@lumina-java.com>"]
-description = "A beautiful, fast, and elegant web framework for Rust"
+authors = ["Slamet Sugandi <packercyber@gmail.com>"]
+description = "A beautiful, fast, and elegant web framework for Rust — Look like Laravel, Run at Rust Speed"
 license = "MIT"
-repository = "https://github.com/lumina-java/framework"
-homepage = "https://github.com/lumina-java/framework"
+repository = "https://github.com/pakem-rs/framework"
+homepage = "https://pakem.my.id"
 readme = "README.md"
+keywords = ["pakem", "framework", "web", "laravel", "rust"]
+categories = ["web-programming::http-server", "network-programming"]
 
 [lib]
-name = "lumina"
+name = "pakem"
 path = "src/lib.rs"
 
 [workspace]
-members = ["lumina_macros", "lumina-cli", "indonesian-script", "lumina-live"]
+members = ["pakem_macros", "canting", "indonesian-script", "pakem-live"]
 
 [dependencies]
-lumina_macros = { path = "lumina_macros", version = "1.1.0" }
+pakem_macros = { path = "pakem_macros", version = "1.0.0" }
 indonesian-script = { path = "indonesian-script", version = "0.1.2" }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["macros", "multipart", "ws"] }
@@ -84,8 +86,8 @@ mssql = ["dep:tiberius", "dep:bb8", "dep:bb8-tiberius", "dep:tokio-util"]
 redis = ["dep:redis"]
 
 [[bin]]
-name = "lumina"
-path = "src/bin/lumina.rs"
+name = "pakem"
+path = "src/bin/pakem.rs"
 
 [profile.dev]
 debug = 1

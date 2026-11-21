@@ -247,7 +247,7 @@ pub mod routes;
     let main_rs = r#"mod app;
 mod routes;
 
-use lumina::prelude::*;
+use pakem::prelude::*;
 
 //                  LUMINA FRAMEWORK APPLICATION ENTRYPOINT
 // High-performance, elegant Rust web backend & API engine.
@@ -284,7 +284,7 @@ pub mod requests;
 /// `use crate::app::prelude::*;`
 #[allow(unused_imports)]
 pub mod prelude {
-    pub use lumina::prelude::*;
+    pub use pakem::prelude::*;
     pub use crate::app::models::*;
     pub use crate::app::requests::*;
 }
@@ -305,7 +305,7 @@ pub mod prelude {
     .ok();
 
     // 9. src/app/controllers/welcome_controller.rs (Dual-Mode Response: HTML + Lumen JSON)
-    let welcome_ctrl = r#"use lumina::prelude::*;
+    let welcome_ctrl = r#"use pakem::prelude::*;
 use serde_json::json;
 
 //                        WELCOME CONTROLLER
@@ -404,7 +404,7 @@ impl WelcomeController {
     )
     .ok();
 
-    let web_routes = r#"use lumina::prelude::*;
+    let web_routes = r#"use pakem::prelude::*;
 use crate::app::controllers::welcome_controller::WelcomeController;
 
 //                            WEB ROUTING
@@ -422,7 +422,7 @@ pub fn router() -> Router<AppState> {
 "#;
     fs::write(base.join("src/routes/web.rs"), web_routes).ok();
 
-    let api_routes = r#"use lumina::prelude::*;
+    let api_routes = r#"use pakem::prelude::*;
 use serde_json::json;
 
 //                            API ROUTING
@@ -892,7 +892,7 @@ INSERT INTO users (name, email, password, role) VALUES
     )
     .ok();
 
-    let user_factory = r#"use lumina::prelude::*;
+    let user_factory = r#"use pakem::prelude::*;
 use crate::app::models::user::User;
 
 // =========================================================================
@@ -938,7 +938,7 @@ impl HasFactory<UserFactory> for User {
     let user_model = r#"#![allow(dead_code)]
 use serde::{Serialize, Deserialize};
 use sqlx::FromRow;
-use lumina::prelude::*;
+use pakem::prelude::*;
 
 //                            USER MODEL
 // Di Laravel, ini adalah class Eloquent (`User extends Model`).

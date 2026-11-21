@@ -1,6 +1,6 @@
 use axum::response::IntoResponse;
-use lumina::core::router::Router;
-use lumina::testing::TestApp;
+use pakem::core::router::Router;
+use pakem::testing::TestApp;
 use serde_json::json;
 
 async fn test_json_endpoint() -> impl IntoResponse {

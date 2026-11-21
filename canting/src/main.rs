@@ -15,13 +15,13 @@ mod desktop;
 
 #[derive(Parser)]
 #[command(
-    name = "lumina",
+    name = "canting",
     author,
     version,
-    about = "⚡ Lumina Framework CLI — Build fast, build beautiful.",
+    about = "⚡ Canting CLI — The Artisan of Pakem Framework. Build fast, build beautiful.",
     long_about = None
 )]
-struct LuminaCli {
+struct CantingCli {
     #[command(subcommand)]
     command: Commands,
 }
@@ -315,7 +315,7 @@ enum Commands {
 
 fn main() {
     upgrader::cleanup_old_binary();
-    let args = LuminaCli::parse();
+    let args = CantingCli::parse();
 
     match args.command {
         Commands::New { name, db, offline } => {
@@ -473,11 +473,11 @@ fn handle_new_project(name: &str, db: &str, offline: bool) {
 
     let mut cloned_successfully = false;
 
-    // Fetch live template from GitHub (lumina-java/lumina) unless offline flag is set
+    // Fetch live template from GitHub (pakem-rs/pakem) unless offline flag is set
     if !offline {
-        pb.set_message("Fetching latest starter template from GitHub (lumina-java/lumina)...");
+        pb.set_message("Fetching latest starter template from GitHub (pakem-rs/pakem)...");
         let git_clone_status = std::process::Command::new("git")
-            .args(["clone", "--depth", "1", "https://github.com/lumina-java/lumina.git", name])
+            .args(["clone", "--depth", "1", "https://github.com/pakem-rs/pakem.git", name])
             .output();
 
         if let Ok(output) = git_clone_status {
@@ -487,7 +487,9 @@ fn handle_new_project(name: &str, db: &str, offline: bool) {
                 // Personalize Cargo.toml with project name
                 let cargo_path = path.join("Cargo.toml");
                 if let Ok(content) = fs::read_to_string(&cargo_path) {
-                    let customized = content.replace("name = \"lumina-app\"", &format!("name = \"{}\"", name));
+                    let customized = content
+                        .replace("name = \"pakem-app\"", &format!("name = \"{}\"", name))
+                        .replace("name = \"lumina-app\"", &format!("name = \"{}\"", name));
                     let _ = fs::write(&cargo_path, customized);
                 }
                 // Initialize fresh git repo
@@ -512,7 +514,7 @@ fn handle_new_project(name: &str, db: &str, offline: bool) {
 
     println!("\n{}", "Next steps:".bright_green().bold());
     println!("  cd {}", name.bright_cyan());
-    println!("  lumina serve\n");
+    println!("  canting serve\n");
     println!("  {} AI Agents Ready: AGENTS.md, .cursorrules, .github/copilot-instructions.md, CLAUDE.md", "🤖".bright_magenta());
-    println!("{}", "Happy coding! 🦀".bright_yellow());
+    println!("{}", "Happy coding with Pakem & Canting! 🦀🎨".bright_yellow());
 }

@@ -3,8 +3,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
-use lumina::core::error::AppError;
-use lumina::core::blade::BladeEngine;
+use pakem::core::error::AppError;
+use pakem::core::blade::BladeEngine;
 use crate::component::LiveComponent;
 
 #[async_trait]

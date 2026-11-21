@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
-use lumina::core::error::AppError;
-use lumina::core::request::Request;
-use lumina::core::blade::{BladeEngine, BladeContext};
+use pakem::core::error::AppError;
+use pakem::core::request::Request;
+use pakem::core::blade::{BladeEngine, BladeContext};
 
 /// Trait utama untuk setiap komponen reaktif Lumina Live.
 #[async_trait]

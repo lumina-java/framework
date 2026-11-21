@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use lumina::cli;
+use pakem::cli;
 
 #[derive(Parser)]
 #[command(name = "lumina")]

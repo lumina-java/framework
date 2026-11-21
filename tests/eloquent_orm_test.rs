@@ -1,4 +1,4 @@
-use lumina::prelude::*;
+use pakem::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -168,7 +168,7 @@ impl TestContactController {
 
 #[tokio::test]
 async fn test_beautiful_controller_routes() {
-    let mut app = lumina::core::testing::TestApp::new().await;
+    let mut app = pakem::core::testing::TestApp::new().await;
 
     // Setup table contacts in app's test DB
     sqlx::query(
@@ -210,8 +210,8 @@ async fn test_beautiful_controller_routes() {
         .get("/contacts/:id", TestContactController::show)
         .delete("/contacts/:id", TestContactController::destroy);
 
-    let application = lumina::core::application::Application::new().with_api(api_router);
-    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+    let application = pakem::core::application::Application::new().with_api(api_router);
+    let session_store = pakem::core::session::store::LuminaSessionStore::Memory(
         tower_sessions::MemoryStore::default(),
     );
     app.router = application.build_router(app.state.clone(), session_store);

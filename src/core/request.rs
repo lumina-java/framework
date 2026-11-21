@@ -8,7 +8,8 @@ use tower_sessions::Session;
 
 /// Type alias untuk controller handler return type yang cantik dan ekspresif.
 /// Menggantikan `Result<impl IntoResponse, AppError>` menjadi hanya `LuminaResult`.
-pub type LuminaResult<T = axum::response::Response> = std::result::Result<T, AppError>;
+pub type PakemResult<T = axum::response::Response> = std::result::Result<T, AppError>;
+pub type LuminaResult<T = axum::response::Response> = PakemResult<T>;
 
 /// Alias alternatif untuk LuminaResult.
 pub type HttpResult<T = axum::response::Response> = LuminaResult<T>;

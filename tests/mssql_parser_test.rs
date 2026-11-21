@@ -1,7 +1,7 @@
 #[cfg(feature = "mssql")]
 #[test]
 fn test_universal_mssql_parser() {
-    use lumina::database::connection::DatabasePool;
+    use pakem::database::connection::DatabasePool;
 
     // 1. Format URL Standard (seperti di dokumentasi lumina sebelumnya)
     let url1 = "sqlserver://sa:YourPassword123@localhost:1433?database=lumina_db&trustServerCertificate=true";

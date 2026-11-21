@@ -1,0 +1,20 @@
+[package]
+name = "pakem_macros"
+version = "1.0.0"
+edition = "2021"
+authors = ["Slamet Sugandi <packercyber@gmail.com>"]
+description = "Procedural macros for Pakem Framework (PakemModel ORM derive, declarative form validation, and routing)"
+license = "MIT"
+repository = "https://github.com/pakem-rs/framework"
+homepage = "https://pakem.my.id"
+readme = "README.md"
+keywords = ["pakem", "proc-macro", "orm", "validation", "laravel"]
+categories = ["development-tools::procedural-macro-helpers"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0", features = ["full"] }
+quote = "1.0"
+proc-macro2 = "1.0"

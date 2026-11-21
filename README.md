@@ -1,4 +1,4 @@
-# ✨ Lumina Framework
+# 🎨 Pakem Framework
 
 <p align="center">
   <img src="storage/app/public/assets/logo.png" alt="Lumina Framework Logo" width="180">
@@ -6,25 +6,25 @@
 
 <p align="center">
   <strong>A beautiful, ultra-fast, and elegant web framework for Rust.</strong><br>
-  <em>Menggabungkan performa dan memory-safety Rust dengan keanggunan serta keramahan sintaks Laravel MVC.</em>
+  <em>Look like Laravel, Run at Rust Speed. Menenun mahakarya perangkat lunak modern dengan ketelitian canting dan kekuatan pakem berkecepatan Rust.</em>
 </p>
 
 <p align="center">
-  <a href="https://crates.io/crates/lumina-framework"><img src="https://img.shields.io/crates/v/lumina-framework.svg" alt="Crates.io Version"></a>
-  <a href="https://crates.io/crates/lumina-cli"><img src="https://img.shields.io/badge/CLI-lumina--cli-ec4899.svg" alt="Lumina CLI"></a>
-  <a href="https://github.com/lumina-java/framework"><img src="https://img.shields.io/badge/GitHub-lumina--java%2Fframework-blue.svg" alt="GitHub Repo"></a>
-  <a href="https://github.com/lumina-java/lumina"><img src="https://img.shields.io/badge/Starter%20Kit-lumina--java%2Flumina-6366f1.svg" alt="Starter Kit"></a>
+  <a href="https://crates.io/crates/pakem"><img src="https://img.shields.io/crates/v/pakem.svg" alt="Crates.io Version"></a>
+  <a href="https://crates.io/crates/canting"><img src="https://img.shields.io/badge/CLI-canting-ec4899.svg" alt="Canting CLI"></a>
+  <a href="https://github.com/pakem-rs/framework"><img src="https://img.shields.io/badge/GitHub-pakem--rs%2Fframework-blue.svg" alt="GitHub Repo"></a>
+  <a href="https://github.com/pakem-rs/pakem"><img src="https://img.shields.io/badge/Starter%20Kit-pakem--rs%2Fpakem-6366f1.svg" alt="Starter Kit"></a>
   <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Database-PostgreSQL%20|%20MySQL%20|%20SQLite%20|%20MSSQL-06b6d4.svg" alt="Databases"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-amber.svg" alt="License"></a>
 </p>
 
 ---
 
-## 🌟 Mengapa Lumina?
+## 🌟 Mengapa Pakem?
 
 Rust terkenal dengan kecepatan ekstrem dan keamanannya, namun sering kali memiliki kurva belajar yang curam dan membutuhkan banyak kode boilerplate untuk membuat aplikasi web sehari-hari.
 
-**Lumina Framework** dirancang untuk mengubah hal tersebut. Terinspirasi oleh filosofi **Laravel**, Lumina menyediakan arsitektur MVC yang matang, *Dependency Injection* cerdas, *Human ORM*, sistem migrasi multi-database otomatis, serta CLI scaffolding instan tanpa mengorbankan performa async berbasis **Tokio** dan **Axum**.
+**Pakem Framework** dirancang untuk mengubah hal tersebut. Mengusung prinsip **"Convention over Configuration"** (Pakem), framework ini menyediakan arsitektur MVC yang matang, *Dependency Injection* cerdas, *Human ORM*, sistem migrasi multi-database otomatis, serta CLI scaffolding **Canting** instan tanpa mengorbankan performa async berbasis **Tokio** dan **Axum**.
 
 ---
 

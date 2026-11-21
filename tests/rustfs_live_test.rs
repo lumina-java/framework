@@ -1,4 +1,4 @@
-use lumina::core::storage::{S3Config, S3Storage, StorageDriver};
+use pakem::core::storage::{S3Config, S3Storage, StorageDriver};
 use std::time::Duration;
 
 #[tokio::test]

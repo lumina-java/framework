@@ -2,7 +2,7 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use lumina::core::error::AppError;
+use pakem::core::error::AppError;
 use std::sync::OnceLock;
 
 type HmacSha256 = Hmac<Sha256>;

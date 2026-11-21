@@ -1,4 +1,4 @@
-use lumina::prelude::*;
+use pakem::prelude::*;
 
 #[test]
 fn test_escpos_thermal_printer_builder() {

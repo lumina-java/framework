@@ -1,7 +1,7 @@
-use lumina::core::echo::broadcaster::{ChannelAuthRequest, ShouldBroadcast};
-use lumina::core::echo::EchoManager;
-use lumina::core::event::traits::Event;
-use lumina::http::middleware::security_headers;
+use pakem::core::echo::broadcaster::{ChannelAuthRequest, ShouldBroadcast};
+use pakem::core::echo::EchoManager;
+use pakem::core::event::traits::Event;
+use pakem::http::middleware::security_headers;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -48,9 +48,9 @@ impl ShouldBroadcast for SampleUserRegisteredEvent {
 
 #[tokio::test]
 async fn test_echo_channel_jwt_authorization() {
-    use lumina::core::auth::AuthUser;
-    use lumina::core::echo::EchoManager;
-    use lumina::http::auth::{generate_token, validate_token};
+    use pakem::core::auth::AuthUser;
+    use pakem::core::echo::EchoManager;
+    use pakem::http::auth::{generate_token, validate_token};
 
     std::env::set_var("APP_KEY", "secret-test-key-12345");
 
@@ -106,9 +106,9 @@ async fn test_echo_channel_jwt_authorization() {
 
 #[tokio::test]
 async fn test_tenant_operator_jwt_verification() {
-    use lumina::core::auth::AuthUser;
-    use lumina::core::echo::EchoManager;
-    use lumina::http::auth::{generate_token, validate_token};
+    use pakem::core::auth::AuthUser;
+    use pakem::core::echo::EchoManager;
+    use pakem::http::auth::{generate_token, validate_token};
 
     std::env::set_var("APP_KEY", "secret-test-key-12345");
 

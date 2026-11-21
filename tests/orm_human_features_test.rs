@@ -1,7 +1,7 @@
-use lumina::database::connection::DatabasePool;
-use lumina::database::model::Model;
-use lumina::support::{json_decode, json_encode};
-use lumina::LuminaModel;
+use pakem::database::connection::DatabasePool;
+use pakem::database::model::Model;
+use pakem::support::{json_decode, json_encode};
+use pakem::LuminaModel;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, sqlx::FromRow, LuminaModel)]

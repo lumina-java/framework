@@ -1,4 +1,4 @@
-use lumina::database::connection::DatabasePool;
+use pakem::database::connection::DatabasePool;
 
 #[tokio::test]
 async fn test_smart_soft_deletes_and_zero_ampersand_transactions() {

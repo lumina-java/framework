@@ -1,3 +1,6 @@
+extern crate self as pakem;
+extern crate self as lumina;
+
 pub mod cli;
 pub mod config;
 pub mod core;
@@ -37,7 +40,7 @@ pub mod prelude {
     pub use axum::Form;
     pub use crate::core::blade::BladeContext as Context;
     pub use crate::core::error::{AppError, OptionExt};
-    pub use crate::core::request::{HttpResult, LuminaResult, Request};
+    pub use crate::core::request::{HttpResult, LuminaResult, PakemResult, Request};
     pub use crate::core::response::ApiResponse;
     pub use crate::core::validation::{ValidatedForm, ValidatedJson};
     pub use crate::core::view::View;
@@ -54,7 +57,7 @@ pub mod prelude {
     pub use crate::database::observer::{AutoSlug, AutoHash, ModelLifecycle, Observer};
     pub use crate::database::seeder::{Seeder, DatabaseSeeder, SeederRegistry, call_seeder};
     pub use crate::{belongs_to, belongs_to_many, has_many, has_one};
-    pub use lumina_macros::{lumina_form, LuminaModel};
+    pub use pakem_macros::{lumina_form, pakem_form, LuminaModel, PakemModel};
     // financial & enterprise types
     pub use uuid::Uuid;
     pub use rust_decimal::Decimal;
@@ -72,6 +75,6 @@ pub mod prelude {
     pub use crate::core::ai::Ai;
 }
 
-pub use lumina_macros::{lumina_form, LuminaModel};
+pub use pakem_macros::{lumina_form, pakem_form, LuminaModel, PakemModel};
 pub use validator;
 pub use tower_sessions;

@@ -2,11 +2,11 @@ use axum::extract::{Path, Query};
 use axum::http::{HeaderValue, StatusCode};
 use axum::middleware;
 use axum::response::IntoResponse;
-use lumina::core::auth::AuthUser;
-use lumina::core::request::Request as LuminaRequest;
-use lumina::core::response::ApiResponse;
-use lumina::core::router::Router;
-use lumina::core::testing::TestApp;
+use pakem::core::auth::AuthUser;
+use pakem::core::request::Request as LuminaRequest;
+use pakem::core::response::ApiResponse;
+use pakem::core::router::Router;
+use pakem::core::testing::TestApp;
 use serde::{Deserialize, Serialize};
 use tower::ServiceExt;
 
@@ -167,8 +167,8 @@ async fn test_api_crud_workflow() {
         .put("/products/:id", update_product)
         .delete("/products/:id", delete_product);
 
-    let application = lumina::core::application::Application::new().with_api(api_router);
-    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+    let application = pakem::core::application::Application::new().with_api(api_router);
+    let session_store = pakem::core::session::store::LuminaSessionStore::Memory(
         tower_sessions::MemoryStore::default(),
     );
     app.router = application.build_router(app.state.clone(), session_store);
@@ -210,7 +210,7 @@ async fn test_api_crud_workflow() {
         .unwrap();
 
     let update_res = app.router.clone().oneshot(update_req).await.unwrap();
-    let test_update_res = lumina::core::testing::TestResponse::new(update_res).await;
+    let test_update_res = pakem::core::testing::TestResponse::new(update_res).await;
     test_update_res.assert_status(StatusCode::OK);
     let updated = test_update_res.json();
     assert_eq!(updated["response"]["name"], "Kopi Jawa Super");
@@ -223,7 +223,7 @@ async fn test_api_crud_workflow() {
         .unwrap();
 
     let delete_res = app.router.clone().oneshot(delete_req).await.unwrap();
-    let test_delete_res = lumina::core::testing::TestResponse::new(delete_res).await;
+    let test_delete_res = pakem::core::testing::TestResponse::new(delete_res).await;
     test_delete_res.assert_status(StatusCode::OK);
 
     // 6. Verify Deletion
@@ -242,8 +242,8 @@ async fn test_api_crud_input_validation() {
         .unwrap();
 
     let api_router = Router::new().post("/products", create_product);
-    let application = lumina::core::application::Application::new().with_api(api_router);
-    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+    let application = pakem::core::application::Application::new().with_api(api_router);
+    let session_store = pakem::core::session::store::LuminaSessionStore::Memory(
         tower_sessions::MemoryStore::default(),
     );
     app.router = application.build_router(app.state.clone(), session_store);
@@ -271,7 +271,7 @@ async fn test_api_crud_input_validation() {
         .body(axum::body::Body::from("{ invalid_json }"))
         .unwrap();
     let res = app.router.clone().oneshot(req).await.unwrap();
-    let test_res = lumina::core::testing::TestResponse::new(res).await;
+    let test_res = pakem::core::testing::TestResponse::new(res).await;
     test_res.assert_status(StatusCode::BAD_REQUEST);
 }
 
@@ -290,8 +290,8 @@ async fn test_api_crud_not_found_edge_cases() {
         .put("/products/:id", update_product)
         .delete("/products/:id", delete_product);
 
-    let application = lumina::core::application::Application::new().with_api(api_router);
-    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+    let application = pakem::core::application::Application::new().with_api(api_router);
+    let session_store = pakem::core::session::store::LuminaSessionStore::Memory(
         tower_sessions::MemoryStore::default(),
     );
     app.router = application.build_router(app.state.clone(), session_store);
@@ -314,7 +314,7 @@ async fn test_api_crud_not_found_edge_cases() {
         ))
         .unwrap();
     let res = app.router.clone().oneshot(req).await.unwrap();
-    let test_res = lumina::core::testing::TestResponse::new(res).await;
+    let test_res = pakem::core::testing::TestResponse::new(res).await;
     test_res.assert_status(StatusCode::NOT_FOUND);
 
     // 3. DELETE non-existent product
@@ -324,7 +324,7 @@ async fn test_api_crud_not_found_edge_cases() {
         .body(axum::body::Body::empty())
         .unwrap();
     let res = app.router.clone().oneshot(req).await.unwrap();
-    let test_res = lumina::core::testing::TestResponse::new(res).await;
+    let test_res = pakem::core::testing::TestResponse::new(res).await;
     test_res.assert_status(StatusCode::NOT_FOUND);
 }
 
@@ -349,8 +349,8 @@ async fn test_api_crud_pagination() {
     }
 
     let api_router = Router::new().get("/products", list_products);
-    let application = lumina::core::application::Application::new().with_api(api_router);
-    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+    let application = pakem::core::application::Application::new().with_api(api_router);
+    let session_store = pakem::core::session::store::LuminaSessionStore::Memory(
         tower_sessions::MemoryStore::default(),
     );
     app.router = application.build_router(app.state.clone(), session_store);
@@ -395,10 +395,10 @@ async fn test_api_crud_jwt_auth_middleware() {
 
     let protected_router = Router::new()
         .get("/products", list_products)
-        .layer(middleware::from_fn(lumina::http::middleware::auth_required));
+        .layer(middleware::from_fn(pakem::http::middleware::auth_required));
 
-    let application = lumina::core::application::Application::new().with_api(protected_router);
-    let session_store = lumina::core::session::store::LuminaSessionStore::Memory(
+    let application = pakem::core::application::Application::new().with_api(protected_router);
+    let session_store = pakem::core::session::store::LuminaSessionStore::Memory(
         tower_sessions::MemoryStore::default(),
     );
     app.router = application.build_router(app.state.clone(), session_store);
@@ -415,7 +415,7 @@ async fn test_api_crud_jwt_auth_middleware() {
         .body(axum::body::Body::empty())
         .unwrap();
     let res = app.router.clone().oneshot(req).await.unwrap();
-    let test_res = lumina::core::testing::TestResponse::new(res).await;
+    let test_res = pakem::core::testing::TestResponse::new(res).await;
     test_res.assert_status(StatusCode::UNAUTHORIZED);
 
     // 3. Valid Bearer Token
@@ -426,7 +426,7 @@ async fn test_api_crud_jwt_auth_middleware() {
         vec!["read".to_string(), "write".to_string()],
         24,
     );
-    let valid_token = lumina::http::auth::generate_token(&user).unwrap();
+    let valid_token = pakem::http::auth::generate_token(&user).unwrap();
 
     let req = axum::http::Request::builder()
         .uri("/api/products")
@@ -438,7 +438,7 @@ async fn test_api_crud_jwt_auth_middleware() {
         .body(axum::body::Body::empty())
         .unwrap();
     let res = app.router.clone().oneshot(req).await.unwrap();
-    let test_res = lumina::core::testing::TestResponse::new(res).await;
+    let test_res = pakem::core::testing::TestResponse::new(res).await;
     test_res.assert_status(StatusCode::OK);
 }
 
@@ -460,7 +460,7 @@ function tambahSkor() {
     dudohno('Skor anyar:', skor);
 }
 "#;
-    let compiled = lumina::core::is_engine::IsEngine::compile(script_source);
+    let compiled = pakem::core::is_engine::IsEngine::compile(script_source);
     assert!(compiled.contains("Indonesian Script (.is) Compiled Output"));
     assert!(compiled.contains("$state.skor = 100;"));
     assert!(compiled.contains("console.log"));

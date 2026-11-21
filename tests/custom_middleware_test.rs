@@ -1,16 +1,16 @@
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
-use lumina::core::application::Application;
-use lumina::core::auth::AuthUser;
-use lumina::core::router::Router;
-use lumina::core::session::store::LuminaSessionStore;
-use lumina::core::testing::TestApp;
-use lumina::http::auth::generate_token;
-use lumina::http::middleware::{
+use pakem::core::application::Application;
+use pakem::core::auth::AuthUser;
+use pakem::core::router::Router;
+use pakem::core::session::store::LuminaSessionStore;
+use pakem::core::testing::TestApp;
+use pakem::http::auth::generate_token;
+use pakem::http::middleware::{
     api_auth_with_pairing, api_secure_guard, from_fn, get_header, verify_api_signature, Next,
     Response,
 };
-use lumina::prelude::*;
+use pakem::prelude::*;
 use tower::ServiceExt;
 
 // ─── Custom Middleware Definitions for Tests ───────────────────────────────────
@@ -60,7 +60,7 @@ async fn api_ping() -> impl IntoResponse {
     Json(serde_json::json!({ "status": "pong" }))
 }
 
-async fn api_secure_data(req: lumina::core::request::Request) -> impl IntoResponse {
+async fn api_secure_data(req: pakem::core::request::Request) -> impl IntoResponse {
     let user_email = req.user.map(|u| u.email).unwrap_or_else(|| "Guest".to_string());
     Json(serde_json::json!({
         "success": true,
@@ -298,8 +298,8 @@ async fn test_jwt_with_signature_and_pairing_guards() {
     assert_eq!(res.status(), StatusCode::OK);
 
     // ── Test 4: TokenBlacklist revocation (Logout / Ban) ───────
-    lumina::core::auth::TokenBlacklist::revoke(&token).await;
-    assert!(lumina::core::auth::TokenBlacklist::is_revoked(&token).await);
+    pakem::core::auth::TokenBlacklist::revoke(&token).await;
+    assert!(pakem::core::auth::TokenBlacklist::is_revoked(&token).await);
 
     // Calling again with revoked token -> 401 UNAUTHORIZED
     let req = Request::builder()
@@ -324,10 +324,10 @@ async fn test_jwt_with_signature_and_pairing_guards() {
     let valid_sig_hex = hex::encode(mac.finalize().into_bytes());
 
     // Verifikasi valid
-    assert!(lumina::http::middleware::verify_hmac_sha256(secret, payload, &valid_sig_hex));
+    assert!(pakem::http::middleware::verify_hmac_sha256(secret, payload, &valid_sig_hex));
     // Verifikasi tampered payload
     let tampered_payload = b"GET /api/v1/orders/999 2026-10-26T15:00:00Z";
-    assert!(!lumina::http::middleware::verify_hmac_sha256(secret, tampered_payload, &valid_sig_hex));
+    assert!(!pakem::http::middleware::verify_hmac_sha256(secret, tampered_payload, &valid_sig_hex));
 }
 
 #[tokio::test]

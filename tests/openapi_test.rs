@@ -1,6 +1,6 @@
 use axum::response::IntoResponse;
-use lumina::core::router::Router;
-use lumina::testing::TestApp;
+use pakem::core::router::Router;
+use pakem::testing::TestApp;
 
 async fn dummy_get() -> impl IntoResponse {
     axum::Json(serde_json::json!({ "success": true, "message": "Get OK" }))

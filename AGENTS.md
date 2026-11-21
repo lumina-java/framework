@@ -1,9 +1,9 @@
-# 🤖 Lumina Framework — Developer & AI Agent Guidelines
+# 🤖 Pakem Framework — Developer & AI Agent Guidelines
 
-> **Visi Inti Lumina:**  
-> *"Look like Laravel, Run at Rust Speed. Cuantik, elegan, tercepat, dan menghadirkan pengalaman pengembangan (Developer Experience) paling menyenangkan di dunia backend."*
+> **Visi Inti Pakem Framework:**  
+> *"Look like Laravel, Run at Rust Speed. Menenun mahakarya perangkat lunak modern dengan ketelitian canting dan kekuatan pakem berkecepatan Rust."*
 
-Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent (Antigravity, Cursor, Copilot, dsb.) dan developer manusia yang menulis, memperbarui, atau melakukan porting kode pada proyek Lumina Framework.
+Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent (Antigravity, Cursor, Copilot, dsb.) dan developer manusia yang menulis, memperbarui, atau melakukan porting kode pada proyek Pakem Framework (`pakem-rs`).
 
 ---
 
@@ -11,7 +11,8 @@ Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent 
 
 1. **Laravel Elegance**: Sintaks harus ekspresif, ringkas, bersih (*human-readable*), dan deklaratif. Hindari kode bertele-tele (*boilerplate*) yang menghambat kecepatan berpikir developer.
 2. **Rust Raw Speed & Safety**: Menggunakan Tokio async runtime, Axum engine, dan zero-cost abstractions tanpa Garbage Collector.
-3. **One Fast, Easy Development**: Menghadirkan *Batteries-Included Framework* di mana ORM, Blade view, autentikasi, router, WebSocket, scheduler, dan queue sudah terintegrasi secara harmonis.
+3. **Convention over Configuration (Pakem)**: Menghadirkan *Batteries-Included Framework* di mana ORM, Blade view, autentikasi, router, WebSocket, scheduler, dan queue sudah terintegrasi secara harmonis.
+4. **Artisan Tooling (Canting)**: CLI `canting` mempermudah seluruh kebutuhan scaffolding, migrasi, dan pengujian.
 
 ---
 
@@ -19,7 +20,7 @@ Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent 
 
 ### A. Wajib Menggunakan Unified `Request` Bundle
 - **DILARANG KERAS** menggunakan puluhan extractor mentah Axum (`State(state)`, `Path(id)`, `Query(q)`, `Session(s)`, `CsrfToken`, dsb.) pada controller aplikasi.
-- **WAJIB** menggunakan satu parameter tunggal: `req: Request` (dari `lumina::prelude::*`).
+- **WAJIB** menggunakan satu parameter tunggal: `req: Request` (dari `pakem::prelude::*`).
 
 ### B. Standardisasi Return Type
 - **Controller Halaman Web (HTML View)**:
@@ -33,7 +34,7 @@ Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent 
 
         // Bersih, elegan, tanpa tanda '&'
         View::make("dashboard.index")
-            .with("title", "Dashboard — Lumina")
+            .with("title", "Dashboard — Pakem")
             .with("user", user)
             .with("users", users)
             .render(req)
@@ -42,7 +43,7 @@ Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent 
     ```
 
 - **Controller RESTful API (JSON)**:
-  - **WAJIB** mengembalikan `LuminaResult` (alias untuk `Result<Response, AppError>`).
+  - **WAJIB** mengembalikan `PakemResult` (alias untuk `Result<Response, AppError>`, kompatibel dengan `LuminaResult`).
   - **WAJIB** memanfaatkan shortcut helper response bawaan `Request`:
     - `req.ok(data)` ➔ HTTP 200 `{ "success": true, "data": ... }`
     - `req.success(data, "Pesan sukses")` ➔ HTTP 200 `{ "success": true, "message": "...", "data": ... }`
@@ -53,7 +54,7 @@ Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent 
     - `req.unauthorized("Pesan error")` ➔ HTTP 401
   - Contoh:
     ```rust
-    pub async fn api_index(req: Request) -> LuminaResult {
+    pub async fn api_index(req: Request) -> PakemResult {
         let (page, per_page) = req.pagination();
         let paginator = Contact::paginate(req.db(), page, per_page).await?;
         req.paginate(paginator)
@@ -81,7 +82,7 @@ Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent 
 1. **Macro Derivation**:
    Setiap entitas model **WAJIB** menambahkan derive:
    ```rust
-   #[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel)]
+   #[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, PakemModel)]
    #[table("nama_tabel")]
    pub struct User {
        pub id: i64,
@@ -184,9 +185,9 @@ Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent 
 
 1. ❌ **DILARANG** menggunakan `unwrap()` atau `expect()` secara sembarangan di handler yang dapat diakses publik — selalu tangani error dengan operator `?` atau konversikan ke `AppError`.
 2. ❌ **DILARANG** menulis query mentah SQL yang rentan SQL Injection — selalu gunakan query builder bawaan atau prepared statement parametrik (`$1`, `$2` / `?`).
-3. ❌ **DILARANG** mengembalikan boilerplate Axum mentah di Controller pengguna baru. Selalu tunjukkan pola ergonomis `Request` dan `IntoResponse` / `LuminaResult`.
+3. ❌ **DILARANG** mengembalikan boilerplate Axum mentah di Controller pengguna baru. Selalu tunjukkan pola ergonomis `Request` dan `IntoResponse` / `PakemResult`.
 4. ❌ **DILARANG** memasukkan file sementara, log, catatan kerja internal, atau laporan scratch ke git publik — letakkan hanya di `docs/history_pekerjaan/` yang terabaikan oleh `.gitignore`.
 
 ---
 
-*Lumina Framework: Keringat performa Rust di balik keindahan dan kemudahan Laravel.*
+*Pakem Framework: Keringat performa Rust di balik keindahan dan kemudahan Laravel.*

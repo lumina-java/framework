@@ -1,5 +1,5 @@
-use lumina::database::connection::DatabasePool;
-use lumina::prelude::*;
+use pakem::database::connection::DatabasePool;
+use pakem::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::FromRow;

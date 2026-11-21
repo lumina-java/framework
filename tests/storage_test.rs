@@ -1,4 +1,4 @@
-use lumina::core::storage::{LocalStorage, S3Config, S3Storage, Storage, StorageDriver};
+use pakem::core::storage::{LocalStorage, S3Config, S3Storage, Storage, StorageDriver};
 use std::sync::Arc;
 use std::time::Duration;
 

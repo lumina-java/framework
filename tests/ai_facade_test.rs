@@ -1,4 +1,4 @@
-use lumina::prelude::*;
+use pakem::prelude::*;
 
 #[tokio::test]
 async fn test_ai_facade_fluent_gemini() {

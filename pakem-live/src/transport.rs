@@ -12,8 +12,8 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use lumina::prelude::AppState;
-use lumina::core::error::AppError;
+use pakem::prelude::AppState;
+use pakem::core::error::AppError;
 use crate::registry::LiveRegistry;
 use crate::snapshot::{LiveSnapshot, SnapshotManager};
 

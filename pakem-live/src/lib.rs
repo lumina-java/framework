@@ -21,6 +21,6 @@ pub fn init() {
 /// - `GET  /_lumina/live/live.js`
 /// - `POST /_lumina/live/call`
 /// - `GET  /_lumina/live/ws`
-pub fn routes() -> axum::Router<lumina::prelude::AppState> {
+pub fn routes() -> axum::Router<pakem::prelude::AppState> {
     transport::live_routes()
 }

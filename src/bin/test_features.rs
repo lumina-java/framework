@@ -1,6 +1,6 @@
-use lumina::core::resource::{JsonResource, ResourceCollection};
-use lumina::database::connection::DatabaseKind;
-use lumina::database::schema::Schema;
+use pakem::core::resource::{JsonResource, ResourceCollection};
+use pakem::database::connection::DatabaseKind;
+use pakem::database::schema::Schema;
 use serde_json::json;
 
 #[tokio::main]

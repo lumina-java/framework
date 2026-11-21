@@ -1,5 +1,5 @@
-use lumina::database::connection::DatabasePool;
-use lumina::prelude::*;
+use pakem::database::connection::DatabasePool;
+use pakem::prelude::*;
 use std::sync::Arc;
 use uuid::Uuid;
 

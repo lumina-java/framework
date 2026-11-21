@@ -1,18 +1,18 @@
 [package]
-name = "lumina-live"
-version = "1.1.0"
+name = "pakem-live"
+version = "1.0.0"
 edition = "2021"
 authors = ["Slamet Sugandi <packercyber@gmail.com>"]
-description = "Server-Driven Reactive UI for Lumina Framework (inspired by Laravel Livewire & Phoenix LiveView)"
+description = "Server-Driven Reactive UI for Pakem Framework (inspired by Laravel Livewire & Phoenix LiveView)"
 license = "MIT"
-repository = "https://github.com/lumina-java/lumina-live"
-homepage = "https://github.com/lumina-java/lumina-live"
+repository = "https://github.com/pakem-rs/framework"
+homepage = "https://pakem.my.id"
 readme = "README.md"
-keywords = ["lumina", "livewire", "reactive", "server-driven-ui", "fullstack"]
+keywords = ["pakem", "livewire", "reactive", "server-driven-ui", "fullstack"]
 categories = ["web-programming::http-server", "gui"]
 
 [dependencies]
-lumina = { package = "lumina-framework", version = "1.1.0", path = ".." }
+pakem = { package = "pakem", version = "1.0.0", path = ".." }
 axum = { version = "0.7", features = ["macros", "ws"] }
 tokio = { version = "1", features = ["full"] }
 futures = "0.3"

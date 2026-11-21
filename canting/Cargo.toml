@@ -1,14 +1,14 @@
 [package]
-name = "lumina-cli"
-version = "1.1.0"
+name = "canting"
+version = "1.0.0"
 edition = "2021"
 authors = ["Slamet Sugandi <packercyber@gmail.com>"]
-description = "The official Artisan-like CLI toolchain for Lumina Framework"
+description = "The official Artisan-like CLI toolchain for Pakem Framework"
 license = "MIT"
-repository = "https://github.com/lumina-java/lumina-cli"
-homepage = "https://github.com/lumina-java/lumina-cli"
+repository = "https://github.com/pakem-rs/framework"
+homepage = "https://pakem.my.id"
 readme = "README.md"
-keywords = ["lumina", "cli", "artisan", "laravel", "rust"]
+keywords = ["pakem", "canting", "cli", "artisan", "laravel"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
@@ -26,8 +26,8 @@ serde_json = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "any", "postgres", "mysql", "sqlite", "chrono"] }
 rustyline = "14"
-lumina = { path = "..", package = "lumina-framework", version = "1.0.0" }
+pakem = { path = "..", package = "pakem", version = "1.0.0" }
 
 [[bin]]
-name = "lumina"
+name = "canting"
 path = "src/main.rs"

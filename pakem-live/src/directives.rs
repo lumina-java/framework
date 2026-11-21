@@ -1,5 +1,5 @@
 use regex::Regex;
-use lumina::core::blade::{BladeContext, BladeEngine};
+use pakem::core::blade::{BladeContext, BladeEngine};
 use crate::component::parse_blade_args_to_json;
 use crate::registry::LiveRegistry;
 use crate::snapshot::{LiveSnapshot, SnapshotManager};
@@ -10,9 +10,9 @@ pub fn register_live_directives() {
         r#"<script src="/_lumina/live/live.js" defer></script>"#.to_string()
     };
 
-    lumina::core::blade::register_global_directive("kilatScripts", script_handler);
-    lumina::core::blade::register_global_directive("luminaLive", script_handler);
-    lumina::core::blade::register_global_directive("livewireScripts", script_handler);
+    pakem::core::blade::register_global_directive("kilatScripts", script_handler);
+    pakem::core::blade::register_global_directive("luminaLive", script_handler);
+    pakem::core::blade::register_global_directive("livewireScripts", script_handler);
 
     // 2. Component renderer: @kilat('name', args), @live('name', args), @livewire('name', args)
     let comp_handler = |args: &str, engine: &BladeEngine, _ctx: &BladeContext| -> String {
@@ -47,7 +47,7 @@ pub fn register_live_directives() {
         }
     };
 
-    lumina::core::blade::register_global_directive("kilat", comp_handler);
-    lumina::core::blade::register_global_directive("live", comp_handler);
-    lumina::core::blade::register_global_directive("livewire", comp_handler);
+    pakem::core::blade::register_global_directive("kilat", comp_handler);
+    pakem::core::blade::register_global_directive("live", comp_handler);
+    pakem::core::blade::register_global_directive("livewire", comp_handler);
 }

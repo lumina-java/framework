@@ -1,4 +1,4 @@
-use lumina::prelude::*;
+use pakem::prelude::*;
 
 #[test]
 fn test_prelude_financial_types_and_uuid() {

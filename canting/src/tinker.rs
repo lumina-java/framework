@@ -1,6 +1,6 @@
 use colored::*;
-use lumina::database::connection::DatabasePool;
-use lumina::tinker::{Tinker, TinkerResult};
+use pakem::database::connection::DatabasePool;
+use pakem::tinker::{Tinker, TinkerResult};
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 use std::path::Path;
@@ -20,10 +20,10 @@ pub async fn run() {
         match DatabasePool::connect(&db_url).await {
             Ok(p) => {
                 let kind_str = match p.kind {
-                    lumina::database::connection::DatabaseKind::Sqlite => "SQLite",
-                    lumina::database::connection::DatabaseKind::Postgres => "PostgreSQL",
-                    lumina::database::connection::DatabaseKind::MySql => "MySQL",
-                    lumina::database::connection::DatabaseKind::Mssql => "SQL Server",
+                    pakem::database::connection::DatabaseKind::Sqlite => "SQLite",
+                    pakem::database::connection::DatabaseKind::Postgres => "PostgreSQL",
+                    pakem::database::connection::DatabaseKind::MySql => "MySQL",
+                    pakem::database::connection::DatabaseKind::Mssql => "SQL Server",
                 };
                 println!("{} Terhubung ke basis data: {}", "📦 [Database]".green().bold(), kind_str.yellow());
                 Some(Arc::new(p))

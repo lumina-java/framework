@@ -26,7 +26,7 @@ Dokumen ini adalah pedoman mutlak (**Rules & Standards**) bagi seluruh AI Agent 
 
 ### A. Wajib Menggunakan Unified `Request` Bundle
 - ❌ **DILARANG KERAS** menggunakan puluhan extractor mentah Axum (`State(state)`, `Path(id)`, `Query(q)`, `Session(s)`, `CsrfToken`, dsb.) pada controller aplikasi.
-- ✅ **WAJIB** menggunakan satu parameter tunggal: `req: Request` (dari `lumina::prelude::*`).
+- ✅ **WAJIB** menggunakan satu parameter tunggal: `req: Request` (dari `pakem::prelude::*`).
 
 ### B. Standardisasi Return Type
 - **Controller Halaman Web (HTML View)**:
@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS products (
 
 ### Langkah 2: Model (`src/app/models/product.rs`)
 ```rust
-use lumina::prelude::*;
+use pakem::prelude::*;
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone, Default, LuminaModel)]
 #[table("products")]
@@ -197,7 +197,7 @@ pub struct CreateProductRequest {{
 
 ### Langkah 4: Controller 7 RESTful Actions (`src/app/controllers/product_controller.rs`)
 ```rust
-use lumina::prelude::*;
+use pakem::prelude::*;
 use crate::app::models::product::Product;
 use crate::app::requests::product_request::CreateProductRequest;
 
@@ -338,7 +338,7 @@ pub fn generate_cursorrules(app_name: &str) -> String {
 # Philosophy: "Look like Laravel, Run at Rust Speed"
 
 ## Core Controller Rules
-- ALWAYS use a single parameter for controllers: `req: Request` from `lumina::prelude::*`.
+- ALWAYS use a single parameter for controllers: `req: Request` from `pakem::prelude::*`.
 - NEVER use raw Axum extractors (`State(...)`, `Path(...)`, `Query(...)`, `Form(...)`) in application controllers.
 - Web HTML Controllers:
   - Return `impl IntoResponse`.

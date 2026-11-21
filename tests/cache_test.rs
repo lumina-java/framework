@@ -1,4 +1,4 @@
-use lumina::core::cache::{Cache, CacheManager};
+use pakem::core::cache::{Cache, CacheManager};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

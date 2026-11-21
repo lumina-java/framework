@@ -1,0 +1,15 @@
+[package]
+name = "pakem-framework"
+version = "1.0.0"
+edition = "2021"
+authors = ["Slamet Sugandi <packercyber@gmail.com>"]
+description = "A beautiful, fast, and elegant web framework for Rust — Look like Laravel, Run at Rust Speed (Official alias for pakem)"
+license = "MIT"
+repository = "https://github.com/pakem-rs/framework"
+homepage = "https://pakem.my.id"
+readme = "README.md"
+keywords = ["pakem", "framework", "web", "laravel", "rust"]
+categories = ["web-programming::http-server", "network-programming"]
+
+[dependencies]
+pakem = { version = "1.0.0", path = ".." }

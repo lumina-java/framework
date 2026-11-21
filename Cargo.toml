@@ -16,7 +16,7 @@ name = "pakem"
 path = "src/lib.rs"
 
 [workspace]
-members = ["pakem_macros", "canting", "indonesian-script", "pakem-live"]
+members = ["pakem_macros", "canting", "indonesian-script", "pakem-live", "pakem-framework"]
 
 [dependencies]
 pakem_macros = { path = "pakem_macros", version = "1.0.0" }
